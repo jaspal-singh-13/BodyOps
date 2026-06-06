@@ -1,0 +1,110 @@
+/* ===========================================================================
+   BodyOps — Grayscale Wireframe System · Design Tokens
+   Mid-fidelity, engineering-handoff. Mono labels + sans body. No color.
+   =========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root {
+  /* —— Type —— */
+  --sans: 'Hanken Grotesk', -apple-system, system-ui, sans-serif;
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* —— Warm grayscale ramp (no chroma) —— */
+  --paper:        #f4f3f1;   /* app background */
+  --paper-2:      #eeece8;   /* sunken / inset background */
+  --card:         #ffffff;   /* primary surface */
+  --card-2:       #faf9f7;   /* secondary surface */
+  --line:         #e6e4df;   /* hairline */
+  --line-2:       #dad7d0;   /* stronger divider */
+  --line-3:       #c7c3ba;   /* heavy / focus border */
+
+  --ink:          #1d1c1a;   /* primary text / fills */
+  --ink-2:        #514f4a;   /* secondary text */
+  --ink-3:        #87847c;   /* tertiary / placeholder */
+  --ink-4:        #b3afa6;   /* disabled / faint */
+
+  --fill:         #ecebe7;   /* track / inactive bar */
+  --fill-2:       #d8d6cf;   /* mid fill */
+  --fill-ink:     #232220;   /* "primary action" solid */
+
+  /* —— Radius —— */
+  --r-xs: 4px;
+  --r-sm: 7px;
+  --r-md: 11px;
+  --r-lg: 16px;
+  --r-xl: 22px;
+  --r-pill: 999px;
+
+  /* —— Elevation (very restrained for wireframe) —— */
+  --sh-1: 0 1px 2px rgba(28,26,22,0.05);
+  --sh-2: 0 2px 8px rgba(28,26,22,0.06), 0 1px 2px rgba(28,26,22,0.04);
+  --sh-3: 0 12px 32px rgba(28,26,22,0.10), 0 2px 8px rgba(28,26,22,0.05);
+  --sh-pop: 0 18px 50px rgba(28,26,22,0.16);
+
+  /* —— Spacing base —— */
+  --gap: 14px;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  font-family: var(--sans);
+  color: var(--ink);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* —— Reusable utility classes —— */
+.mono {
+  font-family: var(--mono);
+  font-feature-settings: 'tnum' 1, 'cv01' 1;
+}
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* —— Diagonal hatch placeholder (for imagery slots) —— */
+.hatch {
+  background-color: var(--card-2);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent, transparent 6px,
+    rgba(28,26,22,0.055) 6px, rgba(28,26,22,0.055) 7px
+  );
+  border: 1px dashed var(--line-3);
+  display: flex; align-items: center; justify-content: center;
+  text-align: center;
+}
+.hatch .hatch-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: var(--card);
+  border: 1px solid var(--line-2);
+  padding: 3px 7px;
+  border-radius: var(--r-xs);
+}
+
+/* —— Scrollbars inside device frames —— */
+.bo-scroll::-webkit-scrollbar { width: 0; height: 0; }
+.bo-scroll { scrollbar-width: none; }
+
+/* —— Focus ring —— */
+.focusable:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* —— annotation callouts (engineering notes) —— */
+.anno {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+}

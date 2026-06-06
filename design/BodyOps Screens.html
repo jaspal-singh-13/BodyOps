@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>BodyOps — Screen Index</title>
+<link rel="stylesheet" href="app/tokens.css" />
+<style>
+  body { background: var(--paper-2); }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 28px 120px; }
+  .topbar { position: sticky; top: 0; z-index: 50; background: rgba(238,236,232,0.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+  .topbar-inner { max-width: 1240px; margin: 0 auto; padding: 14px 28px; display: flex; align-items: center; gap: 14px; }
+  .sec { padding-top: 48px; }
+  .sec-h { display: flex; align-items: baseline; gap: 12px; border-bottom: 1px solid var(--line-2); padding-bottom: 12px; margin-bottom: 24px; }
+  .sec-t { font-size: 20px; font-weight: 800; letter-spacing: -0.4px; white-space: nowrap; }
+  .sec-s { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); }
+  .row { display: flex; gap: 30px; flex-wrap: wrap; }
+  .item-lbl { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--ink); margin-bottom: 10px; }
+  .item-lbl .n { color: var(--ink-3); font-weight: 600; }
+  a.lnk { text-decoration: none; }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="app/kit.jsx"></script>
+<script type="text/babel" src="app/charts.jsx"></script>
+<script type="text/babel" src="app/data.jsx"></script>
+<script type="text/babel" src="app/mobile-shell.jsx"></script>
+<script type="text/babel" src="app/m-home.jsx"></script>
+<script type="text/babel" src="app/m-meals.jsx"></script>
+<script type="text/babel" src="app/m-weight.jsx"></script>
+<script type="text/babel" src="app/m-workout.jsx"></script>
+<script type="text/babel" src="app/m-coach.jsx"></script>
+<script type="text/babel" src="app/chat-logging.jsx"></script>
+<script type="text/babel" src="app/m-progress.jsx"></script>
+<script type="text/babel" src="app/m-misc.jsx"></script>
+<script type="text/babel" src="app/desktop-shell.jsx"></script>
+<script type="text/babel" src="app/d-dashboard.jsx"></script>
+<script type="text/babel" src="app/d-screens-a.jsx"></script>
+<script type="text/babel" src="app/d-screens-b.jsx"></script>
+<script type="text/babel" src="app/d-onboarding.jsx"></script>
+<script type="text/babel">
+const { useRef, useState, useEffect } = React;
+
+function LazyMount({ label, h, order = 0, children }) {
+  const ref = useRef(null);
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    if (show) return;
+    // Deterministic staggered mount so the gallery always fills, even when the
+    // iframe never reports as intersecting. IO is a fast-path; the timeout guarantees it.
+    const t = setTimeout(() => setShow(true), 150 + order * 90);
+    let io;
+    const el = ref.current;
+    if (el && 'IntersectionObserver' in window) {
+      io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { setShow(true); io.disconnect(); } }, { rootMargin: '600px' });
+      io.observe(el);
+    }
+    return () => { clearTimeout(t); if (io) io.disconnect(); };
+  }, [show, order]);
+  return <div ref={ref} style={{ width: '100%', height: '100%' }}>{show ? children :
+    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--card-2)' }}>
+      <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ink-4)' }}>{label}</span></div>}</div>;
+}
+
+function Phone({ s, label, idx, order }) {
+  return (
+    <div>
+      <div className="item-lbl"><span className="n">{idx}</span> &nbsp;{label}</div>
+      <div style={{ width: 390, height: 844, background: 'var(--paper)', borderRadius: 30, overflow: 'hidden', border: '1px solid var(--line-2)', display: 'flex', flexDirection: 'column', boxShadow: 'var(--sh-2)' }}>
+        <PhoneStatusBar dark={s === 'celebrate'} />
+        <LazyMount label={label} h={800} order={order}><MobileApp initial={s} /></LazyMount>
+      </div>
+    </div>
+  );
+}
+
+function DeskThumb({ s, onb, label, idx, order, w = 1080 }) {
+  const scale = w / 1280;
+  return (
+    <div style={{ width: w }}>
+      <div className="item-lbl"><span className="n">{idx}</span> &nbsp;{label}</div>
+      <div style={{ width: w, height: 800 * scale, overflow: 'hidden', borderRadius: 12, border: '1px solid var(--line-2)', boxShadow: 'var(--sh-2)', background: 'var(--card)' }}>
+        <div style={{ width: 1280, height: 800, transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+          <LazyMount label={label} h={800} order={order}>{onb ? <OnboardingDesktop D={window.DATA} /> : <DesktopApp initial={s} />}</LazyMount>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const M = (label, screen) => ({ label, screen });
+const SECTIONS = [
+  { id: 'onb', t: 'Mobile · Onboarding', s: '7-step first-run flow', boards: [M('Onboarding · welcome / 7', 'onboarding')] },
+  { id: 'core', t: 'Mobile · Home & Missions', s: 'Daily command center + execution', boards: [M('Home dashboard', 'home'), M('Daily missions', 'missions')] },
+  { id: 'meals', t: 'Mobile · Meal logging', s: 'Camera → AI analysis → review → confirm → detail', boards: [M('Meal history', 'meals'), M('Camera capture', 'meal-camera'), M('AI analyzing', 'meal-analyzing'), M('AI analysis & review', 'meal-analysis'), M('Meal detail', 'meal-detail')] },
+  { id: 'weight', t: 'Mobile · Weight', s: 'Trend, averages, keypad entry', boards: [M('Weight history & trend', 'weight'), M('Weight entry', 'weight-entry')] },
+  { id: 'workout', t: 'Mobile · Workout', s: 'Plan → active session → exercise detail → summary', boards: [M('Workout plan', 'workout'), M('Active session', 'workout-active'), M('Exercise detail', 'exercise-detail'), M('Workout summary', 'workout-summary')] },
+  { id: 'coach', t: 'Mobile · Coach', s: 'Summary cards + conversational', boards: [M('Coach summary', 'coach'), M('Coach chat', 'coach-chat')] },
+  { id: 'prog', t: 'Mobile · Progress', s: 'Analytics hub (week / month / 6-month)', boards: [M('Progress analytics', 'progress')] },
+  { id: 'sys', t: 'Mobile · System & States', s: 'Reminders, settings, empty + success', boards: [M('Reminders center', 'reminders'), M('Settings', 'settings'), M('Empty · no meals', 'empty-meals'), M('Success · milestone', 'celebrate')] },
+];
+const DESK = [
+  { label: 'Onboarding wizard', onb: true }, { label: 'Dashboard', screen: 'dashboard' },
+  { label: 'Meals', screen: 'd-meals' }, { label: 'Weight', screen: 'd-weight' },
+  { label: 'Workouts', screen: 'd-workouts' }, { label: 'Progress', screen: 'd-progress' },
+  { label: 'Coach', screen: 'd-coach' }, { label: 'Settings', screen: 'd-settings' },
+];
+
+function Index() {
+  let n = 0;
+  return (
+    <>
+      <div className="topbar"><div className="topbar-inner">
+        <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--fill-ink)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Icon name="bolt" size={16} color="#fff" /></div>
+        <div style={{ fontSize: 15, fontWeight: 800, letterSpacing: -0.3 }}>BodyOps · Screen Index</div>
+        <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ink-3)' }}>30 screens · grayscale wireframe</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <a className="lnk" href="BodyOps Prototype.html"><Btn size="sm" variant="secondary" icon="play">Prototype</Btn></a>
+          <a className="lnk" href="BodyOps Foundations.html"><Btn size="sm" variant="secondary" icon="info">Foundations</Btn></a>
+        </div>
+      </div></div>
+      <div className="wrap">
+        {SECTIONS.map(sec => (
+          <section className="sec" key={sec.id}>
+            <div className="sec-h"><span className="sec-t">{sec.t}</span><span className="sec-s">{sec.s}</span></div>
+            <div className="row">{sec.boards.map(b => { n++; return <Phone key={b.screen} s={b.screen} label={b.label} idx={String(n).padStart(2, '0')} order={n} />; })}</div>
+          </section>
+        ))}
+        <section className="sec">
+          <div className="sec-h"><span className="sec-t">Desktop · Web app</span><span className="sec-s">Sidebar IA — Dashboard, Meals, Weight, Workouts, Progress, Coach, Settings + onboarding</span></div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 34 }}>{DESK.map(b => { n++; return <DeskThumb key={b.label} s={b.screen} onb={b.onb} label={b.label} idx={String(n).padStart(2, '0')} order={n} />; })}</div>
+        </section>
+        <div style={{ textAlign: 'center', fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--ink-4)', marginTop: 60 }}>BodyOps · every screen · grayscale, no color committed yet</div>
+      </div>
+    </>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<Index />);
+</script>
+</body>
+</html>
