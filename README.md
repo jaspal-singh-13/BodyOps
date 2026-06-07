@@ -1,3 +1,13 @@
+---
+title: BodyOps API
+emoji: 💪
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # BodyOps
 
 Personal fitness tracker with AI coaching. Log weight, meals (via phone camera), and workouts. Get daily coaching summaries and progress analytics.
@@ -190,19 +200,29 @@ Quick version:
 
 **Backend → Hugging Face Spaces**
 ```bash
-# Add HF Space as a remote (create the Space on huggingface.co first)
-git remote add hf https://huggingface.co/spaces/<username>/bodyops-api
-# Set secrets in HF Space Settings → Variables and secrets
-# Deploy:
-git subtree push --prefix=api hf main
+# 1. Create a write-access token at huggingface.co/settings/tokens
+# 2. Add the Space as a remote (include your token for authentication)
+git remote add hf https://<username>:<token>@huggingface.co/spaces/<username>/bodyops-api
+# 3. Set all env vars in HF Space → Settings → Variables and secrets
+# 4. Deploy (--force needed on first push because HF creates an initial commit)
+git push hf <your-branch>:main --force
+# Subsequent deploys:
+git push hf <your-branch>:main
 ```
 
 **Frontend → Vercel**
 ```bash
+npm install -g vercel   # install CLI once
+vercel login            # authenticate in browser
+
 cd frontend
-vercel
-vercel env add NEXT_PUBLIC_API_URL production   # set to your HF Spaces URL
-vercel --prod
+vercel                  # first deploy (preview) — answer prompts: new project, name "bodyops"
+
+# Set the backend URL (replace with your actual HF username):
+vercel env add NEXT_PUBLIC_API_URL production
+# When prompted for value, enter: https://<your-hf-username>-bodyops-api.hf.space
+
+vercel --prod           # production deploy
 ```
 
 ---
