@@ -22,4 +22,5 @@ jobs:
           git config user.email "github-actions@github.com"
           git config user.name "GitHub Actions"
           git remote add hf https://jaspalLEARNING:${HF_TOKEN}@huggingface.co/spaces/jaspalLEARNING/bodyops-api
-          git subtree push --prefix=api hf main
+          git subtree split --prefix=api --branch api-deploy
+          git push hf api-deploy:main --force
