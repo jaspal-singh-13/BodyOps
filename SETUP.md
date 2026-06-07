@@ -132,7 +132,7 @@ GOOGLE_SPREADSHEET_ID=<ID from step 5>
 2. **Do NOT share this with the service account**
 3. In cell A1 type: `email`
 4. In cell B1 type: `password`
-5. In cell A2 type: your login email (e.g. `jaspal@example.com`)
+5. In cell A2 type: your login email (e.g. `username@example.com`)
 6. In cell B2 type: your chosen password (plain text)
 7. Copy the spreadsheet ID from the URL
 
@@ -270,24 +270,43 @@ In the Space page → **Settings** → **Variables and secrets** → **New secre
 | `JWT_ALGORITHM` | HS256 |
 | `JWT_EXPIRE_MINUTES` | 10080 |
 
-### Deploy
+### Get a Hugging Face access token
 
-HF Spaces deploys via git push. Add the Space as a remote and push the `api/` folder:
+HF no longer accepts password authentication over git. You need a write-access token.
+
+1. Go to [huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
+2. Click **New token** → select **Write** → copy the token
+
+### Add the Space as a git remote
 
 ```bash
-# Replace <username> with your Hugging Face username
-git remote add hf https://huggingface.co/spaces/<username>/bodyops-api
-
-# Push api/ as the Space root
-git subtree push --prefix=api hf main
+# Replace <username> with your HF username and <token> with your access token
+git remote add hf https://<username>:<token>@huggingface.co/spaces/<username>/bodyops-api
 ```
 
-HF will build the Docker image and start the container. Watch progress in the Space's **Logs** tab.
+> If you already added the remote without the token, update it:
+> ```bash
+> git remote set-url hf https://<username>:<token>@huggingface.co/spaces/<username>/bodyops-api
+> ```
+
+### Deploy
+
+```bash
+# First deploy — needs --force because HF creates an initial commit when the Space is created
+git push hf <your-branch>:main --force
+
+# Subsequent deploys (no --force needed)
+git push hf <your-branch>:main
+```
+
+HF will build the Docker image and start the container. Watch progress in the Space's **Logs** tab (takes ~2 min).
 
 Verify once the build is green:
 ```bash
 curl https://<username>-bodyops-api.hf.space/health
 ```
+
+Expected response: `{"ok":true,"sheets":true,"drive":true}`
 
 > **Note:** Free tier Spaces sleep after ~48h of inactivity and take ~30s to wake on first request. Fine for a personal app you use daily.
 
@@ -295,25 +314,58 @@ curl https://<username>-bodyops-api.hf.space/health
 
 ## Step 8 — Deploy Frontend to Vercel
 
+### Install the Vercel CLI (if not already installed)
+
+```bash
+npm install -g vercel
+vercel login
+```
+
+`vercel login` opens a browser — authenticate with your Vercel account.
+
+### First deploy
+
 ```bash
 cd frontend
 vercel
 ```
 
-When prompted:
-- Link to existing project? **No** → create new
-- Project name: `bodyops`
-- Framework: **Next.js** (auto-detected)
-- Root directory: `./` (you're already in `frontend/`)
+When prompted, answer:
 
-After first deploy, set the environment variable in Vercel:
+| Prompt | Answer |
+|--------|--------|
+| Set up and deploy? | `Y` |
+| Which scope? | your Vercel account |
+| Link to existing project? | `N` — create new |
+| Project name | `bodyops` |
+| In which directory is your code? | `./` (just press Enter) |
+| Want to modify settings? | `N` |
+
+This does a **preview deploy** to confirm everything builds correctly.
+
+### Set the backend URL environment variable
+
+Your frontend needs to know where the backend API lives. Run:
 
 ```bash
 vercel env add NEXT_PUBLIC_API_URL production
-# enter value: https://<username>-bodyops-api.hf.space
 ```
 
-Then redeploy to pick up the env var:
+When it asks for the value, paste your Hugging Face Spaces URL in this format:
+
+```
+https://<your-hf-username>-bodyops-api.hf.space
+```
+
+For example, if your HF username is `huggingfaceuser`:
+```
+https://huggingfaceuser-bodyops-api.hf.space
+```
+
+> This URL only works after you've completed Step 7 and the HF Space build is green. You can verify it by opening `https://<your-hf-username>-bodyops-api.hf.space/health` in your browser — it should return `{"ok":true,...}`.
+
+### Deploy to production
+
 ```bash
 vercel --prod
 ```
@@ -357,7 +409,7 @@ git subtree push --prefix=api hf main
 - [ ] `npm run dev` starts locally → login works with Auth Sheet credentials
 - [ ] HF Spaces build succeeded → `https://<username>-bodyops-api.hf.space/health` returns ok
 - [ ] `vercel --prod` succeeded → login works on production URL
-- [ ] CORS updated for production Vercel URL and redeployed (`git subtree push --prefix=api hf main`)
+- [ ] CORS updated for production Vercel URL and redeployed (`git push hf <branch>:main`)
 
 ---
 
@@ -368,7 +420,8 @@ git subtree push --prefix=api hf main
 | Run backend locally | `uvicorn api.main:app --reload --port 8000` |
 | Run frontend locally | `cd frontend && npm run dev` |
 | Re-run sheet setup | `python scripts/setup.py` |
-| Deploy backend | `git subtree push --prefix=api hf main` |
+| Deploy backend (first time) | `git push hf <branch>:main --force` |
+| Deploy backend (subsequent) | `git push hf <branch>:main` |
 | Deploy frontend | `cd frontend && vercel --prod` |
 | View backend logs | HF Spaces → Logs tab |
 | Update a secret | HF Spaces → Settings → Variables and secrets |
