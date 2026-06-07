@@ -1,15 +1,28 @@
+/**
+ * Root HTML layout — applies global fonts and sets the document shell.
+ *
+ * All pages share this layout. Two Google Fonts are loaded via next/font:
+ *   - Hanken Grotesk → `--font-sans` (body text, headings)
+ *   - JetBrains Mono → `--font-geist-mono` (mono chip labels, tool events)
+ *
+ * Both are CSS variables so Tailwind's `font-sans` / `font-mono` utilities
+ * resolve to these values via `tailwind.config.ts`.
+ */
+
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const hankenGrotesk = Hanken_Grotesk({
+  variable: "--font-sans",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
-const geistMono = Geist_Mono({
+const jetbrainsMono = JetBrains_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
@@ -25,7 +38,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${hankenGrotesk.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">{children}</body>
     </html>

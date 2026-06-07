@@ -1,4 +1,18 @@
-"""Low-level gspread helpers used by all services."""
+"""
+Low-level gspread helpers used by all services.
+
+All operations target the Main Data Sheet via ``get_main_sheet()``.
+Row ordering follows the Google Sheets convention: row 1 is the header row,
+row 2 is the first data row. All row indices in this module are 1-based.
+
+Functions:
+    read_rows   — return all records from a tab as a list of dicts.
+    append_row  — append a new row in header-column order.
+    update_row  — overwrite an existing row by 1-based row index.
+    find_row    — find the first row matching a column/value filter.
+    _col_letter — convert a 1-based column number to a spreadsheet letter.
+"""
+
 from typing import Any
 
 import gspread
@@ -7,14 +21,52 @@ from .sheets_client import get_main_sheet
 
 
 def _tab(name: str) -> gspread.Worksheet:
+    """
+    Return the worksheet with the given tab name from the Main Data Sheet.
+
+    Args:
+        name: Tab name as it appears in the spreadsheet (e.g. ``"WeightLogs"``).
+
+    Returns:
+        ``gspread.Worksheet`` for the tab.
+
+    Raises:
+        gspread.exceptions.WorksheetNotFound: If no tab with that name exists.
+    """
     return get_main_sheet().worksheet(name)
 
 
 def read_rows(tab: str) -> list[dict[str, Any]]:
+    """
+    Return all data rows from a tab as a list of header-keyed dicts.
+
+    Delegates to ``gspread.Worksheet.get_all_records()`` which uses row 1
+    as the key names and returns rows 2+ as dicts.
+
+    Args:
+        tab: Tab name (e.g. ``"WeightLogs"``).
+
+    Returns:
+        List of dicts, one per data row. Empty list if no data rows exist.
+
+    Raises:
+        gspread.exceptions.WorksheetNotFound: If the tab does not exist.
+    """
     return _tab(tab).get_all_records()
 
 
 def append_row(tab: str, row: dict[str, Any]) -> None:
+    """
+    Append a new row to a tab, writing values in header-column order.
+
+    Reads the current header row (row 1) to determine column order. Keys in
+    ``row`` that don't match any header are silently ignored. Missing keys
+    result in an empty string in the corresponding cell.
+
+    Args:
+        tab: Tab name (e.g. ``"WeightLogs"``).
+        row: Dict mapping column header names to values.
+    """
     ws = _tab(tab)
     headers = ws.row_values(1)
     values = [row.get(h, "") for h in headers]
@@ -22,7 +74,17 @@ def append_row(tab: str, row: dict[str, Any]) -> None:
 
 
 def update_row(tab: str, row_index: int, row: dict[str, Any]) -> None:
-    """row_index is 1-based (row 1 = headers, row 2 = first data row)."""
+    """
+    Overwrite an existing row by 1-based row index.
+
+    Row 1 is the header row, so the first data row is row 2. Values are
+    written in header-column order; missing keys produce empty strings.
+
+    Args:
+        tab: Tab name (e.g. ``"WeightLogs"``).
+        row_index: 1-based row number to update (row 2 = first data row).
+        row: Dict mapping column header names to new values.
+    """
     ws = _tab(tab)
     headers = ws.row_values(1)
     values = [row.get(h, "") for h in headers]
@@ -30,19 +92,43 @@ def update_row(tab: str, row_index: int, row: dict[str, Any]) -> None:
 
 
 def find_row(tab: str, column: str, value: str) -> tuple[int, dict[str, Any]] | None:
-    """Return (row_index, record) for the first matching row, or None."""
+    """
+    Return the first row matching a column/value filter.
+
+    Both the stored value and ``value`` are cast to ``str`` before comparison
+    so numeric sheet values (e.g. ``user_id``) match string queries.
+
+    Args:
+        tab: Tab name (e.g. ``"Settings"``).
+        column: Header name of the column to search (e.g. ``"user_id"``).
+        value: Value to match (compared as strings).
+
+    Returns:
+        ``(row_index, record)`` tuple where ``row_index`` is 1-based, or
+        ``None`` if no matching row is found.
+    """
     ws = _tab(tab)
     records = ws.get_all_records()
     headers = ws.row_values(1)
-    col_idx = headers.index(column) + 1  # 1-based
+    col_idx = headers.index(column) + 1  # 1-based, used for future optimisation
     for i, record in enumerate(records):
         if str(record.get(column, "")) == str(value):
-            return i + 2, record  # +2: skip header row, convert to 1-based
+            return i + 2, record  # +2: skip header row and convert to 1-based
     return None
 
 
 def _col_letter(n: int) -> str:
-    """Convert column number to letter (1→A, 26→Z, 27→AA)."""
+    """
+    Convert a 1-based column number to a spreadsheet column letter.
+
+    Examples: 1 → ``"A"``, 26 → ``"Z"``, 27 → ``"AA"``, 28 → ``"AB"``.
+
+    Args:
+        n: Column number (1-based).
+
+    Returns:
+        Column letter string.
+    """
     result = ""
     while n:
         n, remainder = divmod(n - 1, 26)

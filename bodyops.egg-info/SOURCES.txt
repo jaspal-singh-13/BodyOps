@@ -8,3 +8,5 @@ bodyops.egg-info/top_level.txt
 tests/test_auth.py
 tests/test_settings.py
 tests/test_sheets_repo.py
+tests/test_weight_router.py
+tests/test_weight_service.py

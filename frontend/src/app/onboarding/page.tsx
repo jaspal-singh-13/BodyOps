@@ -1,3 +1,17 @@
+/**
+ * 3-step onboarding wizard — collects user profile, targets, and preferences,
+ * then saves them via `POST /settings` and redirects to `/app`.
+ *
+ * Step 1 — Profile: name, sex, current weight, goal weight, height, age, start date
+ * Step 2 — Targets: daily calorie and protein targets (auto-calculated, editable)
+ * Step 3 — Schedule: wake-up time for daily mission notifications
+ *
+ * `calcTargets` derives default values using:
+ *   Mifflin-St Jeor BMR  = 10w + 6.25h − 5a + (5 for male | −161 for female)
+ *   Calorie target       = BMR × 1.55 (moderate activity) − 500 kcal (deficit)
+ *   Protein target       = body_weight_kg × 1.8 g
+ */
+
 "use client";
 
 import { useState } from "react";
@@ -23,10 +37,18 @@ interface Step3 {
   wake_up_time: string;
 }
 
+/**
+ * Calculate calorie and protein targets from Step 1 profile data.
+ *
+ * Uses Mifflin-St Jeor BMR with a 1.55 moderate-activity multiplier and a
+ * 500 kcal deficit for fat loss. Protein is set to 1.8 g per kg of body weight,
+ * which is at the high end for muscle retention during a cut.
+ */
 function calcTargets(s1: Step1): { calories: number; protein: number } {
   const w = parseFloat(s1.current_weight_kg) || 0;
   const h = parseFloat(s1.height_cm) || 0;
   const a = parseInt(s1.age) || 0;
+  // Sex offset from Mifflin-St Jeor: +5 for male, −161 for female
   const offset = s1.sex === "male" ? 5 : -161;
   const bmr = 10 * w + 6.25 * h - 5 * a + offset;
   const calories = Math.round(bmr * 1.55 - 500);
@@ -59,6 +81,7 @@ export default function OnboardingPage() {
 
   const [step3, setStep3] = useState<Step3>({ wake_up_time: "07:00" });
 
+  /** Pre-populate Step 2 targets from the Step 1 profile before advancing. */
   function goToStep2() {
     const { calories, protein } = calcTargets(step1);
     setStep2({
@@ -97,6 +120,7 @@ export default function OnboardingPage() {
   return (
     <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-2xl border border-zinc-100 shadow-sm p-8">
+        {/* Progress indicator — filled segments show completed steps */}
         <div className="flex items-center gap-2 mb-6">
           {[1, 2, 3].map((n) => (
             <div
@@ -297,6 +321,7 @@ export default function OnboardingPage() {
   );
 }
 
+/** Labelled form field wrapper. */
 function Field({
   label,
   children,

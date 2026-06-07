@@ -249,30 +249,36 @@ User can log daily weight, view history, and see their trend.
 ### TODOs
 
 **API**
-- [ ] `POST /api/weight` — validate body `{ date, weight_kg }`, append to `WeightLogs` sheet, return saved record
-- [ ] `GET /api/weight/history` — return last 90 days of entries sorted descending
-- [ ] `GET /api/weight/trend` — compute 7-day moving average, total loss, projected goal date (linear regression on last 14 days)
+- [x] `POST /api/weight` — validate body `{ date, weight_kg }`, append to `WeightLogs` sheet, return saved record
+- [x] `GET /api/weight/history` — return last 90 days of entries sorted descending
+- [x] `GET /api/weight/trend` — compute 7-day moving average, total loss, projected goal date (linear regression on last 14 days)
 
 **UI — Weight Page (`/app/weight`)**
-- [ ] Weight log form: date picker (default today), numeric weight input, submit button
-- [ ] Show today's entry if already logged (edit mode vs add mode)
-- [ ] Weight history list: date, weight, change from previous
-- [ ] 30-day line chart (Recharts): raw weight + 7-day moving average overlay
-- [ ] Stats row: current, goal, remaining, projected date
-- [ ] Empty state: "Log your first weight to start tracking your trend"
+- [x] Weight log form: date picker (default today), numeric weight input, submit button
+- [x] Show today's entry if already logged (edit mode vs add mode)
+- [x] Weight history list: date, weight, change from previous
+- [x] 30-day line chart (Recharts): raw weight + 7-day moving average overlay
+- [x] Stats row: current, goal, remaining, projected date
+- [x] Empty state: "Log your first weight to start tracking your trend"
 
 **Dashboard integration**
-- [ ] Dashboard shows current weight, goal weight, weight remaining
-- [ ] Dashboard shows projected goal date
+- [x] Dashboard shows current weight, goal weight, weight remaining
+- [x] Dashboard shows projected goal date
+
+**Agent Tools (`agent/tools.py`)**
+- [x] `log_weight(date, weight_kg)` — calls weight service, streams `tool_call` + `tool_result` events
+- [x] `get_weight_trend()` — returns moving average + projected goal date, streams events
 
 ### Acceptance Criteria
 
-- [ ] Logging weight appends a row to `WeightLogs` sheet
-- [ ] Logging the same date twice updates (not duplicates) the existing entry
-- [ ] History shows entries sorted newest first
-- [ ] Chart renders 7-day moving average correctly
-- [ ] Projected date uses linear regression on last 14 weigh-ins (or all entries if fewer than 14)
-- [ ] Empty state renders when no entries exist
+- [x] Logging weight appends a row to `WeightLogs` sheet
+- [x] Logging the same date twice updates (not duplicates) the existing entry
+- [x] History shows entries sorted newest first
+- [x] Chart renders 7-day moving average correctly
+- [x] Projected date uses linear regression on last 14 weigh-ins (or all entries if fewer than 14)
+- [x] Empty state renders when no entries exist
+- [x] Agent can log weight via chat ("I just weighed 85 kg") and it appears in WeightLogs
+- [x] Agent can retrieve trend and give data-informed coaching response
 
 ---
 
@@ -307,10 +313,10 @@ User can import a workout plan by pasting text, see today's workout, log sets, a
 - [ ] If last set was below lower range: suggest -2.5 kg
 - [ ] No prior data: return `null` suggestion (show "first session" state)
 
-**Agent — Workout Import (`/api/agent/import-workout`)**
-- [ ] Accept natural-language paste
-- [ ] Call parser, return structured confirmation
-- [ ] If parser fails, return specific lines that failed with guidance
+**Agent Tools (`agent/tools.py`)**
+- [ ] `get_today_workout()` — returns today's day name, exercise list with suggested weights and rep targets
+- [ ] `log_workout_set(exercise, weight_kg, reps)` — logs a single set, returns confirmation with progressive overload feedback
+- [ ] `get_progression_target(exercise)` — returns suggested weight + reps for next session based on last performance
 
 **UI — Workouts Page (`/app/workouts`)**
 - [ ] Import tab: textarea for pasting plan + schedule, submit, show confirmation card
@@ -329,6 +335,9 @@ User can import a workout plan by pasting text, see today's workout, log sets, a
 - [ ] Logging a set persists to `WorkoutSets` sheet
 - [ ] Progressive overload suggestion is correct for hit/miss/new scenarios
 - [ ] Confirmation card shows: program name, workout days count, rest days count, total exercises
+- [ ] Agent can tell the user what workout to do today via chat
+- [ ] Agent can log a workout set via chat ("bench press 70 kg × 8") and it appears in WorkoutSets
+- [ ] Agent returns next-session suggestion after logging a set
 
 ---
 
@@ -355,6 +364,11 @@ User can photograph a meal, get AI-estimated calories and macros, confirm, and s
 - [ ] `GET /api/meals/today` — return all meals for today with totals
 - [ ] `GET /api/meals/history` — return meal list for last 30 days
 
+**Agent Tools (`agent/tools.py`)**
+- [ ] `get_daily_nutrition()` — returns today's consumed calories + macros vs targets from settings
+- [ ] `save_meal(meal_type, items)` — saves a confirmed meal to Meals + MealItems sheets, returns daily totals
+- [ ] `analyze_meal_photo(image_url)` — runs vision analysis on a Drive-hosted image, returns macro breakdown (future: triggered after user shares image)
+
 **UI — Meals Page (`/app/meals`)**
 - [ ] Camera button: triggers file input (accept image/*, capture=camera on mobile)
 - [ ] After capture: show preview + spinner while analyzing
@@ -379,6 +393,8 @@ User can photograph a meal, get AI-estimated calories and macros, confirm, and s
 - [ ] `GET /api/meals/today` correctly sums all meals logged today
 - [ ] Editing a meal item before confirming updates totals in real time
 - [ ] Calories and protein appear on dashboard after logging
+- [ ] Agent can report today's nutrition status via chat ("how are my macros?")
+- [ ] Agent can save a meal via chat ("had chicken, rice, broccoli for lunch")
 
 ---
 
@@ -424,6 +440,10 @@ User sees a daily checklist. System sends browser notifications as reminders.
 - [ ] Mission progress ring: X of Y complete
 - [ ] Task checklist widget (collapsed by default, expandable)
 
+**Agent Tools (`agent/tools.py`)**
+- [ ] `get_task_status()` — returns today's mission list with name, completed flag, and completion timestamp
+- [ ] `complete_task(task_id)` — marks a mission as complete, returns updated status summary
+
 ### Acceptance Criteria
 
 - [ ] `generateDailyTasks` called twice for the same date produces the same rows (idempotent)
@@ -432,6 +452,8 @@ User sees a daily checklist. System sends browser notifications as reminders.
 - [ ] Completing all missions shows 100% on dashboard
 - [ ] Browser notification fires at configured time (requires granted permission)
 - [ ] Reminder settings persist across page reloads
+- [ ] Agent can tell the user their mission progress via chat ("what are my tasks today?")
+- [ ] Agent can mark a mission complete via chat ("I drank 2L of water today")
 
 ---
 
@@ -458,6 +480,10 @@ User sees a daily coaching summary and progress charts across all tracked metric
 **Progress Analytics**
 - [ ] `GET /api/progress/summary` — return: weight trend, calorie avg (7d), protein avg (7d), workout sessions (30d), mission completion rate (30d), projected goal date
 
+**Agent Tools (`agent/tools.py`)**
+- [ ] `generate_daily_coaching()` — gathers today's data (weight, nutrition, workout, missions), calls OpenAI, returns structured coaching summary; uses cached result if already generated today
+- [ ] `generate_weekly_review()` — returns review covering Mon–Sun of current week, cached per week
+
 **UI — Coach Page (`/app/coach`)**
 - [ ] Daily summary card: wins list, focus list, next step
 - [ ] Weekly review card (collapsible)
@@ -478,6 +504,8 @@ User sees a daily coaching summary and progress charts across all tracked metric
 - [ ] Progress charts render with correct data
 - [ ] Empty coach state shows "Complete some missions to unlock your first coaching summary"
 - [ ] Refresh rate limit: returns cached result if last generate was under 1 hour ago
+- [ ] Agent can generate and deliver a daily coaching summary via chat ("give me my coaching summary")
+- [ ] Agent can deliver the weekly review via chat ("how was my week?")
 
 ---
 
@@ -526,15 +554,15 @@ App is installable, fast, and production-ready.
 
 ## Agent Chat Feature (Cross-Phase)
 
-The `POST /agent/chat` endpoint and `/app/coach` chat UI are built incrementally as tools are added per phase.
+The `POST /agent/chat` SSE endpoint and "Chat to log" drawer UI are shared infrastructure built once (✅ done in Phase 2). Each subsequent phase extends `agent/tools.py` with new tools — tracked in the **Agent Tools** section of each phase above.
 
-| Phase | Tools Added |
-|-------|-------------|
-| Phase 2 | `log_weight`, `get_weight_trend` |
-| Phase 3 | `get_today_workout`, `log_workout_set`, `get_progression_target` |
-| Phase 4 | `analyze_meal_photo`, `save_meal`, `get_daily_nutrition` |
-| Phase 5 | `get_task_status`, `complete_task` |
-| Phase 6 | `generate_daily_coaching`, `generate_weekly_review` |
+| Phase | Tools | Status |
+|-------|-------|--------|
+| Phase 2 | `log_weight`, `get_weight_trend` | ✅ done |
+| Phase 3 | `get_today_workout`, `log_workout_set`, `get_progression_target` | ⬜ pending |
+| Phase 4 | `get_daily_nutrition`, `save_meal`, `analyze_meal_photo` | ⬜ pending |
+| Phase 5 | `get_task_status`, `complete_task` | ⬜ pending |
+| Phase 6 | `generate_daily_coaching`, `generate_weekly_review` | ⬜ pending |
 
 ### Pydantic AI Implementation Pattern
 

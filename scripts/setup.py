@@ -1,4 +1,19 @@
-"""Bootstrap all Google Sheet tabs. Safe to run multiple times - idempotent."""
+"""
+Bootstrap all Google Sheet tabs. Safe to run multiple times — idempotent.
+
+What it does:
+    1. Validates all required env vars; exits with code 1 if any are missing.
+    2. Authenticates with the service account from ``GOOGLE_SERVICE_ACCOUNT_JSON``.
+    3. Opens the Main Data Sheet and creates any missing tabs with correct headers.
+    4. Opens the Chat History Sheet and creates the ``ChatHistory`` tab if missing.
+    5. Prints a checklist: ``[OK] <tab> (exists)`` or ``[OK] <tab> (created)``.
+
+Auth Sheet is NOT touched — the owner manages it manually in Google Sheets.
+
+Usage:
+    python scripts/setup.py
+"""
+
 import json
 import os
 import sys
@@ -22,6 +37,7 @@ REQUIRED_VARS = [
     "JWT_SECRET",
 ]
 
+# Tab name → ordered list of header columns
 MAIN_SHEET_TABS: dict[str, list[str]] = {
     "WeightLogs": ["user_id", "id", "date", "weight_kg", "logged_at"],
     "Meals": ["user_id", "id", "date", "meal_type", "photo_url", "total_calories", "total_protein_g", "total_carbs_g", "total_fat_g", "logged_at"],
@@ -45,11 +61,18 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive",
 ]
 
+# Status prefix strings used in console output
 OK = "[OK]"
 FAIL = "[FAIL]"
 
 
 def validate_env() -> None:
+    """
+    Check all required env vars are present; exit with code 1 if any are missing.
+
+    Prints a list of missing variables and exits so the user knows exactly
+    what to set before re-running.
+    """
     missing = [v for v in REQUIRED_VARS if not os.environ.get(v)]
     if missing:
         print(f"{FAIL} Missing required environment variables:")
@@ -60,12 +83,34 @@ def validate_env() -> None:
 
 
 def get_client() -> gspread.Client:
+    """
+    Build and return an authenticated gspread client.
+
+    Reads ``GOOGLE_SERVICE_ACCOUNT_JSON`` from the environment and parses it.
+
+    Returns:
+        Authorised ``gspread.Client``.
+
+    Raises:
+        Exception: If authentication fails (prints error and caller exits).
+    """
     creds_dict = json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT_JSON"])
     creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
     return gspread.authorize(creds)
 
 
 def ensure_tabs(spreadsheet: gspread.Spreadsheet, tabs: dict[str, list[str]]) -> None:
+    """
+    Create missing tabs in a spreadsheet and write their header rows.
+
+    Already-existing tabs are left untouched (headers are not modified).
+    Each new worksheet is created with 1000 rows and the appropriate number
+    of columns.
+
+    Args:
+        spreadsheet: Opened ``gspread.Spreadsheet`` to modify.
+        tabs: Dict mapping tab name to ordered list of column header strings.
+    """
     existing = {ws.title for ws in spreadsheet.worksheets()}
     for tab_name, headers in tabs.items():
         if tab_name in existing:
@@ -77,6 +122,12 @@ def ensure_tabs(spreadsheet: gspread.Spreadsheet, tabs: dict[str, list[str]]) ->
 
 
 def main() -> None:
+    """
+    Entry point: validate env, connect to Sheets, and bootstrap all tabs.
+
+    Exits with code 1 on any unrecoverable error (missing env vars or failed
+    Sheets connection).
+    """
     print("=== BodyOps Sheet Bootstrap ===\n")
 
     validate_env()
