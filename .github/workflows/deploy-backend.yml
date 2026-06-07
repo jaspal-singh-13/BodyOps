@@ -1,0 +1,25 @@
+name: Deploy backend to HF Spaces
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "api/**"
+      - "pyproject.toml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push api/ to HF Spaces
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          git config user.email "github-actions@github.com"
+          git config user.name "GitHub Actions"
+          git remote add hf https://jaspalLEARNING:${HF_TOKEN}@huggingface.co/spaces/jaspalLEARNING/bodyops-api
+          git subtree push --prefix=api hf main
