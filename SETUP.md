@@ -400,16 +400,16 @@ git subtree push --prefix=api hf main
 
 ## Final Checklist
 
-- [ ] Azure OpenAI endpoint responding (test in Azure portal → Playground)
-- [ ] Service account JSON downloaded and saved
-- [ ] All 3 Google Sheets created and shared correctly
-- [ ] Auth Sheet has email + password in row 2
-- [ ] `python scripts/setup.py` ran without errors — all tabs created
-- [ ] `uvicorn api.main:app --reload` starts locally → `/health` returns ok
-- [ ] `npm run dev` starts locally → login works with Auth Sheet credentials
-- [ ] HF Spaces build succeeded → `https://<username>-bodyops-api.hf.space/health` returns ok
-- [ ] `vercel --prod` succeeded → login works on production URL
-- [ ] CORS updated for production Vercel URL and redeployed (`git push hf <branch>:main`)
+- [x] Azure OpenAI endpoint responding (test in Azure portal → Playground)
+- [x] Service account JSON downloaded and saved
+- [x] All 3 Google Sheets created and shared correctly
+- [x] Auth Sheet has email + password in row 2
+- [x] `python scripts/setup.py` ran without errors — all tabs created
+- [x] `uvicorn api.main:app --reload` starts locally → `/health` returns ok
+- [x] `npm run dev` starts locally → login works with Auth Sheet credentials
+- [x] HF Spaces build succeeded → `https://<username>-bodyops-api.hf.space/health` returns ok
+- [x] `vercel --prod` succeeded → login works on production URL
+- [x] CORS updated for production Vercel URL and redeployed (`git push hf <branch>:main`)
 
 ---
 
