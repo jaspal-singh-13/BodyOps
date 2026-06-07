@@ -31,7 +31,7 @@ export function isLoggedIn(): boolean {
  * @param token - Raw JWT string returned by `POST /auth/login`.
  */
 export function setToken(token: string): void {
-  document.cookie = `token=${encodeURIComponent(token)}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Strict`;
+  document.cookie = `token=${token}; path=/; max-age=${60 * 60 * 24 * 7}; SameSite=Lax`;
 }
 
 /**
