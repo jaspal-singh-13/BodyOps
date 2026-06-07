@@ -1,0 +1,7 @@
+README.md
+pyproject.toml
+bodyops.egg-info/PKG-INFO
+bodyops.egg-info/SOURCES.txt
+bodyops.egg-info/dependency_links.txt
+bodyops.egg-info/requires.txt
+bodyops.egg-info/top_level.txt

@@ -2,7 +2,7 @@
 
 > Generated: 2026-06-07
 > Status: Active
-> Stack: Next.js 14+ App Router · TypeScript · Tailwind · Shadcn UI · Google Sheets API · Google Drive API · OpenAI · Telegram Bot · Vercel
+> Stack: Next.js 14 (UI shell) · FastAPI + Pydantic AI (backend) · TypeScript · Tailwind · Shadcn UI · Google Sheets API · Google Drive API · Azure OpenAI · Vercel + Hugging Face Spaces
 
 ---
 
@@ -46,14 +46,38 @@ The following gaps should be resolved before or during implementation. They are 
 
 ## Architecture Decisions (Locked for V1)
 
-- **Frontend**: Next.js 14 App Router, TypeScript, Tailwind, Shadcn UI
-- **Backend**: Next.js API routes (no separate server)
-- **Storage**: Google Sheets (one sheet = one table), Google Drive for images
-- **AI**: OpenAI `gpt-4o` for meal vision + `gpt-4o` for coaching text
-- **Auth**: NextAuth.js with single hardcoded credentials (email/password) — expandable later
-- **Notifications**: Telegram Bot (webhook mode) + browser Notification API
-- **Hosting**: Vercel (serverless functions)
-- **Timezone**: Store all dates in UTC ISO-8601, display in user's local timezone (from browser)
+### Service Split
+
+```
+┌─────────────────────────────┐        ┌──────────────────────────────────┐
+│  Next.js (Vercel)           │  HTTP  │  FastAPI (HF Spaces)             │
+│  - UI shell only            │◄──────►│  - All API routes                │
+│  - Pages + components       │        │  - Pydantic AI agent + tools     │
+│  - Tailwind + Shadcn UI     │        │  - Google Sheets / Drive access  │
+│  - Fetches FastAPI directly │        │  - OpenAI calls                  │
+│  - Stores JWT in httpOnly   │        │  - JWT auth (issues tokens)      │
+│    cookie                   │        │  - Chat history management       │
+└─────────────────────────────┘        └──────────────────────────────────┘
+```
+
+- **Frontend**: Next.js 14 App Router, TypeScript, Tailwind, Shadcn UI — thin UI shell only, no API routes, no server actions for data
+- **Backend**: FastAPI (Python 3.12) — all business logic, data access, agent
+- **Agent**: Pydantic AI with OpenAI `gpt-4o` — tool-calling agent, typed tool inputs/outputs via Pydantic models
+- **Auth**: FastAPI issues JWT (python-jose). Login endpoint reads plain-text credentials from Auth Sheet. Next.js stores JWT in httpOnly cookie, sends it on every API request. No NextAuth.
+- **Storage**: 3 Google Spreadsheets (see below)
+- **AI**: Azure OpenAI `gpt-4o` deployment for meal vision + coaching, accessed via Pydantic AI using the `AzureOpenAIModel`
+- **Notifications**: Browser Notification API only
+- **Hosting**: Vercel (Next.js) + Hugging Face Spaces (FastAPI — free Docker hosting, sleeps after 48h inactivity)
+- **Timezone**: Dates stored as `YYYY-MM-DD` strings. Client sends `X-Timezone` header; FastAPI uses `zoneinfo` to resolve "today".
+- **Chat history**: In-memory in FastAPI process during session, flushed to Chat History Sheet on session end / 30 min idle. `DELETE /agent/history` resets both.
+
+### Google Spreadsheet Layout (3 sheets total)
+
+| Sheet | Shared With | Purpose |
+|-------|-------------|---------|
+| **Main Data Sheet** | Service account | All app tables: WeightLogs, Meals, MealItems, WorkoutPrograms, WorkoutSchedules, WorkoutSessions, WorkoutSets, Tasks, DailyTaskStatus, CoachInsights, Settings |
+| **Auth Sheet** | Owner only (not service account) | Single row: `email`, `password` (plain text). Owner edits in Google Sheets UI. |
+| **Chat History Sheet** | Service account | Columns: `session_id`, `date`, `role`, `content`, `tool_calls_json` |
 
 ---
 
@@ -79,42 +103,98 @@ Runnable Next.js app with Google Sheets connected, environment wired, and CI/CD 
 
 ### TODOs
 
-- [ ] `npx create-next-app@latest bodyops --typescript --tailwind --app --src-dir`
-- [ ] Install dependencies: `shadcn/ui`, `next-auth`, `googleapis`, `openai`, `axios`, `zod`, `date-fns`, `recharts`
-- [ ] Create `.env.local` with all required keys (see env var list below)
-- [ ] Create Google Cloud project, enable Sheets API + Drive API, create service account, download credentials JSON
-- [ ] Create Google Spreadsheet, share with service account email
-- [ ] Create initial sheets (tabs): `Users`, `WeightLogs`, `Meals`, `MealItems`, `WorkoutPrograms`, `WorkoutSchedules`, `WorkoutSessions`, `WorkoutSets`, `Tasks`, `DailyTaskStatus`, `CoachInsights`, `Reminders`, `Settings`
-- [ ] Write `lib/sheets.ts` — authenticated Sheets client (singleton)
-- [ ] Write `lib/drive.ts` — authenticated Drive client (singleton)
-- [ ] Write `lib/openai.ts` — OpenAI client (singleton)
-- [ ] Write `lib/sheets-repo.ts` — generic `readRows`, `appendRow`, `updateRow`, `findRow` helpers
-- [ ] Set up Telegram bot via BotFather, store token in env
-- [ ] Write `lib/telegram.ts` — `sendMessage(chatId, text)` helper
-- [ ] Deploy blank app to Vercel, confirm env vars are injected
-- [ ] Set up Telegram webhook pointing to `/api/reminders/webhook`
+**Frontend (Next.js)**
+- [ ] `npx create-next-app@latest frontend --typescript --tailwind --app --src-dir`
+- [ ] Install frontend dependencies: `shadcn/ui`, `zod`, `date-fns`, `recharts`, `next-pwa`
+- [ ] Create `frontend/.env.local` with `NEXT_PUBLIC_API_URL=http://localhost:8000`
+- [ ] Write `frontend/lib/api.ts` — typed fetch wrapper that attaches JWT from cookie to every request, handles 401 redirect to `/login`
+
+**Backend (FastAPI)**
+- [ ] Init Python project: `pyproject.toml` already exists — add dependencies (see list below)
+- [ ] Create project structure:
+  ```
+  api/
+    main.py          # FastAPI app, CORS, router registration
+    auth.py          # /auth/login, JWT issue/verify
+    routers/         # weight.py, meals.py, workouts.py, tasks.py, coach.py, settings.py, agent.py
+    services/        # business logic (weight_service.py, meal_service.py, etc.)
+    sheets/          # sheets_client.py, sheets_repo.py, auth_sheet.py
+    agent/           # pydantic_agent.py, tools.py
+    models/          # pydantic request/response models
+  scripts/
+    setup.py         # sheet bootstrap service
+  ```
+- [ ] Install Python dependencies (add to `pyproject.toml`):
+  ```
+  fastapi, uvicorn, pydantic-ai[openai], python-jose[cryptography], gspread,
+  google-auth, google-api-python-client, openai, python-multipart,
+  httpx, pytest, pytest-asyncio
+  ```
+  Note: `zoneinfo` is stdlib in Python 3.9+, no install needed
+- [ ] Write `api/sheets/sheets_client.py` — `gspread` service account client (singleton)
+- [ ] Write `api/sheets/sheets_repo.py` — `read_rows`, `append_row`, `update_row`, `find_row` using gspread
+- [ ] Write `api/sheets/auth_sheet.py` — reads Auth Sheet via separate Google Sheets API call using owner's API key (not service account)
+- [ ] Write `api/auth.py` — `POST /auth/login`: read from Auth Sheet, compare password, return JWT
+- [ ] Write `api/main.py` — FastAPI app with CORS configured for Vercel frontend domain
+
+**Google Sheets Setup**
+- [ ] Create Google Cloud project, enable Sheets API + Drive API
+- [ ] Create service account, download JSON credentials
+- [ ] Create 3 Google Spreadsheets manually; record IDs in env
+- [ ] Share **Main Data Sheet** and **Chat History Sheet** with service account email
+- [ ] Share **Auth Sheet** with owner only — NOT the service account
+- [ ] Manually enter `email` and `password` in row 2 of Auth Sheet (row 1 = headers)
+
+### Setup Service (`python scripts/setup.py` / `make setup`)
+
+Run once after cloning. Idempotent — safe to run multiple times.
+
+What it does:
+1. Validates all required env vars, prints missing ones and exits code 1 if any absent
+2. Connects to Main Data Sheet via service account
+3. Creates any missing tabs with correct header rows (does not modify existing tabs)
+4. Connects to Chat History Sheet, creates `ChatHistory` tab with headers if missing
+5. Prints checklist: ✓ exists / ✓ created / ✗ failed per tab
+6. Auth Sheet is NOT touched — owner manages it manually
+
+Tabs created in Main Data Sheet:
+`WeightLogs`, `Meals`, `MealItems`, `WorkoutPrograms`, `WorkoutSchedules`, `WorkoutSessions`, `WorkoutSets`, `Tasks`, `DailyTaskStatus`, `CoachInsights`, `Settings`
 
 ### Required Environment Variables
 
+**Backend (`api/.env`)**
 ```env
-GOOGLE_SERVICE_ACCOUNT_EMAIL=
-GOOGLE_PRIVATE_KEY=
-GOOGLE_SPREADSHEET_ID=
-OPENAI_API_KEY=
-TELEGRAM_BOT_TOKEN=
-TELEGRAM_CHAT_ID=
-NEXTAUTH_SECRET=
-NEXTAUTH_URL=
-AUTH_EMAIL=
-AUTH_PASSWORD=
+GOOGLE_SERVICE_ACCOUNT_JSON=    # full JSON as string, or path to file
+GOOGLE_SPREADSHEET_ID=          # Main Data Sheet
+GOOGLE_CHAT_HISTORY_SHEET_ID=   # Chat History Sheet
+GOOGLE_AUTH_SHEET_ID=           # Auth Sheet ID (read via Sheets API v4 with API key)
+GOOGLE_SHEETS_API_KEY=          # for reading Auth Sheet without service account
+GOOGLE_DRIVE_FOLDER_ID=         # Drive folder for meal images
+AZURE_OPENAI_API_KEY=
+AZURE_OPENAI_ENDPOINT=          # https://<your-resource>.openai.azure.com
+AZURE_OPENAI_DEPLOYMENT=        # your gpt-4o deployment name
+AZURE_OPENAI_API_VERSION=2024-08-01-preview
+JWT_SECRET=
+JWT_ALGORITHM=HS256
+JWT_EXPIRE_MINUTES=10080         # 7 days
+```
+
+**Frontend (`frontend/.env.local`)**
+```env
+NEXT_PUBLIC_API_URL=https://<username>-bodyops-api.hf.space
 ```
 
 ### Acceptance Criteria
 
-- [ ] `npm run dev` starts without errors
-- [ ] `GET /api/health` returns `{ ok: true, sheets: true, drive: true }`
-- [ ] Service account can read/write a test row to a scratch sheet
-- [ ] Vercel deployment is live
+- [ ] `uvicorn api.main:app --reload` starts without errors
+- [ ] `npm run dev` (frontend) starts without errors and proxies API calls correctly
+- [ ] `python scripts/setup.py` creates all missing tabs and exits with code 0
+- [ ] `python scripts/setup.py` run a second time makes no changes and still exits code 0
+- [ ] `GET /health` returns `{ "ok": true, "sheets": true, "drive": true }`
+- [ ] Write `api/Dockerfile` — python:3.12-slim base, expose port 7860, health check on `/health`
+- [ ] Write `api/README.md` with HF Spaces config frontmatter (`sdk: docker`, `app_port: 7860`)
+- [ ] `git subtree push --prefix=api hf main` succeeds and app is reachable at `https://<username>-bodyops-api.hf.space`
+- [ ] Vercel deployment of Next.js is live and `NEXT_PUBLIC_API_URL` points to HF Spaces URL
 
 ---
 
@@ -125,18 +205,24 @@ User can sign in. First-time users complete onboarding to set their profile. App
 
 ### TODOs
 
-**Auth**
-- [ ] Configure NextAuth.js with `CredentialsProvider` using `AUTH_EMAIL` / `AUTH_PASSWORD` env vars
-- [ ] Protect all `/app/*` routes with middleware — redirect to `/login` if unauthenticated
-- [ ] Build `/login` page: email + password form, error state, submit loading
+**Auth (FastAPI)**
+- [ ] `POST /auth/login` — read credentials from Auth Sheet, compare plain-text password, return `{ access_token, token_type: "bearer" }`
+- [ ] `api/auth.py` — `create_jwt(email)`, `verify_jwt(token)` using `python-jose`
+- [ ] FastAPI dependency `get_current_user` — extract + verify JWT from `Authorization: Bearer` header, used on all protected routes
+- [ ] Note: no sign-up, no password reset endpoint — owner changes password directly in Auth Sheet
+
+**Auth (Next.js)**
+- [ ] Build `/login` page: email + password form, calls `POST /auth/login` on FastAPI, stores returned JWT in httpOnly cookie
+- [ ] Next.js middleware: check for JWT cookie on all `/app/*` routes, redirect to `/login` if absent
+- [ ] `frontend/lib/api.ts` — fetch wrapper that reads JWT from cookie and sets `Authorization` header on every request
 
 **Onboarding**
-- [ ] Build `/onboarding` multi-step form (redirect here after first login if `Settings` sheet is empty):
-  - Step 1: Name, current weight, goal weight, start date
-  - Step 2: Daily calorie target (or auto-calculate from weight using 500 kcal deficit), protein target (auto-suggest: `body_weight_kg * 1.8 g`)
-  - Step 3: Wake-up time, workout days per week (used for reminder scheduling)
-- [ ] `POST /api/settings` — save onboarding data to `Settings` sheet
-- [ ] `GET /api/settings` — load current settings
+- [ ] Build `/onboarding` multi-step form (redirect here after first login if `Settings` tab in Main Data Sheet has no row):
+  - Step 1: Name, current weight (kg), height (cm), age, goal weight (kg), start date
+  - Step 2: Auto-calculate calorie target (Mifflin-St Jeor BMR × 1.55 activity − 500 kcal deficit) and protein target (`body_weight_kg × 1.8 g`) — show values, let user override
+  - Step 3: Preferred wake-up time (used for daily mission generation timing)
+- [ ] `POST /api/settings` — save onboarding data to `Settings` tab
+- [ ] `GET /api/settings` — load current settings row
 
 **App Shell**
 - [ ] Build mobile shell: bottom nav with icons — Home, Meals, Workouts, Progress, Coach
@@ -299,7 +385,7 @@ User can photograph a meal, get AI-estimated calories and macros, confirm, and s
 ## Phase 5 — Daily Missions + Reminders
 
 ### Goal
-User sees a daily checklist. System sends reminders via Telegram and browser notifications.
+User sees a daily checklist. System sends browser notifications as reminders.
 
 ### TODOs
 
@@ -308,48 +394,44 @@ User sees a daily checklist. System sends reminders via Telegram and browser not
   - Log weight (daily)
   - Hit protein target
   - Stay under calorie target
-  - Complete workout (only on workout days)
-  - Hit step goal (if enabled)
-  - Drink water (if enabled)
-  - Sleep before target time (if enabled)
-- [ ] Store generated tasks in `DailyTaskStatus` sheet (one row per task per day)
-- [ ] Idempotent — calling twice for same date does not duplicate
+  - Complete workout (only on workout days per schedule)
+  - Drink water (if enabled in settings)
+- [ ] Store generated tasks in `DailyTaskStatus` tab (one row per task per day)
+- [ ] Idempotent — calling twice for same date does not duplicate rows
 
 **API**
 - [ ] `GET /api/tasks/today` — return today's task list with completion status
 - [ ] `POST /api/tasks/complete` — mark task as complete, timestamp completion
 - [ ] `GET /api/tasks/status` — summary: total, completed, percentage
 
-**Auto-completion hooks (background)**
-- [ ] Mark "Log weight" complete when weight is logged for today
-- [ ] Mark "Hit protein target" complete when daily protein ≥ target
-- [ ] Mark "Stay under calories" evaluated at end of day (or on demand)
-- [ ] Mark "Complete workout" complete when workout session logged for today
+**Auto-completion hooks**
+- [ ] Mark "Log weight" complete when `POST /api/weight` succeeds for today
+- [ ] Mark "Hit protein target" complete when daily protein ≥ target (check on every `POST /api/meals`)
+- [ ] Mark "Complete workout" complete when workout session is finished for today
 
-**Reminders**
-- [ ] `POST /api/reminders` — save reminder config to `Reminders` sheet
-- [ ] `GET /api/reminders` — return all reminders
-- [ ] Telegram webhook handler `POST /api/reminders/webhook` — handle `/start`, `/status`, incoming commands
-- [ ] Vercel Cron: `GET /api/cron/reminders` — run every 15 minutes, check due reminders, send Telegram messages
-- [ ] Browser push: register service worker, request notification permission on first visit, send push from server action
+**Reminders (browser-only)**
+- [ ] `POST /api/reminders` — save reminder config (type, time, enabled) to `Settings` tab (not a separate table — store as JSON field in Settings row)
+- [ ] `GET /api/reminders` — return reminder config from Settings
+- [ ] Browser push: register service worker, request notification permission on first app load, schedule local notifications via `Notification API`
+- [ ] Vercel Cron: `GET /api/cron/reminders` — run daily, returns a JSON payload; client-side service worker schedules the actual browser notifications based on this
 
 **UI — Settings: Reminders section**
-- [ ] List of toggleable reminders with time pickers
-- [ ] Telegram setup instructions (link to bot, `/start` command)
-- [ ] Notification permission button
+- [ ] List of toggleable reminders with time pickers: Morning weigh-in, Meal logging, Workout, End-of-day check-in
+- [ ] "Enable Notifications" button — triggers browser permission prompt
+- [ ] Shows current permission status (granted / denied / not asked)
 
 **Dashboard integration**
-- [ ] Mission progress ring / bar: X of Y complete
+- [ ] Mission progress ring: X of Y complete
 - [ ] Task checklist widget (collapsed by default, expandable)
 
 ### Acceptance Criteria
 
-- [ ] `generateDailyTasks` called twice for the same date produces the same task list (idempotent)
+- [ ] `generateDailyTasks` called twice for the same date produces the same rows (idempotent)
 - [ ] Logging weight auto-marks the "Log weight" mission complete
+- [ ] Reaching protein target auto-marks "Hit protein target" complete
 - [ ] Completing all missions shows 100% on dashboard
-- [ ] Vercel cron fires and sends Telegram message at scheduled time
-- [ ] Browser notification fires when triggered
-- [ ] Telegram `/status` command returns today's mission summary
+- [ ] Browser notification fires at configured time (requires granted permission)
+- [ ] Reminder settings persist across page reloads
 
 ---
 
@@ -427,7 +509,7 @@ App is installable, fast, and production-ready.
 - [ ] Import workout → shows correct today workout
 - [ ] Log meal photo → analysis works, confirm saves, daily totals update
 - [ ] Missions auto-complete when triggered
-- [ ] Telegram reminder fires at correct time
+- [ ] Browser notification fires at configured time
 - [ ] Coach summary generates without error
 - [ ] All charts render on progress page
 - [ ] Install app on phone, test camera meal log end-to-end
@@ -444,7 +526,7 @@ App is installable, fast, and production-ready.
 
 ## Agent Chat Feature (Cross-Phase)
 
-The `/api/agent/chat` endpoint and `/app/coach` chat UI are built incrementally as tools are added. Wire up tools phase by phase:
+The `POST /agent/chat` endpoint and `/app/coach` chat UI are built incrementally as tools are added per phase.
 
 | Phase | Tools Added |
 |-------|-------------|
@@ -454,11 +536,62 @@ The `/api/agent/chat` endpoint and `/app/coach` chat UI are built incrementally 
 | Phase 5 | `get_task_status`, `complete_task` |
 | Phase 6 | `generate_daily_coaching`, `generate_weekly_review` |
 
-Agent implementation pattern:
-- Use OpenAI function calling (tool_choice: auto)
-- Each tool is a TypeScript function that calls the corresponding internal service
-- Agent responses must include tool call results, not just summaries
-- Store conversation in session (not persisted in Sheets — session only)
+### Pydantic AI Implementation Pattern
+
+```python
+# api/agent/pydantic_agent.py
+from pydantic_ai import Agent
+from pydantic_ai.models.openai import OpenAIModel
+from openai import AsyncAzureOpenAI
+import os
+
+azure_client = AsyncAzureOpenAI(
+    api_key=os.environ["AZURE_OPENAI_API_KEY"],
+    azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+    api_version=os.environ["AZURE_OPENAI_API_VERSION"],
+)
+
+model = OpenAIModel(
+    os.environ["AZURE_OPENAI_DEPLOYMENT"],
+    openai_client=azure_client,
+)
+
+agent = Agent(
+    model,
+    system_prompt="You are BodyOps coach...",
+)
+# tools are registered with @agent.tool decorator in tools.py
+```
+
+Each tool is a plain Python async function decorated with `@agent.tool` and typed with Pydantic models:
+
+```python
+from pydantic_ai import RunContext
+from pydantic import BaseModel
+
+class LogWeightInput(BaseModel):
+    date: str       # YYYY-MM-DD
+    weight_kg: float
+
+@agent.tool
+async def log_weight(ctx: RunContext, input: LogWeightInput) -> dict:
+    return await weight_service.log(input.date, input.weight_kg)
+```
+
+### Chat History
+
+- In-memory: `Dict[str, list[ModelMessage]]` keyed by `session_id` in FastAPI process memory
+- Flush to Sheet: on session end or 30 min idle (background task via `asyncio`)
+- New session start: load last 20 messages from Chat History Sheet as seed
+- Reset: `DELETE /agent/history` — clears in-memory dict AND wipes all rows from Chat History Sheet tab
+
+### Endpoint
+
+```
+POST /agent/chat
+Body: { message: str, session_id: str }
+Response: { reply: str, tool_calls: [...] }  (streaming optional in v2)
+```
 
 ---
 
@@ -470,17 +603,18 @@ Every feature implementation must include tests. See `.claude/CLAUDE.md` for the
 
 | Layer | Tool | What to Test |
 |-------|------|-------------|
-| Parsers (`lib/`) | Jest | Valid input, invalid input, edge cases |
-| API Routes | Jest + `node-mocks-http` or Next.js test utils | Response shape, auth check, error states |
-| Services (`lib/`) | Jest with mocked Sheets/OpenAI | Business logic, data transformation |
-| UI | Playwright or React Testing Library | Critical flows: login, meal log, workout log |
+| Parsers (`api/services/`) | pytest | Valid input, invalid input, edge cases |
+| API Routes (`api/routers/`) | pytest + `httpx.AsyncClient` (FastAPI test client) | Response shape, auth check (missing/expired JWT), error states |
+| Services (`api/services/`) | pytest with mocked gspread + OpenAI | Business logic, data transformation |
+| Agent tools (`api/agent/tools.py`) | pytest with mocked services | Tool input validation, correct service calls |
+| UI | Playwright | Critical flows: login, meal log, workout log |
 
 ### Required Test Files Per Phase
 
-- Phase 0: `lib/sheets-repo.test.ts`
-- Phase 1: `app/api/auth.test.ts`, `lib/settings.test.ts`
-- Phase 2: `app/api/weight.test.ts`, `lib/weight-trend.test.ts`
-- Phase 3: `lib/workout-parser.test.ts`, `lib/progression.test.ts`, `app/api/workouts.test.ts`
-- Phase 4: `lib/meal-vision.test.ts`, `app/api/meals.test.ts`
-- Phase 5: `lib/missions.test.ts`, `app/api/tasks.test.ts`
-- Phase 6: `lib/coach.test.ts`, `app/api/coach.test.ts`
+- Phase 0: `tests/test_sheets_repo.py`
+- Phase 1: `tests/test_auth.py`, `tests/test_settings.py`
+- Phase 2: `tests/test_weight_router.py`, `tests/test_weight_service.py`
+- Phase 3: `tests/test_workout_parser.py`, `tests/test_progression.py`, `tests/test_workout_router.py`
+- Phase 4: `tests/test_meal_vision.py`, `tests/test_meal_router.py`
+- Phase 5: `tests/test_missions.py`, `tests/test_tasks_router.py`
+- Phase 6: `tests/test_coach.py`, `tests/test_agent_tools.py`
