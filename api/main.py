@@ -12,7 +12,7 @@ from .auth import LoginRequest, TokenResponse, login
 from .routers.settings import router as settings_router
 from .sheets.sheets_client import get_main_sheet
 
-app = FastAPI(title="BodyOps API")
+app = FastAPI(title="BodyOps API", version="0.2.0")
 
 app.add_middleware(
     CORSMiddleware,
