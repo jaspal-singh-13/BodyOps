@@ -1,15 +1,13 @@
 """JWT creation/verification and login endpoint."""
 import os
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import Depends, Header, HTTPException, status
 from jose import JWTError, jwt
 from pydantic import BaseModel
 
 from .sheets.auth_sheet import get_credentials
-
-bearer_scheme = HTTPBearer()
 
 
 class LoginRequest(BaseModel):
@@ -49,9 +47,11 @@ def verify_jwt(token: str) -> str:
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    x_user_token: Optional[str] = Header(None, alias="X-User-Token"),
 ) -> str:
-    return verify_jwt(credentials.credentials)
+    if not x_user_token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    return verify_jwt(x_user_token)
 
 
 async def login(body: LoginRequest) -> TokenResponse:
