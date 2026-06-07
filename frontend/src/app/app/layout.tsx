@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, Utensils, Dumbbell, TrendingUp, MessageCircle } from "lucide-react";
+import { Home, Utensils, Dumbbell, TrendingUp, MessageCircle, Scale } from "lucide-react";
 import { clearToken } from "@/lib/api";
 
 const navItems = [
   { href: "/app", label: "Home", icon: Home },
+  { href: "/app/weight", label: "Weight", icon: Scale },
   { href: "/app/meals", label: "Meals", icon: Utensils },
   { href: "/app/workouts", label: "Workouts", icon: Dumbbell },
   { href: "/app/progress", label: "Progress", icon: TrendingUp },

@@ -1,5 +1,4 @@
 """FastAPI application entry point."""
-import logging
 import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -12,11 +11,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .auth import LoginRequest, TokenResponse, login
+from .logger import get_logger
 from .routers.settings import router as settings_router
+from .routers.weight import router as weight_router
 from .sheets.sheets_client import get_main_sheet
 
-logger = logging.getLogger("bodyops")
-logging.basicConfig(level=logging.INFO)
+logger = get_logger("main")
 
 REQUIRED_ENV_VARS = [
     "GOOGLE_SERVICE_ACCOUNT_JSON",
@@ -26,7 +26,7 @@ REQUIRED_ENV_VARS = [
 ]
 
 
-VERSION = "0.2.0"
+VERSION = "0.4.0"
 
 
 @asynccontextmanager
@@ -57,7 +57,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("BodyOps API shutting down")
 
 
-app = FastAPI(title="BodyOps API", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="BodyOps API", version="0.4.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -68,6 +68,7 @@ app.add_middleware(
 )
 
 app.include_router(settings_router)
+app.include_router(weight_router)
 
 
 @app.post("/auth/login", response_model=TokenResponse)
