@@ -1,4 +1,11 @@
-"""Unit tests for api/sheets/sheets_repo.py — all gspread calls are mocked."""
+"""
+Unit tests for api/sheets/sheets_repo.py — all gspread calls are mocked.
+
+Every test class patches ``get_main_sheet`` at the repo module level so no
+real network calls are made. The ``_make_ws`` helper creates a pre-configured
+``MagicMock`` worksheet to keep test setup concise.
+"""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -7,6 +14,16 @@ from api.sheets import sheets_repo
 
 
 def _make_ws(headers: list[str], records: list[dict]) -> MagicMock:
+    """
+    Build a mock ``gspread.Worksheet`` with preset headers and records.
+
+    Args:
+        headers: Column names returned by ``ws.row_values(1)``.
+        records: Dicts returned by ``ws.get_all_records()``.
+
+    Returns:
+        Configured ``MagicMock`` that behaves like a ``gspread.Worksheet``.
+    """
     ws = MagicMock()
     ws.row_values.return_value = headers
     ws.get_all_records.return_value = records

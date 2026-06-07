@@ -1,4 +1,11 @@
-"""Unit tests for weight_service: upsert, history ordering, moving avg, projection."""
+"""
+Unit tests for weight_service: upsert, history ordering, moving avg, projection.
+
+All gspread calls are mocked at the service module level so no real network
+requests are made. Parametrised data is constructed by helper methods on each
+test class to keep individual test cases compact.
+"""
+
 from datetime import date, timedelta
 from unittest.mock import call, patch
 
@@ -17,6 +24,7 @@ from api.services.weight_service import (
 USER_ID = 1
 OTHER_USER_ID = 2
 
+# A typical sheet row as returned by gspread (all values are strings)
 EXISTING_ROW = {
     "user_id": "1",
     "date": "2026-06-08",
@@ -54,7 +62,7 @@ class TestLogWeight:
             result = log_weight(USER_ID, data)
         mock_update.assert_called_once()
         mock_append.assert_not_called()
-        # row_index = 0 + 2 = 2
+        # Row index: 0-based list index 0 → sheet row 2 (header is row 1)
         _, row_index, saved = mock_update.call_args[0]
         assert row_index == 2
         assert saved["weight_kg"] == 86.0
@@ -92,6 +100,7 @@ class TestLogWeight:
 
 class TestGetHistory:
     def _make_rows(self, entries: list[tuple[int, str, float]]) -> list[dict]:
+        """Build raw sheet rows from (user_id, date, weight_kg) tuples."""
         return [
             {"user_id": str(uid), "date": d, "weight_kg": str(w), "logged_at": ""}
             for uid, d, w in entries
@@ -117,7 +126,7 @@ class TestGetHistory:
         rows = self._make_rows([(USER_ID, "2026-06-07", 86.0), (USER_ID, "2026-06-08", 85.5)])
         with patch("api.services.weight_service.read_rows", return_value=rows):
             result = get_history(USER_ID)
-        # oldest entry is last after reverse sort
+        # After newest-first sort, the oldest entry is last
         assert result[-1].change_kg is None
 
     def test_change_kg_computed_correctly(self):
@@ -156,6 +165,7 @@ class TestGetHistory:
 
 class TestComputeMovingAvg:
     def _entries(self, weights: list[float]) -> list[dict]:
+        """Build dated weight entry dicts from a flat weight list."""
         base = date(2026, 1, 1)
         return [{"date": (base + timedelta(days=i)).isoformat(), "weight_kg": w} for i, w in enumerate(weights)]
 
@@ -189,6 +199,7 @@ class TestComputeMovingAvg:
 
 class TestProjectGoalDate:
     def _linear_entries(self, start_weight: float, daily_loss: float, n: int) -> list[dict]:
+        """Build entries that lose ``daily_loss`` kg each day from ``start_weight``."""
         base = date(2026, 1, 1)
         return [
             {
@@ -203,11 +214,12 @@ class TestProjectGoalDate:
         assert _project_goal_date(entries, 80.0) is None
 
     def test_returns_none_when_trending_up(self):
-        entries = self._linear_entries(80.0, -0.5, 10)  # negative loss = gaining
+        # Negative daily_loss means gaining weight
+        entries = self._linear_entries(80.0, -0.5, 10)
         assert _project_goal_date(entries, 85.0) is None
 
     def test_correct_projection_simple_linear(self):
-        # Lose exactly 0.5 kg/day starting at 90 kg; goal = 80 kg → 20 days
+        # Lose 0.5 kg/day from 90 kg; goal = 80 kg → 20 days from start
         entries = self._linear_entries(90.0, 0.5, 10)
         result = _project_goal_date(entries, 80.0)
         assert result is not None
@@ -217,15 +229,14 @@ class TestProjectGoalDate:
         assert abs((projected - base).days - 20) <= 1
 
     def test_uses_last_14_when_more_available(self):
-        # Provide 20 entries but only last 14 should be used
+        # Provide 20 entries; projection should be consistent with just last 14
         entries = self._linear_entries(90.0, 0.5, 20)
         result_20 = _project_goal_date(entries, 80.0)
         result_14 = _project_goal_date(entries[-14:], 80.0)
-        # Both should produce the same (or very close) projection
         assert result_20 is not None
         assert result_14 is not None
 
     def test_returns_none_when_too_far_future(self):
-        # Extremely slow loss — would project > 5 years
+        # Extremely slow loss — projection > 5 years should return None
         entries = self._linear_entries(90.0, 0.0001, 10)
         assert _project_goal_date(entries, 80.0) is None

@@ -1,3 +1,27 @@
+/**
+ * AI coach chat drawer — right-side overlay panel for logging and coaching.
+ *
+ * Mounted once in `app/app/layout.tsx` so the session and message history
+ * persist across page navigations. The drawer is toggled via the `open` prop.
+ *
+ * Session continuity:
+ *   A stable `sessionId` (UUID) is generated on first render via `useRef`.
+ *   It is sent with every message so the backend can maintain multi-turn
+ *   conversation history for the same browser session.
+ *
+ * Streaming protocol (SSE events from `POST /agent/chat`):
+ *   tool_call   → appends a pending tool row to the message's `toolEvents`
+ *   tool_result → upgrades the matching pending tool_call row to tool_result
+ *   text        → appends a text chunk to the message content
+ *   done        → marks `isStreaming: false`, hides the cursor
+ *   error       → shows the error as the message content
+ *
+ * Tool result matching:
+ *   `tool_result` events are matched to the most recent `tool_call` with the
+ *   same tool name using a reverse-scan. This handles back-to-back calls of
+ *   the same tool correctly (e.g. two `log_weight` calls in one turn).
+ */
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -28,6 +52,10 @@ const SUGGESTIONS = [
 
 const QUICK_CHIPS = ["Log a meal", "Log my weight", "Log workout", "Coach advice"];
 
+/**
+ * Three staggered bouncing dots shown while the assistant hasn't produced any
+ * text yet (i.e. waiting for the first token or tool result).
+ */
 function TypingIndicator() {
   return (
     <div className="flex items-center gap-1 py-0.5">
@@ -35,6 +63,7 @@ function TypingIndicator() {
         <span
           key={i}
           className="size-1.5 rounded-full bg-zinc-400 animate-bounce"
+          // Stagger each dot by 150 ms to create a wave effect
           style={{ animationDelay: `${i * 150}ms` }}
         />
       ))}
@@ -42,6 +71,13 @@ function TypingIndicator() {
   );
 }
 
+/**
+ * Single row inside `ToolsExpander`.
+ *
+ * Shows a spinning border while the tool is pending (type === "tool_call")
+ * and a green checkmark once the result arrives (type === "tool_result").
+ * The detail string (args or result) is truncated at 90 characters.
+ */
 function ToolEventRow({ event }: { event: ToolEvent }) {
   const isPending = event.type === "tool_call";
   const detail = isPending
@@ -64,15 +100,24 @@ function ToolEventRow({ event }: { event: ToolEvent }) {
   );
 }
 
+/**
+ * Collapsible section above the assistant text bubble showing tool calls.
+ *
+ * Auto-opens on the first event so the user sees activity immediately.
+ * The user can manually collapse it; it won't re-open on subsequent events
+ * because the `useEffect` only fires when `events.length` increases from 0.
+ */
 function ToolsExpander({ events }: { events: ToolEvent[] }) {
   const [open, setOpen] = useState(false);
 
+  // Auto-open when the first tool event arrives
   useEffect(() => {
     if (events.length > 0) setOpen(true);
   }, [events.length]);
 
   if (events.length === 0) return null;
 
+  // At least one pending tool_call means the spinner is still running
   const hasPending = events.some((e) => e.type === "tool_call");
   const label = hasPending
     ? "Running tools…"
@@ -84,6 +129,7 @@ function ToolsExpander({ events }: { events: ToolEvent[] }) {
         onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center gap-1.5 px-3 py-2 text-zinc-500 hover:bg-zinc-100 transition-colors text-left"
       >
+        {/* Chevron rotates 90° when open */}
         <span
           className="text-zinc-400 inline-block transition-transform duration-150 leading-none"
           style={{ transform: open ? "rotate(90deg)" : "rotate(0deg)" }}
@@ -106,6 +152,13 @@ function ToolsExpander({ events }: { events: ToolEvent[] }) {
   );
 }
 
+/**
+ * Renders a single chat message.
+ *
+ * User messages are right-aligned with a dark bubble. Assistant messages are
+ * left-aligned, preceded by the `ToolsExpander` (if any tool calls exist),
+ * and show a `TypingIndicator` until the first text token arrives.
+ */
 function MessageBubble({ message }: { message: ChatMessage }) {
   if (message.role === "user") {
     return (
@@ -117,6 +170,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
     );
   }
 
+  // Show typing dots while streaming AND no text has arrived yet (tools may still be running)
   const showTyping = message.isStreaming && message.content === "";
 
   return (
@@ -128,6 +182,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         ) : (
           <>
             {message.content}
+            {/* Blinking cursor while text is streaming in */}
             {message.isStreaming && (
               <span className="inline-block w-0.5 h-3.5 bg-zinc-400 ml-0.5 animate-pulse align-middle" />
             )}
@@ -139,7 +194,9 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 }
 
 interface ChatDrawerProps {
+  /** Whether the drawer is visible. */
   open: boolean;
+  /** Called when the user closes the drawer (backdrop click or × button). */
   onClose: () => void;
 }
 
@@ -147,11 +204,15 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+
+  // Stable session ID — same UUID for the lifetime of this component instance.
+  // Falls back to Math.random for environments without crypto.randomUUID.
   const sessionId = useRef(
     typeof crypto !== "undefined" ? crypto.randomUUID() : Math.random().toString(36).slice(2)
   );
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // Scroll to the latest message whenever messages change or streaming starts
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages.length, streaming]);
@@ -169,6 +230,7 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
       { id: assistantId, role: "assistant", content: "", toolEvents: [], isStreaming: true },
     ]);
 
+    // Helper to mutate only the assistant message being streamed into
     const update = (fn: (m: ChatMessage) => ChatMessage) =>
       setMessages((prev) => prev.map((m) => (m.id === assistantId ? fn(m) : m)));
 
@@ -184,11 +246,13 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
         } else if (event.type === "tool_result") {
           update((m) => {
             const evts = [...m.toolEvents];
+            // Reverse-scan to find the most recent pending call for this tool
             const idx = [...evts].reverse().findIndex((e) => e.type === "tool_call" && e.tool === event.tool);
             if (idx !== -1) {
               const real = evts.length - 1 - idx;
               evts[real] = { ...evts[real], type: "tool_result", result: event.result };
             } else {
+              // No matching call — append the result as a standalone row
               evts.push({ type: "tool_result", tool: event.tool, result: event.result });
             }
             return { ...m, toolEvents: evts };
@@ -210,10 +274,10 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
 
   return (
     <>
-      {/* Backdrop */}
+      {/* Backdrop — clicking outside closes the drawer */}
       <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
 
-      {/* Drawer */}
+      {/* Drawer panel */}
       <div className="fixed top-0 right-0 bottom-0 w-[440px] bg-white z-50 flex flex-col shadow-2xl">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 shrink-0">
@@ -232,7 +296,7 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
           </div>
         </div>
 
-        {/* Quick chips */}
+        {/* Quick chips — shorthand phrases that populate the input field */}
         <div className="flex gap-2 overflow-x-auto px-4 py-2 border-b border-zinc-100 shrink-0">
           {QUICK_CHIPS.map((chip) => (
             <button
@@ -245,7 +309,7 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
           ))}
         </div>
 
-        {/* Message list */}
+        {/* Message list — scrollable, grows to fill available height */}
         <div className="flex-1 overflow-y-auto flex flex-col gap-3 p-4">
           {messages.length === 0 && (
             <p className="text-xs font-mono text-zinc-400 text-center pt-12">
@@ -258,8 +322,9 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
           <div ref={bottomRef} />
         </div>
 
-        {/* Suggestions + input */}
+        {/* Suggestion chips + input bar — pinned to the bottom */}
         <div className="shrink-0 border-t border-zinc-100 p-3">
+          {/* One-tap suggestion chips that send immediately (not just fill the input) */}
           <div className="flex gap-1.5 overflow-x-auto mb-2">
             {SUGGESTIONS.map((s) => (
               <button

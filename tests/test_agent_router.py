@@ -1,6 +1,18 @@
-"""HTTP-layer tests for the agent router — SSE endpoint and history clear."""
+"""
+HTTP-layer tests for the agent router — SSE endpoint and history clear.
+
+Tests only the HTTP boundary: auth enforcement, request validation, and
+response shape. The actual SSE generator (``_sse_generator``) is mocked so
+no real agent runs or Google Sheets calls occur.
+
+A module-scoped ``client`` fixture is used (separate from the session-scoped
+one in ``conftest.py``) to ensure the Azure OpenAI env vars are set before
+the agent router is imported.
+"""
+
 import os
 
+# Set agent env vars before the agent package is imported
 os.environ.setdefault("JWT_SECRET", "test-secret")
 os.environ.setdefault("GOOGLE_SERVICE_ACCOUNT_JSON", '{"type":"service_account"}')
 os.environ.setdefault("GOOGLE_SPREADSHEET_ID", "test-sheet-id")
@@ -15,12 +27,19 @@ import pytest
 
 
 async def _fake_sse_gen(*args, **kwargs):
+    """
+    Minimal SSE generator that yields one text event and a done sentinel.
+
+    Used to mock ``_sse_generator`` so tests receive a well-formed stream
+    without running a real agent.
+    """
     yield 'data: {"type": "text", "content": "Hello"}\n\n'
     yield 'data: {"type": "done"}\n\n'
 
 
 @pytest.fixture(scope="module")
 def client():
+    """Module-scoped test client with Sheets mocked."""
     with patch("api.sheets.sheets_client.get_main_sheet", return_value=MagicMock()):
         from api.main import app
         from fastapi.testclient import TestClient
@@ -30,6 +49,7 @@ def client():
 
 @pytest.fixture(scope="module")
 def auth_headers():
+    """Module-scoped bearer token headers for user_id=1."""
     from api.auth import create_jwt
     token = create_jwt("test@example.com", 1)
     return {"Authorization": f"Bearer {token}"}

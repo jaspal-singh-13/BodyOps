@@ -1,3 +1,15 @@
+/**
+ * Authenticated app shell — sidebar (desktop) + bottom nav (mobile) + chat drawer.
+ *
+ * This is the layout for all `/app/**` routes. It is a `"use client"` component
+ * because the chat drawer state (`chatOpen`) must live here so it persists across
+ * page navigations without re-mounting.
+ *
+ * The "Chat to log" button and the mobile Coach tab both toggle the same
+ * `chatOpen` state, which mounts `<ChatDrawer>` as an overlay on top of the
+ * current page without navigating away.
+ */
+
 "use client";
 
 import Link from "next/link";
@@ -33,7 +45,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <h1 className="text-lg font-bold text-zinc-900">BodyOps</h1>
         </div>
 
-        {/* Chat to log button */}
+        {/* Chat to log button — primary entry point for the AI coach */}
         <div className="px-0 mb-4">
           <button
             onClick={() => setChatOpen(true)}
@@ -91,7 +103,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </Link>
           );
         })}
-        {/* Mobile chat button */}
+        {/* Mobile coach tab — opens the same drawer as the desktop "Chat to log" button */}
         <button
           onClick={() => setChatOpen(true)}
           className="flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium text-zinc-400"
@@ -101,7 +113,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </button>
       </nav>
 
-      {/* Chat drawer — accessible from any page */}
+      {/* Chat drawer — mounted here so it persists across page navigations */}
       <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} />
     </div>
   );

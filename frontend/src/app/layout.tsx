@@ -1,3 +1,14 @@
+/**
+ * Root HTML layout — applies global fonts and sets the document shell.
+ *
+ * All pages share this layout. Two Google Fonts are loaded via next/font:
+ *   - Hanken Grotesk → `--font-sans` (body text, headings)
+ *   - JetBrains Mono → `--font-geist-mono` (mono chip labels, tool events)
+ *
+ * Both are CSS variables so Tailwind's `font-sans` / `font-mono` utilities
+ * resolve to these values via `tailwind.config.ts`.
+ */
+
 import type { Metadata } from "next";
 import { Hanken_Grotesk, JetBrains_Mono } from "next/font/google";
 import "./globals.css";

@@ -1,3 +1,15 @@
+/**
+ * Polymorphic Button component built on Base UI's headless `Button` primitive.
+ *
+ * Variants and sizes are defined with `cva` (class-variance-authority) so
+ * callsites stay declarative — pass `variant` and `size` props instead of raw
+ * Tailwind strings. All Base UI `Button.Props` are forwarded, including
+ * `render` for rendering as a different element (e.g. `<a>`).
+ *
+ * Available variants: default, outline, secondary, ghost, destructive, link
+ * Available sizes:    default, xs, sm, lg, icon, icon-xs, icon-sm, icon-lg
+ */
+
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 

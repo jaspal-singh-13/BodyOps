@@ -1,3 +1,11 @@
+/**
+ * Login page — authenticates the user against `POST /auth/login`.
+ *
+ * On success the JWT is stored in a browser cookie via `setToken`, then the
+ * user is redirected to `/app`. The middleware in `proxy.ts` will redirect
+ * back here automatically if the cookie is missing on a protected route.
+ */
+
 "use client";
 
 import { useState } from "react";
@@ -16,6 +24,8 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
+      // Bypass apiFetch — login has no auth cookie yet, so the proxy would
+      // forward an empty bearer token; call the proxy route directly instead.
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

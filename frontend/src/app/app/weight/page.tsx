@@ -1,3 +1,18 @@
+/**
+ * Weight tracking page — log daily weight and visualise the 30-day trend.
+ *
+ * On mount, fetches history, trend (moving average + projection), and settings
+ * in parallel. If today already has an entry, the weight input is pre-filled
+ * with that value so it reads as "Update today" rather than a new log.
+ *
+ * The chart shows two lines:
+ *   - `weight_kg` — raw logged weight (solid black)
+ *   - `ma_7`      — 7-day moving average (dashed grey), gaps where < 7 days exist
+ *
+ * Trend data is re-fetched after every successful POST so the projection and
+ * chart update immediately without a page reload.
+ */
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -33,6 +48,7 @@ interface Settings {
   goal_weight_kg: number;
 }
 
+/** Return today's date as a YYYY-MM-DD string in local time. */
 function todayISO(): string {
   return new Date().toISOString().split("T")[0];
 }
@@ -50,6 +66,7 @@ export default function WeightPage() {
   useEffect(() => {
     Promise.all([
       apiFetch<HistoryItem[]>("/weight/history"),
+      // Trend may not exist yet (fewer than 2 entries) — treat failure as null
       apiFetch<TrendData>("/weight/trend").catch(() => null),
       apiFetch<Settings>("/settings"),
     ])
@@ -57,6 +74,7 @@ export default function WeightPage() {
         setHistory(h);
         setTrend(t);
         setSettings(s);
+        // Pre-fill weight input if user already logged today
         const todayEntry = h.find((e) => e.date === todayISO());
         if (todayEntry) setWeightInput(String(todayEntry.weight_kg));
       })
@@ -74,6 +92,7 @@ export default function WeightPage() {
         method: "POST",
         body: JSON.stringify({ date, weight_kg: parseFloat(weightInput) }),
       });
+      // Refresh both history and trend so chart and stats reflect the new entry
       const [h, t] = await Promise.all([
         apiFetch<HistoryItem[]>("/weight/history"),
         apiFetch<TrendData>("/weight/trend").catch(() => null),
@@ -87,6 +106,7 @@ export default function WeightPage() {
     }
   }
 
+  // Cap chart to last 30 data points to avoid an overly dense X-axis
   const chartData = trend?.moving_avg.slice(-30) ?? [];
   const todayEntry = history.find((e) => e.date === todayISO());
   const currentWeight = history.length > 0 ? history[0].weight_kg : null;
@@ -178,6 +198,7 @@ export default function WeightPage() {
               <XAxis
                 dataKey="date"
                 tick={{ fontSize: 10 }}
+                // Show MM-DD only to save horizontal space
                 tickFormatter={(v: string) => v.slice(5)}
               />
               <YAxis domain={["auto", "auto"]} tick={{ fontSize: 10 }} width={36} />
@@ -200,6 +221,7 @@ export default function WeightPage() {
                 dot={false}
                 name="7-day avg"
                 strokeDasharray="4 2"
+                // Don't bridge gaps — null means fewer than 7 days of data
                 connectNulls={false}
               />
             </LineChart>
@@ -244,6 +266,7 @@ export default function WeightPage() {
   );
 }
 
+/** Key-value stat tile used in the stats row. */
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-white rounded-xl border border-zinc-100 p-4">

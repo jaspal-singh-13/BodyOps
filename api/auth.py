@@ -1,4 +1,17 @@
-"""JWT creation/verification and login endpoint."""
+"""
+JWT creation/verification and login endpoint.
+
+Auth flow:
+    1. Client POSTs ``{email, password}`` to ``/auth/login``.
+    2. ``login()`` reads the single credential row from the Auth Sheet.
+    3. Credentials are compared in plain text (owner-managed sheet, single user).
+    4. On success, a signed JWT containing ``user_id`` is returned.
+    5. Every protected route extracts ``user_id`` via the ``get_current_user``
+       FastAPI dependency, which calls ``verify_jwt`` on the bearer token.
+
+Token lifetime is controlled by ``JWT_EXPIRE_MINUTES`` (default: 10080 = 7 days).
+"""
+
 import os
 from datetime import datetime, timedelta, timezone
 
@@ -11,20 +24,39 @@ from .logger import get_logger
 from .sheets.auth_sheet import get_credentials
 
 logger = get_logger("auth")
+
+# HTTPBearer extracts the token from the "Authorization: Bearer <token>" header.
 security = HTTPBearer()
 
 
 class LoginRequest(BaseModel):
+    """Request body for ``POST /auth/login``."""
+
     email: str
     password: str
 
 
 class TokenResponse(BaseModel):
+    """Response body returned on successful login."""
+
     access_token: str
     token_type: str = "bearer"
 
 
 def create_jwt(email: str, user_id: int) -> str:
+    """
+    Create a signed JWT containing the user's email and integer ID.
+
+    The token expires after ``JWT_EXPIRE_MINUTES`` minutes (default 7 days).
+    Algorithm and secret are read from env vars ``JWT_ALGORITHM`` / ``JWT_SECRET``.
+
+    Args:
+        email: The authenticated user's email address (stored in ``sub`` claim).
+        user_id: Integer user ID from the Auth Sheet (stored in ``user_id`` claim).
+
+    Returns:
+        Signed JWT string.
+    """
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=int(os.environ.get("JWT_EXPIRE_MINUTES", 10080))
     )
@@ -36,6 +68,18 @@ def create_jwt(email: str, user_id: int) -> str:
 
 
 def verify_jwt(token: str) -> int:
+    """
+    Decode and verify a JWT, returning the ``user_id`` claim.
+
+    Args:
+        token: Raw JWT string (without the "Bearer " prefix).
+
+    Returns:
+        Integer ``user_id`` from the token payload.
+
+    Raises:
+        HTTPException(401): If the token is invalid, expired, or missing ``user_id``.
+    """
     try:
         payload = jwt.decode(
             token,
@@ -54,10 +98,41 @@ def verify_jwt(token: str) -> int:
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> int:
+    """
+    FastAPI dependency that extracts and verifies the bearer token.
+
+    Inject this into any route that requires authentication::
+
+        @router.get("/protected")
+        async def handler(user_id: int = Depends(get_current_user)):
+            ...
+
+    Returns:
+        Authenticated user's integer ID.
+
+    Raises:
+        HTTPException(401): If the token is missing or invalid.
+    """
     return verify_jwt(credentials.credentials)
 
 
 async def login(body: LoginRequest) -> TokenResponse:
+    """
+    Validate credentials against the Auth Sheet and return a JWT on success.
+
+    Reads the single credential row from the Google Sheets Auth Sheet via
+    ``get_credentials()``. Compares email and password in plain text.
+
+    Args:
+        body: ``LoginRequest`` containing ``email`` and ``password``.
+
+    Returns:
+        ``TokenResponse`` with a signed JWT bearer token.
+
+    Raises:
+        HTTPException(500): If the Auth Sheet cannot be read.
+        HTTPException(401): If email or password is incorrect.
+    """
     logger.info("Login attempt: %s", body.email)
     try:
         stored = get_credentials()

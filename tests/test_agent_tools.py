@@ -1,7 +1,20 @@
-"""Unit tests for agent tools — verifies event emission and injected service delegation."""
+"""
+Unit tests for agent tools — verifies event emission and injected service delegation.
+
+Tests confirm that each tool:
+    1. Pushes a ``tool_call`` event to the queue before executing.
+    2. Pushes a ``tool_result`` event to the queue after executing.
+    3. Delegates to the correct injected callable (``weight_logger`` / ``trend_getter``).
+    4. Returns the callable's return value.
+
+No real Google Sheets or Azure OpenAI calls are made — services are injected
+as ``MagicMock`` callables via ``AgentDeps``.
+"""
+
 import asyncio
 import os
 
+# Set env vars before any agent.* import to satisfy module-level LLM factory calls
 os.environ.setdefault("JWT_SECRET", "test-secret")
 os.environ.setdefault("GOOGLE_SERVICE_ACCOUNT_JSON", '{"type":"service_account"}')
 os.environ.setdefault("GOOGLE_SPREADSHEET_ID", "test-sheet-id")
@@ -18,6 +31,18 @@ from agent.deps import AgentDeps
 
 
 def _make_deps(user_id: int, queue: asyncio.Queue, weight_logger=None, trend_getter=None) -> AgentDeps:
+    """
+    Build an ``AgentDeps`` instance with mock service callables.
+
+    Args:
+        user_id: User ID to embed in deps.
+        queue: Async queue for event capture.
+        weight_logger: Optional mock; defaults to one returning a sample entry dict.
+        trend_getter: Optional mock; defaults to one returning an empty trend dict.
+
+    Returns:
+        ``AgentDeps`` ready to be passed to a tool via a mock ``RunContext``.
+    """
     return AgentDeps(
         user_id=user_id,
         event_queue=queue,
@@ -27,6 +52,18 @@ def _make_deps(user_id: int, queue: asyncio.Queue, weight_logger=None, trend_get
 
 
 def _make_ctx(deps: AgentDeps) -> MagicMock:
+    """
+    Build a minimal mock ``RunContext`` carrying the given deps.
+
+    Pydantic AI passes a ``RunContext[AgentDeps]`` to each tool. We replicate
+    the ``ctx.deps`` attribute access pattern here.
+
+    Args:
+        deps: ``AgentDeps`` instance to attach.
+
+    Returns:
+        ``MagicMock`` with ``.deps`` set.
+    """
     ctx = MagicMock()
     ctx.deps = deps
     return ctx
@@ -37,7 +74,7 @@ def _make_ctx(deps: AgentDeps) -> MagicMock:
 class TestLogWeightTool:
     @pytest.mark.asyncio
     async def test_emits_tool_call_then_tool_result(self):
-        import agent.tools  # noqa: F401
+        import agent.tools  # noqa: F401 — triggers @agent.tool registration
 
         queue: asyncio.Queue = asyncio.Queue()
         deps = _make_deps(1, queue)

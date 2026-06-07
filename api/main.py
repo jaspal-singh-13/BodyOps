@@ -1,4 +1,16 @@
-"""FastAPI application entry point."""
+"""
+FastAPI application entry point.
+
+Registers all routers, configures CORS, and defines the lifespan hook that
+validates environment variables and tests the Sheets connection at startup.
+
+Routers mounted:
+    /settings  — user profile / onboarding settings
+    /weight    — weight logging and trend analytics
+    /agent     — SSE-streaming AI coach chat
+    /auth      — login (mounted directly, not via a router)
+"""
+
 import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -19,6 +31,8 @@ from .sheets.sheets_client import get_main_sheet
 
 logger = get_logger("main")
 
+# Core env vars required for the app to function — missing any of these means the
+# app will start but all protected endpoints will fail immediately.
 REQUIRED_ENV_VARS = [
     "GOOGLE_SERVICE_ACCOUNT_JSON",
     "GOOGLE_SPREADSHEET_ID",
@@ -26,6 +40,8 @@ REQUIRED_ENV_VARS = [
     "JWT_SECRET",
 ]
 
+# Agent-specific env vars — missing these only breaks /agent/* endpoints,
+# so we log a warning rather than blocking startup.
 AGENT_ENV_VARS = ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_DEPLOYMENT"]
 
 VERSION = "0.5.0"
@@ -33,6 +49,18 @@ VERSION = "0.5.0"
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
+    """
+    FastAPI lifespan hook — runs startup checks then yields to serve requests.
+
+    On startup:
+        1. Logs the version.
+        2. Validates required env vars (logs error if any missing, but does not abort).
+        3. Warns if Azure OpenAI env vars are absent (agent endpoints will fail at runtime).
+        4. Tests the Google Sheets connection and logs the result.
+
+    On shutdown:
+        Logs a shutdown message.
+    """
     logger.info("BodyOps API v%s starting...", VERSION)
 
     missing = [v for v in REQUIRED_ENV_VARS if not os.environ.get(v)]
@@ -65,6 +93,8 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(title="BodyOps API", version="0.5.0", lifespan=lifespan)
 
+# Allow all origins in development; lock down to Vercel domain in production
+# by setting CORS_ORIGINS env var (not yet wired — acceptable for V1 single-user app).
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -80,11 +110,27 @@ app.include_router(agent_router)
 
 @app.post("/auth/login", response_model=TokenResponse)
 async def login_endpoint(body: LoginRequest) -> TokenResponse:
+    """
+    Authenticate the user and return a signed JWT.
+
+    Delegates to ``api.auth.login`` which reads credentials from the Auth Sheet.
+    Returns a bearer token valid for ``JWT_EXPIRE_MINUTES`` (default: 7 days).
+    """
     return await login(body)
 
 
 @app.get("/health")
 async def health() -> dict:
+    """
+    Liveness / readiness probe.
+
+    Tests the Google Sheets connection on every call. Both ``sheets`` and
+    ``drive`` reflect the same service-account connectivity since a single
+    service account covers both APIs.
+
+    Returns:
+        ``{"ok": bool, "sheets": bool, "drive": bool}``
+    """
     sheets_ok = False
     drive_ok = False
     try:

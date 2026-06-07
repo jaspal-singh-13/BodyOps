@@ -1,3 +1,15 @@
+/**
+ * Dashboard page — landing page after login for authenticated users.
+ *
+ * Fetches settings, latest weight entry, and projected goal date in parallel.
+ * Redirects to `/onboarding` if the settings fetch fails with a 4xx (user has
+ * not completed onboarding yet — no settings row exists in the sheet).
+ *
+ * Weight display priority:
+ *   1. Most recent logged entry (`history[0].weight_kg`) if any entries exist
+ *   2. `settings.current_weight_kg` as fallback (set during onboarding)
+ */
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -35,6 +47,7 @@ export default function DashboardPage() {
       .catch(() => router.push("/onboarding"))
       .finally(() => setLoading(false));
 
+    // Failures here are non-fatal — stats just won't appear
     apiFetch<HistoryItem[]>("/weight/history")
       .then((h) => { if (h.length > 0) setLatestWeight(h[0]); })
       .catch(() => {});
@@ -78,6 +91,7 @@ export default function DashboardPage() {
   );
 }
 
+/** Key-value stat tile used in the dashboard grid. */
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-white rounded-xl border border-zinc-100 p-4">

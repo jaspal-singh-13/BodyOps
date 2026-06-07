@@ -1,3 +1,36 @@
+"""
+Agent router — SSE-streaming AI coach chat.
+
+Endpoints:
+    POST   /agent/chat     — run the Pydantic AI agent and stream events via SSE.
+    DELETE /agent/history  — clear all in-memory session history.
+
+Architecture
+------------
+The SSE pipeline uses a shared ``asyncio.Queue`` to decouple the agent
+background task from the streaming generator:
+
+    Browser ──SSE──► /agent/chat ──► _sse_generator
+                                          │
+                              asyncio.Queue (shared)
+                                          │
+                           _run_agent_to_queue (background task)
+                                          │
+                                   agent.run_stream()
+                                          │
+                                tools (emit events to queue)
+
+This design means tool_call / tool_result events appear in the client's
+stream in real time, before the final text reply is assembled.
+
+Dependency injection
+--------------------
+``_make_weight_logger`` and ``_make_trend_getter`` create closures that
+capture ``user_id`` and delegate to the appropriate service functions.
+These callables are injected into ``AgentDeps`` so the top-level ``agent``
+package remains free of any ``api.*`` imports.
+"""
+
 import asyncio
 import json
 
@@ -5,7 +38,8 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from agent import tools  # noqa: F401 — registers @agent.tool decorators
+# noqa: F401 — importing tools triggers @agent.tool decorator registration
+from agent import tools  # noqa: F401
 from agent.agent import agent
 from agent.deps import AgentDeps
 from agent.history import clear_all_sessions, get_session, update_session
@@ -20,17 +54,46 @@ router = APIRouter(prefix="/agent", tags=["agent"])
 
 
 class ChatRequest(BaseModel):
+    """Request body for ``POST /agent/chat``."""
+
     message: str
-    session_id: str
+    session_id: str  # client-generated UUID; used to look up conversation history
 
 
 def _make_weight_logger(user_id: int):
+    """
+    Return a callable that logs a weight entry for the given user.
+
+    The returned closure matches the ``weight_logger`` signature expected by
+    ``AgentDeps``: ``(date: str, weight_kg: float) -> dict``.
+
+    Args:
+        user_id: Authenticated user's integer ID to scope the write.
+
+    Returns:
+        Callable that delegates to ``svc_log_weight`` and serialises the result.
+    """
     def weight_logger(date: str, weight_kg: float) -> dict:
         return svc_log_weight(user_id, WeightEntryCreate(date=date, weight_kg=weight_kg)).model_dump()
     return weight_logger
 
 
 def _make_trend_getter(user_id: int):
+    """
+    Return a callable that fetches the weight trend for the given user.
+
+    Falls back to ``goal_weight_kg=0.0`` if the user has no settings row yet
+    (trend will still be computed, just without a meaningful projection).
+
+    The returned closure matches the ``trend_getter`` signature expected by
+    ``AgentDeps``: ``() -> dict``.
+
+    Args:
+        user_id: Authenticated user's integer ID to scope the read.
+
+    Returns:
+        Callable that delegates to ``svc_get_trend`` and serialises the result.
+    """
     def trend_getter() -> dict:
         settings = get_settings(user_id)
         goal = settings.goal_weight_kg if settings else 0.0
@@ -44,18 +107,54 @@ async def _run_agent_to_queue(
     deps: AgentDeps,
     session_id: str,
 ) -> None:
+    """
+    Run the Pydantic AI agent in a background task, pushing all events to the queue.
+
+    Streams text deltas from ``result.stream_text(delta=True)`` as
+    ``{"type": "text", "content": chunk}`` events. Tools push their own
+    ``tool_call`` / ``tool_result`` events directly to the queue.
+
+    Sends ``None`` as a sentinel when the stream is fully consumed (or on error)
+    so the SSE generator knows to close the connection.
+
+    Args:
+        message: The user's latest message.
+        history: Prior ``ModelMessage`` objects for this session (multi-turn context).
+        deps: Injected ``AgentDeps`` containing the queue and service callables.
+        session_id: Session ID used to persist new messages to history store.
+    """
     try:
         async with agent.run_stream(message, message_history=history, deps=deps) as result:
             async for chunk in result.stream_text(delta=True):
                 await deps.event_queue.put({"type": "text", "content": chunk})
+            # Persist the full exchange so future turns have context
             update_session(session_id, result.new_messages())
     except Exception as e:
         await deps.event_queue.put({"type": "error", "message": str(e)})
     finally:
+        # Sentinel: tells _sse_generator the stream is finished
         await deps.event_queue.put(None)
 
 
 async def _sse_generator(message: str, session_id: str, user_id: int):
+    """
+    Async generator that yields SSE-formatted event strings.
+
+    Creates the shared queue, builds ``AgentDeps`` with injected service
+    callables, launches ``_run_agent_to_queue`` as a background task, then
+    drains the queue yielding one SSE line per event.
+
+    The generator closes (and awaits the background task) when it receives
+    the ``None`` sentinel, which triggers a ``{"type": "done"}`` event.
+
+    Args:
+        message: User's latest message text.
+        session_id: Client-generated UUID for session continuity.
+        user_id: Authenticated user's integer ID.
+
+    Yields:
+        SSE-formatted strings: ``data: {json}\n\n``
+    """
     queue: asyncio.Queue = asyncio.Queue()
     history = get_session(session_id)
     deps = AgentDeps(
@@ -65,15 +164,18 @@ async def _sse_generator(message: str, session_id: str, user_id: int):
         trend_getter=_make_trend_getter(user_id),
     )
 
+    # Run agent in background so this generator can yield events as they arrive
     task = asyncio.create_task(_run_agent_to_queue(message, history, deps, session_id))
 
     while True:
         event = await queue.get()
         if event is None:
+            # Sentinel received — stream is complete
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
             break
         yield f"data: {json.dumps(event)}\n\n"
 
+    # Ensure background task is fully cleaned up before the response closes
     await task
 
 
@@ -82,6 +184,21 @@ async def chat_endpoint(
     body: ChatRequest,
     user_id: int = Depends(get_current_user),
 ):
+    """
+    Stream an AI coach response as Server-Sent Events.
+
+    Returns a ``text/event-stream`` response. Each event is a newline-delimited
+    JSON object with a ``type`` field:
+
+    - ``{"type": "tool_call",   "tool": "...", "args": {...}}``
+    - ``{"type": "tool_result", "tool": "...", "result": {...}}``
+    - ``{"type": "text",        "content": "..."}``
+    - ``{"type": "done"}``
+    - ``{"type": "error",       "message": "..."}``
+
+    The ``Cache-Control: no-cache`` and ``X-Accel-Buffering: no`` headers
+    prevent proxies (nginx, Vercel) from buffering the stream.
+    """
     return StreamingResponse(
         _sse_generator(body.message, body.session_id, user_id),
         media_type="text/event-stream",
@@ -91,4 +208,14 @@ async def chat_endpoint(
 
 @router.delete("/history", status_code=204)
 async def clear_history_endpoint(user_id: int = Depends(get_current_user)):
+    """
+    Clear all in-memory conversation history for all sessions.
+
+    Useful for debugging or when the user explicitly wants to start fresh.
+    Note: clears history for ALL sessions in the process, not just the
+    authenticated user's — acceptable for a single-user app.
+
+    Returns:
+        HTTP 204 No Content on success.
+    """
     clear_all_sessions()
