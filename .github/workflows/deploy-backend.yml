@@ -1,11 +1,13 @@
 name: Deploy backend to HF Spaces
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
       - "api/**"
       - "pyproject.toml"
+      - ".github/workflows/deploy-backend.yml"
 
 jobs:
   deploy:
