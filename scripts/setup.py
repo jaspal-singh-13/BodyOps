@@ -23,21 +23,21 @@ REQUIRED_VARS = [
 ]
 
 MAIN_SHEET_TABS: dict[str, list[str]] = {
-    "WeightLogs": ["id", "date", "weight_kg", "logged_at"],
-    "Meals": ["id", "date", "meal_type", "photo_url", "total_calories", "total_protein_g", "total_carbs_g", "total_fat_g", "logged_at"],
-    "MealItems": ["id", "meal_id", "name", "quantity", "unit", "calories", "protein_g", "carbs_g", "fat_g"],
-    "WorkoutPrograms": ["id", "name", "created_at"],
-    "WorkoutSchedules": ["id", "program_id", "weekday", "workout_day_name"],
-    "WorkoutSessions": ["id", "date", "workout_day_name", "started_at", "completed_at"],
-    "WorkoutSets": ["id", "session_id", "exercise_name", "set_number", "weight_kg", "reps", "logged_at"],
-    "Tasks": ["id", "name", "description", "task_type"],
-    "DailyTaskStatus": ["id", "task_id", "date", "completed", "completed_at"],
-    "CoachInsights": ["id", "date", "type", "summary", "wins_json", "focus_json", "next_step", "generated_at"],
-    "Settings": ["name", "current_weight_kg", "height_cm", "age", "goal_weight_kg", "start_date", "calorie_target", "protein_target_g", "wake_up_time", "unit_preference", "reminders_json", "updated_at"],
+    "WeightLogs": ["user_id", "id", "date", "weight_kg", "logged_at"],
+    "Meals": ["user_id", "id", "date", "meal_type", "photo_url", "total_calories", "total_protein_g", "total_carbs_g", "total_fat_g", "logged_at"],
+    "MealItems": ["user_id", "id", "meal_id", "name", "quantity", "unit", "calories", "protein_g", "carbs_g", "fat_g"],
+    "WorkoutPrograms": ["user_id", "id", "name", "created_at"],
+    "WorkoutSchedules": ["user_id", "id", "program_id", "weekday", "workout_day_name"],
+    "WorkoutSessions": ["user_id", "id", "date", "workout_day_name", "started_at", "completed_at"],
+    "WorkoutSets": ["user_id", "id", "session_id", "exercise_name", "set_number", "weight_kg", "reps", "logged_at"],
+    "Tasks": ["user_id", "id", "name", "description", "task_type"],
+    "DailyTaskStatus": ["user_id", "id", "task_id", "date", "completed", "completed_at"],
+    "CoachInsights": ["user_id", "id", "date", "type", "summary", "wins_json", "focus_json", "next_step", "generated_at"],
+    "Settings": ["user_id", "name", "current_weight_kg", "height_cm", "age", "goal_weight_kg", "start_date", "calorie_target", "protein_target_g", "wake_up_time", "unit_preference", "reminders_json", "updated_at"],
 }
 
 CHAT_HISTORY_TABS: dict[str, list[str]] = {
-    "ChatHistory": ["session_id", "date", "role", "content", "tool_calls_json"],
+    "ChatHistory": ["user_id", "session_id", "date", "role", "content", "tool_calls_json"],
 }
 
 SCOPES = [

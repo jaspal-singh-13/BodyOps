@@ -18,3 +18,261 @@ Requires-Dist: python-dotenv>=1.0.0
 Provides-Extra: dev
 Requires-Dist: pytest>=8.0.0; extra == "dev"
 Requires-Dist: pytest-asyncio>=0.23.0; extra == "dev"
+
+---
+title: BodyOps API
+emoji: 💪
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
+# BodyOps
+
+Personal fitness tracker with AI coaching. Log weight, meals (via phone camera), and workouts. Get daily coaching summaries and progress analytics.
+
+**Stack:** Next.js 14 · FastAPI · Google Sheets (data) · Google Drive (meal photos) · Azure OpenAI · Vercel + Hugging Face Spaces
+
+---
+
+## What you need before starting
+
+| Tool | Version | Get it |
+|------|---------|--------|
+| Python | 3.12 | python.org |
+| Node.js | 20+ | nodejs.org |
+| Git | any | git-scm.com |
+
+You also need accounts on:
+- **Azure** (for OpenAI / GPT-4o)
+- **Google Cloud** (for Sheets + Drive APIs)
+- **Vercel** (frontend hosting)
+- **Hugging Face** (backend hosting — free, no credit card)
+
+---
+
+## Setup
+
+### 1. Clone and create the virtual environment
+
+```bash
+git clone <repo-url>
+cd BodyOps
+
+python -m venv .venv
+
+# Windows
+.venv\Scripts\activate
+# Mac/Linux
+source .venv/bin/activate
+
+pip install -e ".[dev]"
+```
+
+### 2. Get your Azure OpenAI credentials
+
+1. Go to [portal.azure.com](https://portal.azure.com) → create an **Azure OpenAI** resource
+2. Inside the resource: **Keys and Endpoint** → copy `KEY 1` and `Endpoint`
+3. Go to **Model deployments** → deploy `gpt-4o` → name the deployment (e.g. `gpt-4o`)
+
+You'll need:
+```
+AZURE_OPENAI_API_KEY=<KEY 1>
+AZURE_OPENAI_ENDPOINT=https://<your-resource>.openai.azure.com/
+AZURE_OPENAI_DEPLOYMENT=gpt-4o
+AZURE_OPENAI_API_VERSION=2024-08-01-preview
+```
+
+### 3. Set up Google Cloud
+
+#### Create project and enable APIs
+
+1. Go to [console.cloud.google.com](https://console.cloud.google.com) → New Project → name it `BodyOps`
+2. **APIs & Services → Library** → enable **Google Sheets API** and **Google Drive API**
+
+#### Create a service account
+
+3. **APIs & Services → Credentials → + Create Credentials → Service Account**
+4. Name: `bodyops-service` → Create and Continue → Done
+5. Click the service account → **Keys → Add Key → Create new key → JSON** → download the file
+
+#### Create an API key (for the Auth Sheet)
+
+6. **Credentials → + Create Credentials → API Key** → copy the key
+7. Edit the key → restrict it to **Google Sheets API only**
+
+### 4. Create three Google Spreadsheets
+
+Go to [sheets.google.com](https://sheets.google.com) and create these three spreadsheets:
+
+| Spreadsheet | Share with service account? | Purpose |
+|-------------|----------------------------|---------|
+| `BodyOps - Data` | Yes (Editor) | All app data |
+| `BodyOps - Auth` | **No** | Login credentials |
+| `BodyOps - Chat History` | Yes (Editor) | AI chat history |
+
+In **BodyOps - Auth**, set up row 1 as headers and row 2 as your credentials:
+
+| A | B |
+|---|---|
+| email | password |
+| you@example.com | yourpassword |
+
+Copy the spreadsheet ID from each URL: `https://docs.google.com/spreadsheets/d/**<ID>**/edit`
+
+### 5. Create a Google Drive folder for meal photos
+
+1. Go to [drive.google.com](https://drive.google.com) → **New → Folder** → name it `BodyOps Meal Images`
+2. Share it with the service account email → **Editor**
+3. Open the folder and copy the ID from the URL: `https://drive.google.com/drive/folders/**<ID>**`
+
+### 6. Create `api/.env`
+
+Create the file `api/.env` in the project root and fill in all values:
+
+```env
+AZURE_OPENAI_API_KEY=
+AZURE_OPENAI_ENDPOINT=
+AZURE_OPENAI_DEPLOYMENT=gpt-4o
+AZURE_OPENAI_API_VERSION=2024-08-01-preview
+
+GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
+GOOGLE_SERVICE_ACCOUNT_EMAIL=bodyops-service@<project>.iam.gserviceaccount.com
+GOOGLE_SPREADSHEET_ID=
+GOOGLE_CHAT_HISTORY_SHEET_ID=
+GOOGLE_AUTH_SHEET_ID=
+GOOGLE_SHEETS_API_KEY=
+GOOGLE_DRIVE_FOLDER_ID=
+
+JWT_SECRET=
+JWT_ALGORITHM=HS256
+JWT_EXPIRE_MINUTES=10080
+```
+
+For `GOOGLE_SERVICE_ACCOUNT_JSON`: open the downloaded JSON file and paste the **entire contents as a single line**.
+
+For `JWT_SECRET`: generate one with:
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+### 7. Bootstrap Google Sheets
+
+This creates all the required tabs in your spreadsheets:
+
+```bash
+python scripts/setup.py
+```
+
+Expected output:
+```
+=== BodyOps Sheet Bootstrap ===
+
+[OK] All required environment variables present
+
+Connecting to Google Sheets...
+[OK] Service account authenticated
+
+Main Data Sheet tabs:
+  [OK] WeightLogs (created)
+  [OK] Meals (created)
+  ...
+
+[OK] Bootstrap complete - all tabs ready
+```
+
+Run it again any time — it's safe and won't duplicate tabs.
+
+### 8. Run the backend
+
+```bash
+uvicorn api.main:app --reload --port 8000
+```
+
+Verify it's working: open `http://localhost:8000/health` — should return `{"ok":true,"sheets":true,"drive":true}`
+
+### 9. Run the frontend
+
+```bash
+cd frontend
+npm install
+```
+
+Create `frontend/.env.local`:
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+```bash
+npm run dev
+```
+
+Open `http://localhost:3000` — log in with the email and password you put in the Auth Sheet.
+
+---
+
+## Deployment
+
+See [SETUP.md](SETUP.md) for full deployment steps.
+
+Quick version:
+
+**Backend → Hugging Face Spaces**
+```bash
+# 1. Create a write-access token at huggingface.co/settings/tokens
+# 2. Add the Space as a remote (include your token for authentication)
+git remote add hf https://<username>:<token>@huggingface.co/spaces/<username>/bodyops-api
+# 3. Set all env vars in HF Space → Settings → Variables and secrets
+# 4. Deploy (--force needed on first push because HF creates an initial commit)
+git push hf <your-branch>:main --force
+# Subsequent deploys:
+git push hf <your-branch>:main
+```
+
+**Frontend → Vercel**
+```bash
+npm install -g vercel   # install CLI once
+vercel login            # authenticate in browser
+
+cd frontend
+vercel                  # first deploy (preview) — answer prompts: new project, name "bodyops"
+
+# Set the backend URL (replace with your actual HF username):
+vercel env add NEXT_PUBLIC_API_URL production
+# When prompted for value, enter: https://<your-hf-username>-bodyops-api.hf.space
+
+vercel --prod           # production deploy
+```
+
+---
+
+## Project structure
+
+```
+api/                    FastAPI backend
+  main.py               App entry point, CORS, health check
+  auth.py               JWT auth, login endpoint
+  routers/              Route handlers (weight, meals, workouts, etc.)
+  services/             Business logic
+  sheets/               Google Sheets client and repo helpers
+  agent/                Pydantic AI agent and tools
+  models/               Pydantic request/response models
+
+frontend/               Next.js frontend
+  src/app/              App Router pages
+  src/components/       UI components
+  src/lib/api.ts        Typed fetch wrapper (attaches JWT to every request)
+
+scripts/
+  setup.py              Google Sheets bootstrap (run once after cloning)
+```
+
+---
+
+## Running tests
+
+```bash
+pytest tests/
+```

@@ -2,10 +2,12 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY pyproject.toml .
-RUN pip install --no-cache-dir .
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-COPY api/ ./api/
+# When deployed via git subtree push --prefix=api, files land at repo root.
+# Copy them into api/ so the package import path (api.main) is preserved.
+COPY . ./api/
 
 EXPOSE 7860
 

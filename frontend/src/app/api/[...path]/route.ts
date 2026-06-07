@@ -14,8 +14,8 @@ async function proxy(req: NextRequest, pathSegments: string[]): Promise<Response
   const contentType = req.headers.get("content-type");
   if (contentType) headers["Content-Type"] = contentType;
 
-  if (HF_TOKEN) headers["Authorization"] = `Bearer ${HF_TOKEN}`;
-  if (jwt) headers["X-User-Token"] = jwt;
+  if (jwt) headers["Authorization"] = `Bearer ${jwt}`;
+  if (HF_TOKEN) headers["X-HF-Token"] = HF_TOKEN;
 
   const hasBody = !["GET", "HEAD"].includes(req.method);
 

@@ -4,20 +4,23 @@ from typing import Any
 import gspread.exceptions
 
 from ..models.settings import SettingsCreate, SettingsResponse
-from ..sheets.sheets_repo import append_row, read_rows, update_row
+from ..sheets.sheets_repo import append_row, find_row, read_rows, update_row
 
 SETTINGS_TAB = "Settings"
 
 
-def get_settings() -> SettingsResponse | None:
+def get_settings(user_id: int) -> SettingsResponse | None:
     try:
         rows = read_rows(SETTINGS_TAB)
     except gspread.exceptions.WorksheetNotFound:
         return None
-    if not rows:
+    row: dict[str, Any] | None = next(
+        (r for r in rows if int(r.get("user_id", -1)) == user_id), None
+    )
+    if row is None:
         return None
-    row: dict[str, Any] = rows[0]
     return SettingsResponse(
+        user_id=int(row.get("user_id", 0)),
         name=str(row.get("name", "")),
         current_weight_kg=float(row.get("current_weight_kg", 0)),
         height_cm=float(row.get("height_cm", 0)),
@@ -33,16 +36,16 @@ def get_settings() -> SettingsResponse | None:
     )
 
 
-def save_settings(data: SettingsCreate) -> SettingsResponse:
+def save_settings(user_id: int, data: SettingsCreate) -> SettingsResponse:
     now = datetime.now(timezone.utc).isoformat()
-    row_dict = {**data.model_dump(), "updated_at": now}
+    row_dict = {"user_id": user_id, **data.model_dump(exclude={"user_id"}), "updated_at": now}
     try:
-        rows = read_rows(SETTINGS_TAB)
-        exists = bool(rows)
+        result = find_row(SETTINGS_TAB, "user_id", str(user_id))
     except gspread.exceptions.WorksheetNotFound:
-        exists = False
-    if exists:
-        update_row(SETTINGS_TAB, 2, row_dict)
+        result = None
+    if result is not None:
+        row_index, _ = result
+        update_row(SETTINGS_TAB, row_index, row_dict)
     else:
         append_row(SETTINGS_TAB, row_dict)
     return SettingsResponse(**row_dict)

@@ -1,13 +1,15 @@
 """JWT creation/verification and login endpoint."""
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
 from pydantic import BaseModel
 
 from .sheets.auth_sheet import get_credentials
+
+security = HTTPBearer()
 
 
 class LoginRequest(BaseModel):
@@ -20,38 +22,36 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
 
 
-def create_jwt(email: str) -> str:
+def create_jwt(email: str, user_id: int) -> str:
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=int(os.environ.get("JWT_EXPIRE_MINUTES", 10080))
     )
     return jwt.encode(
-        {"sub": email, "exp": expire},
+        {"sub": email, "user_id": user_id, "exp": expire},
         os.environ["JWT_SECRET"],
         algorithm=os.environ.get("JWT_ALGORITHM", "HS256"),
     )
 
 
-def verify_jwt(token: str) -> str:
+def verify_jwt(token: str) -> int:
     try:
         payload = jwt.decode(
             token,
             os.environ["JWT_SECRET"],
             algorithms=[os.environ.get("JWT_ALGORITHM", "HS256")],
         )
-        email: str = payload.get("sub", "")
-        if not email:
-            raise ValueError("missing sub")
-        return email
+        user_id = payload.get("user_id")
+        if user_id is None:
+            raise ValueError("missing user_id")
+        return int(user_id)
     except JWTError as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
 
 
 def get_current_user(
-    x_user_token: Optional[str] = Header(None, alias="X-User-Token"),
-) -> str:
-    if not x_user_token:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-    return verify_jwt(x_user_token)
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> int:
+    return verify_jwt(credentials.credentials)
 
 
 async def login(body: LoginRequest) -> TokenResponse:
@@ -63,4 +63,4 @@ async def login(body: LoginRequest) -> TokenResponse:
     if body.email != stored.get("email") or body.password != stored.get("password"):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    return TokenResponse(access_token=create_jwt(body.email))
+    return TokenResponse(access_token=create_jwt(body.email, stored["user_id"]))

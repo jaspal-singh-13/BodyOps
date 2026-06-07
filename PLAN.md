@@ -104,14 +104,14 @@ Runnable Next.js app with Google Sheets connected, environment wired, and CI/CD 
 ### TODOs
 
 **Frontend (Next.js)**
-- [ ] `npx create-next-app@latest frontend --typescript --tailwind --app --src-dir`
-- [ ] Install frontend dependencies: `shadcn/ui`, `zod`, `date-fns`, `recharts`, `next-pwa`
-- [ ] Create `frontend/.env.local` with `NEXT_PUBLIC_API_URL=http://localhost:8000`
-- [ ] Write `frontend/lib/api.ts` — typed fetch wrapper that attaches JWT from cookie to every request, handles 401 redirect to `/login`
+- [x] `npx create-next-app@latest frontend --typescript --tailwind --app --src-dir`
+- [x] Install frontend dependencies: `shadcn/ui`, `zod`, `date-fns`, `recharts`, `next-pwa`
+- [x] Create `frontend/.env.local` with `NEXT_PUBLIC_API_URL=http://localhost:8000`
+- [x] Write `frontend/lib/api.ts` — typed fetch wrapper that attaches JWT from cookie to every request, handles 401 redirect to `/login`
 
 **Backend (FastAPI)**
-- [ ] Init Python project: `pyproject.toml` already exists — add dependencies (see list below)
-- [ ] Create project structure:
+- [x] Init Python project: `pyproject.toml` already exists — add dependencies (see list below)
+- [x] Create project structure:
   ```
   api/
     main.py          # FastAPI app, CORS, router registration
@@ -124,26 +124,26 @@ Runnable Next.js app with Google Sheets connected, environment wired, and CI/CD 
   scripts/
     setup.py         # sheet bootstrap service
   ```
-- [ ] Install Python dependencies (add to `pyproject.toml`):
+- [x] Install Python dependencies (add to `pyproject.toml`):
   ```
   fastapi, uvicorn, pydantic-ai[openai], python-jose[cryptography], gspread,
   google-auth, google-api-python-client, openai, python-multipart,
   httpx, pytest, pytest-asyncio
   ```
   Note: `zoneinfo` is stdlib in Python 3.9+, no install needed
-- [ ] Write `api/sheets/sheets_client.py` — `gspread` service account client (singleton)
-- [ ] Write `api/sheets/sheets_repo.py` — `read_rows`, `append_row`, `update_row`, `find_row` using gspread
-- [ ] Write `api/sheets/auth_sheet.py` — reads Auth Sheet via separate Google Sheets API call using owner's API key (not service account)
-- [ ] Write `api/auth.py` — `POST /auth/login`: read from Auth Sheet, compare password, return JWT
-- [ ] Write `api/main.py` — FastAPI app with CORS configured for Vercel frontend domain
+- [x] Write `api/sheets/sheets_client.py` — `gspread` service account client (singleton)
+- [x] Write `api/sheets/sheets_repo.py` — `read_rows`, `append_row`, `update_row`, `find_row` using gspread
+- [x] Write `api/sheets/auth_sheet.py` — reads Auth Sheet via separate Google Sheets API call using owner's API key (not service account)
+- [x] Write `api/auth.py` — `POST /auth/login`: read from Auth Sheet, compare password, return JWT
+- [x] Write `api/main.py` — FastAPI app with CORS configured for Vercel frontend domain
 
 **Google Sheets Setup**
-- [ ] Create Google Cloud project, enable Sheets API + Drive API
-- [ ] Create service account, download JSON credentials
-- [ ] Create 3 Google Spreadsheets manually; record IDs in env
-- [ ] Share **Main Data Sheet** and **Chat History Sheet** with service account email
-- [ ] Share **Auth Sheet** with owner only — NOT the service account
-- [ ] Manually enter `email` and `password` in row 2 of Auth Sheet (row 1 = headers)
+- [x] Create Google Cloud project, enable Sheets API + Drive API
+- [x] Create service account, download JSON credentials
+- [x] Create 3 Google Spreadsheets manually; record IDs in env
+- [x] Share **Main Data Sheet** and **Chat History Sheet** with service account email
+- [x] Share **Auth Sheet** with owner only — NOT the service account
+- [x] Manually enter `user_id`, `email`, and `password` in row 2 of Auth Sheet (row 1 = headers)
 
 ### Setup Service (`python scripts/setup.py` / `make setup`)
 
@@ -186,13 +186,13 @@ NEXT_PUBLIC_API_URL=https://<username>-bodyops-api.hf.space
 
 ### Acceptance Criteria
 
-- [ ] `uvicorn api.main:app --reload` starts without errors
-- [ ] `npm run dev` (frontend) starts without errors and proxies API calls correctly
-- [ ] `python scripts/setup.py` creates all missing tabs and exits with code 0
-- [ ] `python scripts/setup.py` run a second time makes no changes and still exits code 0
-- [ ] `GET /health` returns `{ "ok": true, "sheets": true, "drive": true }`
-- [ ] Write `api/Dockerfile` — python:3.12-slim base, expose port 7860, health check on `/health`
-- [ ] Write `api/README.md` with HF Spaces config frontmatter (`sdk: docker`, `app_port: 7860`)
+- [x] `uvicorn api.main:app --reload` starts without errors
+- [x] `npm run dev` (frontend) starts without errors and proxies API calls correctly
+- [x] `python scripts/setup.py` creates all missing tabs and exits with code 0
+- [x] `python scripts/setup.py` run a second time makes no changes and still exits code 0
+- [x] `GET /health` returns `{ "ok": true, "sheets": true, "drive": true }`
+- [x] Write `api/Dockerfile` — python:3.12-slim base, expose port 7860, health check on `/health`
+- [x] Write `api/README.md` with HF Spaces config frontmatter (`sdk: docker`, `app_port: 7860`)
 - [ ] `git subtree push --prefix=api hf main` succeeds and app is reachable at `https://<username>-bodyops-api.hf.space`
 - [ ] Vercel deployment of Next.js is live and `NEXT_PUBLIC_API_URL` points to HF Spaces URL
 
@@ -206,38 +206,38 @@ User can sign in. First-time users complete onboarding to set their profile. App
 ### TODOs
 
 **Auth (FastAPI)**
-- [ ] `POST /auth/login` — read credentials from Auth Sheet, compare plain-text password, return `{ access_token, token_type: "bearer" }`
-- [ ] `api/auth.py` — `create_jwt(email)`, `verify_jwt(token)` using `python-jose`
-- [ ] FastAPI dependency `get_current_user` — extract + verify JWT from `Authorization: Bearer` header, used on all protected routes
-- [ ] Note: no sign-up, no password reset endpoint — owner changes password directly in Auth Sheet
+- [x] `POST /auth/login` — read credentials from Auth Sheet, compare plain-text password, return `{ access_token, token_type: "bearer" }`
+- [x] `api/auth.py` — `create_jwt(email, user_id)`, `verify_jwt(token)` using `python-jose`; JWT carries `user_id` int
+- [x] FastAPI dependency `get_current_user` — extract + verify JWT from `Authorization: Bearer` header, returns `user_id`; used on all protected routes
+- [x] Note: no sign-up, no password reset endpoint — owner changes password directly in Auth Sheet
 
 **Auth (Next.js)**
-- [ ] Build `/login` page: email + password form, calls `POST /auth/login` on FastAPI, stores returned JWT in httpOnly cookie
-- [ ] Next.js middleware: check for JWT cookie on all `/app/*` routes, redirect to `/login` if absent
-- [ ] `frontend/lib/api.ts` — fetch wrapper that reads JWT from cookie and sets `Authorization` header on every request
+- [x] Build `/login` page: email + password form, calls `POST /auth/login` on FastAPI, stores returned JWT in httpOnly cookie
+- [x] Next.js middleware: check for JWT cookie on all `/app/*` routes, redirect to `/login` if absent
+- [x] `frontend/lib/api.ts` — fetch wrapper that reads JWT from cookie and sets `Authorization: Bearer` header on every request
 
 **Onboarding**
-- [ ] Build `/onboarding` multi-step form (redirect here after first login if `Settings` tab in Main Data Sheet has no row):
+- [x] Build `/onboarding` multi-step form (redirect here after first login if `Settings` tab in Main Data Sheet has no row):
   - Step 1: Name, current weight (kg), height (cm), age, goal weight (kg), start date
   - Step 2: Auto-calculate calorie target (Mifflin-St Jeor BMR × 1.55 activity − 500 kcal deficit) and protein target (`body_weight_kg × 1.8 g`) — show values, let user override
   - Step 3: Preferred wake-up time (used for daily mission generation timing)
-- [ ] `POST /api/settings` — save onboarding data to `Settings` tab
-- [ ] `GET /api/settings` — load current settings row
+- [x] `POST /api/settings` — save onboarding data to `Settings` tab (scoped by `user_id`)
+- [x] `GET /api/settings` — load current settings row (scoped by `user_id`)
 
 **App Shell**
-- [ ] Build mobile shell: bottom nav with icons — Home, Meals, Workouts, Progress, Coach
-- [ ] Build desktop shell: persistent left sidebar with same items
-- [ ] Active route highlighting
-- [ ] User avatar / sign out in header
+- [x] Build mobile shell: bottom nav with icons — Home, Meals, Workouts, Progress, Coach
+- [x] Build desktop shell: persistent left sidebar with same items
+- [x] Active route highlighting
+- [x] User avatar / sign out in header
 
 ### Acceptance Criteria
 
-- [ ] Unauthenticated access to `/app/*` redirects to `/login`
-- [ ] Successful login redirects to `/app` (dashboard)
-- [ ] First login with empty settings redirects to `/onboarding`
-- [ ] Completing onboarding saves all fields to Settings sheet and redirects to dashboard
-- [ ] Nav renders correctly on mobile (bottom) and desktop (sidebar)
-- [ ] Sign out clears session and redirects to `/login`
+- [x] Unauthenticated access to `/app/*` redirects to `/login`
+- [x] Successful login redirects to `/app` (dashboard)
+- [x] First login with empty settings redirects to `/onboarding`
+- [x] Completing onboarding saves all fields to Settings sheet and redirects to dashboard
+- [x] Nav renders correctly on mobile (bottom) and desktop (sidebar)
+- [x] Sign out clears session and redirects to `/login`
 
 ---
 

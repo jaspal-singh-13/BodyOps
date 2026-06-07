@@ -9,9 +9,9 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 
 @router.get("", response_model=SettingsResponse)
 async def get_settings_endpoint(
-    _email: str = Depends(get_current_user),
+    user_id: int = Depends(get_current_user),
 ) -> SettingsResponse:
-    settings = get_settings()
+    settings = get_settings(user_id)
     if settings is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No settings found")
     return settings
@@ -20,6 +20,6 @@ async def get_settings_endpoint(
 @router.post("", response_model=SettingsResponse)
 async def save_settings_endpoint(
     body: SettingsCreate,
-    _email: str = Depends(get_current_user),
+    user_id: int = Depends(get_current_user),
 ) -> SettingsResponse:
-    return save_settings(body)
+    return save_settings(user_id, body)

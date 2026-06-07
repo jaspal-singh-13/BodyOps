@@ -2,6 +2,7 @@ from pydantic import BaseModel
 
 
 class SettingsCreate(BaseModel):
+    user_id: int
     name: str
     current_weight_kg: float
     height_cm: float
@@ -16,6 +17,7 @@ class SettingsCreate(BaseModel):
 
 
 class SettingsResponse(BaseModel):
+    user_id: int
     name: str
     current_weight_kg: float
     height_cm: float
