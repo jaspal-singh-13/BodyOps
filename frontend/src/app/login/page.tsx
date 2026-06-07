@@ -36,6 +36,10 @@ export default function LoginPage() {
         return;
       }
       const data = await res.json();
+      if (!data?.access_token) {
+        setError("Login failed: no token received. Please try again.");
+        return;
+      }
       setToken(data.access_token);
       router.push("/app");
     } catch {

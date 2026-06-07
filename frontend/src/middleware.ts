@@ -21,7 +21,7 @@ import { type NextRequest, NextResponse } from "next/server";
  * @returns A `NextResponse.redirect` when auth rules are violated, or
  *          `NextResponse.next()` to continue to the destination.
  */
-export function proxy(req: NextRequest) {
+export function middleware(req: NextRequest) {
   const token = req.cookies.get("token");
   const { pathname } = req.nextUrl;
 
