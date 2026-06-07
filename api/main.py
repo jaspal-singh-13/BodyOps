@@ -57,7 +57,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("BodyOps API shutting down")
 
 
-app = FastAPI(title="BodyOps API", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="BodyOps API", version="0.3.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
