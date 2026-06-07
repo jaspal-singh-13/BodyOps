@@ -1,0 +1,130 @@
+"""Unit tests for agent tools — verifies event emission and injected service delegation."""
+import asyncio
+import os
+
+os.environ.setdefault("JWT_SECRET", "test-secret")
+os.environ.setdefault("GOOGLE_SERVICE_ACCOUNT_JSON", '{"type":"service_account"}')
+os.environ.setdefault("GOOGLE_SPREADSHEET_ID", "test-sheet-id")
+os.environ.setdefault("GOOGLE_AUTH_SHEET_ID", "test-auth-id")
+os.environ.setdefault("AZURE_OPENAI_API_KEY", "test-key")
+os.environ.setdefault("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
+os.environ.setdefault("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
+
+from unittest.mock import MagicMock
+
+import pytest
+
+from agent.deps import AgentDeps
+
+
+def _make_deps(user_id: int, queue: asyncio.Queue, weight_logger=None, trend_getter=None) -> AgentDeps:
+    return AgentDeps(
+        user_id=user_id,
+        event_queue=queue,
+        weight_logger=weight_logger or MagicMock(return_value={"weight_kg": 85.5, "date": "2026-06-08"}),
+        trend_getter=trend_getter or MagicMock(return_value={"moving_avg": [], "total_loss_kg": None, "projected_goal_date": None}),
+    )
+
+
+def _make_ctx(deps: AgentDeps) -> MagicMock:
+    ctx = MagicMock()
+    ctx.deps = deps
+    return ctx
+
+
+# ── log_weight tool ──────────────────────────────────────────────────────────
+
+class TestLogWeightTool:
+    @pytest.mark.asyncio
+    async def test_emits_tool_call_then_tool_result(self):
+        import agent.tools  # noqa: F401
+
+        queue: asyncio.Queue = asyncio.Queue()
+        deps = _make_deps(1, queue)
+        ctx = _make_ctx(deps)
+
+        await agent.tools.log_weight(ctx, "2026-06-08", 85.5)
+
+        assert queue.qsize() == 2
+        call_evt = await queue.get()
+        result_evt = await queue.get()
+        assert call_evt["type"] == "tool_call"
+        assert call_evt["tool"] == "log_weight"
+        assert call_evt["args"] == {"date": "2026-06-08", "weight_kg": 85.5}
+        assert result_evt["type"] == "tool_result"
+        assert result_evt["tool"] == "log_weight"
+
+    @pytest.mark.asyncio
+    async def test_delegates_to_weight_logger_with_correct_args(self):
+        import agent.tools  # noqa: F401
+
+        queue: asyncio.Queue = asyncio.Queue()
+        weight_logger = MagicMock(return_value={"weight_kg": 90.0, "date": "2026-06-08"})
+        deps = _make_deps(2, queue, weight_logger=weight_logger)
+        ctx = _make_ctx(deps)
+
+        await agent.tools.log_weight(ctx, "2026-06-08", 90.0)
+
+        weight_logger.assert_called_once_with("2026-06-08", 90.0)
+
+    @pytest.mark.asyncio
+    async def test_returns_dict(self):
+        import agent.tools  # noqa: F401
+
+        queue: asyncio.Queue = asyncio.Queue()
+        expected = {"weight_kg": 75.0, "date": "2026-06-08"}
+        deps = _make_deps(1, queue, weight_logger=MagicMock(return_value=expected))
+        ctx = _make_ctx(deps)
+
+        result = await agent.tools.log_weight(ctx, "2026-06-08", 75.0)
+
+        assert result == expected
+
+
+# ── get_weight_trend tool ────────────────────────────────────────────────────
+
+class TestGetWeightTrendTool:
+    @pytest.mark.asyncio
+    async def test_emits_tool_call_then_tool_result(self):
+        import agent.tools  # noqa: F401
+
+        queue: asyncio.Queue = asyncio.Queue()
+        deps = _make_deps(1, queue)
+        ctx = _make_ctx(deps)
+
+        await agent.tools.get_weight_trend(ctx)
+
+        assert queue.qsize() == 2
+        call_evt = await queue.get()
+        result_evt = await queue.get()
+        assert call_evt["type"] == "tool_call"
+        assert call_evt["tool"] == "get_weight_trend"
+        assert call_evt["args"] == {}
+        assert result_evt["type"] == "tool_result"
+
+    @pytest.mark.asyncio
+    async def test_delegates_to_trend_getter(self):
+        import agent.tools  # noqa: F401
+
+        queue: asyncio.Queue = asyncio.Queue()
+        trend_getter = MagicMock(return_value={"moving_avg": [], "total_loss_kg": 5.0, "projected_goal_date": None})
+        deps = _make_deps(1, queue, trend_getter=trend_getter)
+        ctx = _make_ctx(deps)
+
+        await agent.tools.get_weight_trend(ctx)
+
+        trend_getter.assert_called_once_with()
+
+    @pytest.mark.asyncio
+    async def test_returns_dict(self):
+        import agent.tools  # noqa: F401
+
+        queue: asyncio.Queue = asyncio.Queue()
+        expected = {"moving_avg": [], "total_loss_kg": None, "projected_goal_date": None}
+        deps = _make_deps(1, queue, trend_getter=MagicMock(return_value=expected))
+        ctx = _make_ctx(deps)
+
+        result = await agent.tools.get_weight_trend(ctx)
+
+        assert result == expected
+        assert "moving_avg" in result

@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .auth import LoginRequest, TokenResponse, login
 from .logger import get_logger
+from .routers.agent import router as agent_router
 from .routers.settings import router as settings_router
 from .routers.weight import router as weight_router
 from .sheets.sheets_client import get_main_sheet
@@ -25,8 +26,9 @@ REQUIRED_ENV_VARS = [
     "JWT_SECRET",
 ]
 
+AGENT_ENV_VARS = ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_DEPLOYMENT"]
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 
 
 @asynccontextmanager
@@ -38,6 +40,10 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         logger.error("Missing required env vars: %s", ", ".join(missing))
     else:
         logger.info("Env vars: OK")
+
+    missing_agent = [v for v in AGENT_ENV_VARS if not os.environ.get(v)]
+    if missing_agent:
+        logger.warning("Agent env vars not set (agent endpoints will fail): %s", ", ".join(missing_agent))
 
     sheets_ok = False
     try:
@@ -57,7 +63,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("BodyOps API shutting down")
 
 
-app = FastAPI(title="BodyOps API", version="0.4.0", lifespan=lifespan)
+app = FastAPI(title="BodyOps API", version="0.5.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -69,6 +75,7 @@ app.add_middleware(
 
 app.include_router(settings_router)
 app.include_router(weight_router)
+app.include_router(agent_router)
 
 
 @app.post("/auth/login", response_model=TokenResponse)

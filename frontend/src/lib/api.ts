@@ -41,3 +41,52 @@ export async function apiFetch<T>(
 
   return res.json() as Promise<T>;
 }
+
+export type ChatEvent =
+  | { type: "text"; content: string }
+  | { type: "tool_call"; tool: string; args: Record<string, unknown> }
+  | { type: "tool_result"; tool: string; result: unknown }
+  | { type: "done" }
+  | { type: "error"; message: string };
+
+export async function* streamChat(
+  message: string,
+  sessionId: string
+): AsyncGenerator<ChatEvent> {
+  const res = await fetch("/api/agent/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, session_id: sessionId }),
+  });
+
+  if (res.status === 401) {
+    clearToken();
+    window.location.href = "/login";
+    return;
+  }
+  if (!res.ok) throw new ApiError(res.status, await res.text());
+  if (!res.body) return;
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        try {
+          yield JSON.parse(line.slice(6)) as ChatEvent;
+        } catch {
+          // skip malformed line
+        }
+      }
+    }
+  }
+}

@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, Utensils, Dumbbell, TrendingUp, MessageCircle, Scale } from "lucide-react";
+import { useState } from "react";
+import { Home, Utensils, Dumbbell, TrendingUp, Scale, MessageCircle } from "lucide-react";
 import { clearToken } from "@/lib/api";
+import { ChatDrawer } from "@/components/ChatDrawer";
 
 const navItems = [
   { href: "/app", label: "Home", icon: Home },
@@ -11,12 +13,12 @@ const navItems = [
   { href: "/app/meals", label: "Meals", icon: Utensils },
   { href: "/app/workouts", label: "Workouts", icon: Dumbbell },
   { href: "/app/progress", label: "Progress", icon: TrendingUp },
-  { href: "/app/coach", label: "Coach", icon: MessageCircle },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [chatOpen, setChatOpen] = useState(false);
 
   function signOut() {
     clearToken();
@@ -27,9 +29,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className="flex h-screen bg-zinc-50">
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-52 bg-white border-r border-zinc-100 p-4 shrink-0">
-        <div className="mb-8 px-3">
+        <div className="mb-4 px-3">
           <h1 className="text-lg font-bold text-zinc-900">BodyOps</h1>
         </div>
+
+        {/* Chat to log button */}
+        <div className="px-0 mb-4">
+          <button
+            onClick={() => setChatOpen(true)}
+            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-900 text-white text-sm font-bold hover:bg-zinc-700 transition-colors"
+          >
+            <MessageCircle className="size-4" />
+            Chat to log
+          </button>
+        </div>
+
         <nav className="flex flex-col gap-1 flex-1">
           {navItems.map(({ href, label, icon: Icon }) => {
             const active = pathname === href;
@@ -39,7 +53,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 href={href}
                 className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   active
-                    ? "bg-zinc-900 text-white"
+                    ? "bg-zinc-100 text-zinc-900"
                     : "text-zinc-600 hover:bg-zinc-100"
                 }`}
               >
@@ -77,7 +91,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </Link>
           );
         })}
+        {/* Mobile chat button */}
+        <button
+          onClick={() => setChatOpen(true)}
+          className="flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium text-zinc-400"
+        >
+          <MessageCircle className="size-5 stroke-[1.5]" />
+          Coach
+        </button>
       </nav>
+
+      {/* Chat drawer — accessible from any page */}
+      <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} />
     </div>
   );
 }
