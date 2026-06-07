@@ -39,10 +39,10 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 # noqa: F401 — importing tools triggers @agent.tool decorator registration
-from agent import tools  # noqa: F401
-from agent.agent import agent
-from agent.deps import AgentDeps
-from agent.history import clear_all_sessions, get_session, update_session
+from ..agent import tools  # noqa: F401
+from ..agent.agent import agent
+from ..agent.deps import AgentDeps
+from ..agent.history import clear_all_sessions, get_session, update_session
 
 from ..auth import get_current_user
 from ..models.weight import WeightEntryCreate
