@@ -27,7 +27,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from agent.deps import AgentDeps
+from api.agent.deps import AgentDeps
 
 
 def _make_deps(user_id: int, queue: asyncio.Queue, weight_logger=None, trend_getter=None) -> AgentDeps:
@@ -74,13 +74,13 @@ def _make_ctx(deps: AgentDeps) -> MagicMock:
 class TestLogWeightTool:
     @pytest.mark.asyncio
     async def test_emits_tool_call_then_tool_result(self):
-        import agent.tools  # noqa: F401 — triggers @agent.tool registration
+        import api.agent.tools  # noqa: F401 — triggers @agent.tool registration
 
         queue: asyncio.Queue = asyncio.Queue()
         deps = _make_deps(1, queue)
         ctx = _make_ctx(deps)
 
-        await agent.tools.log_weight(ctx, "2026-06-08", 85.5)
+        await api.agent.tools.log_weight(ctx, "2026-06-08", 85.5)
 
         assert queue.qsize() == 2
         call_evt = await queue.get()
@@ -100,7 +100,7 @@ class TestLogWeightTool:
         deps = _make_deps(2, queue, weight_logger=weight_logger)
         ctx = _make_ctx(deps)
 
-        await agent.tools.log_weight(ctx, "2026-06-08", 90.0)
+        await api.agent.tools.log_weight(ctx, "2026-06-08", 90.0)
 
         weight_logger.assert_called_once_with("2026-06-08", 90.0)
 
@@ -113,7 +113,7 @@ class TestLogWeightTool:
         deps = _make_deps(1, queue, weight_logger=MagicMock(return_value=expected))
         ctx = _make_ctx(deps)
 
-        result = await agent.tools.log_weight(ctx, "2026-06-08", 75.0)
+        result = await api.agent.tools.log_weight(ctx, "2026-06-08", 75.0)
 
         assert result == expected
 
@@ -129,7 +129,7 @@ class TestGetWeightTrendTool:
         deps = _make_deps(1, queue)
         ctx = _make_ctx(deps)
 
-        await agent.tools.get_weight_trend(ctx)
+        await api.agent.tools.get_weight_trend(ctx)
 
         assert queue.qsize() == 2
         call_evt = await queue.get()
@@ -148,7 +148,7 @@ class TestGetWeightTrendTool:
         deps = _make_deps(1, queue, trend_getter=trend_getter)
         ctx = _make_ctx(deps)
 
-        await agent.tools.get_weight_trend(ctx)
+        await api.agent.tools.get_weight_trend(ctx)
 
         trend_getter.assert_called_once_with()
 
