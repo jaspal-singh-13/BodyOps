@@ -128,3 +128,15 @@
     @apply font-sans;
   }
 }
+
+@layer components {
+  .input {
+    @apply w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-zinc-400 bg-white;
+  }
+  .btn-primary {
+    @apply bg-zinc-900 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-zinc-700 disabled:opacity-50 transition-colors;
+  }
+  .btn-outline {
+    @apply border border-zinc-200 text-zinc-700 rounded-lg py-2.5 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50 transition-colors;
+  }
+}

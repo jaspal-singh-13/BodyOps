@@ -9,19 +9,20 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .auth import LoginRequest, TokenResponse, login
-from .sheets.sheets_client import get_client, get_main_sheet
+from .routers.settings import router as settings_router
+from .sheets.sheets_client import get_main_sheet
 
 app = FastAPI(title="BodyOps API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(settings_router)
 
 
 @app.post("/auth/login", response_model=TokenResponse)
