@@ -22,8 +22,8 @@ def get_async_client() -> AsyncAzureOpenAI:
     """
     Return a raw ``AsyncAzureOpenAI`` client built from environment variables.
 
-    Use this when you need the underlying OpenAI client directly (e.g. with
-    the ``instructor`` library for structured-output parsing).
+    Use this when you need the underlying OpenAI client directly (e.g. for
+    structured-output parsing via ``beta.chat.completions.parse``).
 
     Returns:
         Configured ``AsyncAzureOpenAI`` instance.

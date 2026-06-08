@@ -457,13 +457,12 @@ async def ai_import_workout(
 ) -> WorkoutImportResponse:
     """Use AI to parse free-form workout text and import it.
 
-    Uses ``instructor`` to enforce structured output from the LLM, guaranteeing
-    that the response validates against the ``_ParsedWorkout`` Pydantic model
-    before any sheet writes occur.
+    Uses the OpenAI SDK's native structured-output API
+    (``beta.chat.completions.parse``) so the response is validated against the
+    ``_ParsedWorkout`` Pydantic model before any sheet writes occur.
     """
     import os
 
-    import instructor
     from pydantic import BaseModel as _BaseModel
 
     from ..agent.llm import get_async_client
@@ -477,11 +476,11 @@ async def ai_import_workout(
         days: list[WorkoutDaySummary]
         schedule: list[_ScheduleEntry] | None = None
 
-    client = instructor.from_openai(get_async_client())
+    client = get_async_client()
 
-    parsed: _ParsedWorkout = await client.chat.completions.create(
+    completion = await client.beta.chat.completions.parse(
         model=os.environ["AZURE_OPENAI_DEPLOYMENT"],
-        response_model=_ParsedWorkout,
+        response_format=_ParsedWorkout,
         messages=[
             {
                 "role": "system",
@@ -497,6 +496,10 @@ async def ai_import_workout(
             {"role": "user", "content": raw_text},
         ],
     )
+
+    parsed = completion.choices[0].message.parsed
+    if parsed is None:
+        raise ValueError("Structured output parsing returned no result — model may have refused or run out of tokens.")
 
     schedule = (
         [(e.weekday, e.day_name) for e in parsed.schedule]
