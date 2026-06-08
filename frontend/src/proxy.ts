@@ -1,5 +1,5 @@
 /**
- * Next.js middleware for route-based auth protection.
+ * Next.js proxy for route-based auth protection.
  *
  * Runs on the Edge runtime before a request reaches the page or API route.
  * Enforces two rules:
@@ -9,19 +9,19 @@
  *      (avoids showing the login form to an authenticated user).
  *
  * The `matcher` config restricts execution to the relevant paths — all
- * other routes (static assets, `/api/**`) bypass this middleware entirely.
+ * other routes (static assets, `/api/**`) bypass this proxy entirely.
  */
 
 import { type NextRequest, NextResponse } from "next/server";
 
 /**
- * Middleware handler invoked by Next.js for matched routes.
+ * Proxy handler invoked by Next.js for matched routes.
  *
  * @param req - Incoming Edge request with cookie and URL access.
  * @returns A `NextResponse.redirect` when auth rules are violated, or
  *          `NextResponse.next()` to continue to the destination.
  */
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const token = req.cookies.get("token");
   const { pathname } = req.nextUrl;
 
@@ -41,7 +41,7 @@ export function middleware(req: NextRequest) {
   return NextResponse.next();
 }
 
-/** Route patterns this middleware applies to. */
+/** Route patterns this proxy applies to. */
 export const config = {
   matcher: ["/app/:path*", "/onboarding/:path*", "/login"],
 };
