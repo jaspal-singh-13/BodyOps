@@ -471,7 +471,7 @@ async def ai_import_workout(
 
     parser: Agent[None, _ParsedWorkout] = Agent(
         get_model(),
-        result_type=_ParsedWorkout,
+        output_type=_ParsedWorkout,
         system_prompt=(
             "Parse the workout text into structured days and exercises. "
             "For each training day extract: day_name, exercises with exercise_name, sets, rep_min, rep_max, order. "
@@ -483,7 +483,7 @@ async def ai_import_workout(
     )
 
     result = await parser.run(raw_text)
-    parsed = result.data
+    parsed = result.output
 
     schedule = (
         [(e.weekday, e.day_name) for e in parsed.schedule]
