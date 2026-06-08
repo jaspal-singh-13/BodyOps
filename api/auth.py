@@ -91,7 +91,11 @@ def verify_jwt(token: str) -> int:
             raise ValueError("missing user_id")
         return int(user_id)
     except JWTError as e:
-        logger.warning("JWT verification failed: %s", e)
+        segments = len(token.split(".")) if token else 0
+        logger.warning(
+            "JWT verification failed: %s (segments=%d, token_len=%d)",
+            e, segments, len(token),
+        )
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
 
 

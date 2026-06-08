@@ -4,3 +4,4 @@ __pycache__/
 .env
 bodyops-*.json
 frontend/.env.local
+.cursor/
