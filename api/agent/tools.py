@@ -1,5 +1,5 @@
 """
-Pydantic AI tool definitions for Phase 2 — Weight Tracking.
+Pydantic AI tool definitions for Phases 2–3 (Weight Tracking + Workout System).
 
 Each function decorated with ``@agent.tool`` is automatically registered on the
 ``agent`` instance (imported from ``agent.py``). Tools must be async and accept
@@ -72,4 +72,80 @@ async def get_weight_trend(ctx: RunContext[AgentDeps]) -> dict:
         "tool": "get_weight_trend",
         "result": result,
     })
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Phase 3 — Workout System
+# ---------------------------------------------------------------------------
+
+
+@agent.tool
+async def get_today_workout(ctx: RunContext[AgentDeps]) -> dict:
+    """
+    Return today's workout plan with progressive overload suggestions.
+
+    Args:
+        ctx: Pydantic AI run context carrying ``AgentDeps``.
+
+    Returns:
+        Serialised ``TodayWorkoutResponse`` dict including ``day_name``,
+        ``is_rest_day``, and ``exercises`` with per-exercise suggestions.
+    """
+    await ctx.deps.event_queue.put({"type": "tool_call", "tool": "get_today_workout", "args": {}})
+    result = ctx.deps.today_workout_getter()
+    await ctx.deps.event_queue.put({"type": "tool_result", "tool": "get_today_workout", "result": result})
+    return result
+
+
+@agent.tool
+async def log_workout_set(
+    ctx: RunContext[AgentDeps],
+    exercise_name: str,
+    weight_kg: float,
+    reps: int,
+) -> dict:
+    """
+    Log a single set for a workout exercise.
+
+    Args:
+        ctx: Pydantic AI run context carrying ``AgentDeps``.
+        exercise_name: Name of the exercise (e.g. "Bench Press").
+        weight_kg: Weight used in kilograms.
+        reps: Number of reps completed.
+
+    Returns:
+        Serialised ``LogSetResponse`` dict with ``set_number``, ``logged_at``,
+        and ``suggestion`` for the next set/session.
+    """
+    await ctx.deps.event_queue.put({
+        "type": "tool_call",
+        "tool": "log_workout_set",
+        "args": {"exercise_name": exercise_name, "weight_kg": weight_kg, "reps": reps},
+    })
+    result = ctx.deps.set_logger(exercise_name, weight_kg, reps)
+    await ctx.deps.event_queue.put({"type": "tool_result", "tool": "log_workout_set", "result": result})
+    return result
+
+
+@agent.tool
+async def get_progression_target(ctx: RunContext[AgentDeps], exercise_name: str) -> dict:
+    """
+    Return the suggested weight and reps for the next session of an exercise.
+
+    Args:
+        ctx: Pydantic AI run context carrying ``AgentDeps``.
+        exercise_name: Name of the exercise.
+
+    Returns:
+        Serialised ``ExerciseProgressionResponse`` dict with ``last_5_sessions``
+        history and a ``suggestion`` (weight_kg, reps, note).
+    """
+    await ctx.deps.event_queue.put({
+        "type": "tool_call",
+        "tool": "get_progression_target",
+        "args": {"exercise_name": exercise_name},
+    })
+    result = ctx.deps.progression_getter(exercise_name)
+    await ctx.deps.event_queue.put({"type": "tool_result", "tool": "get_progression_target", "result": result})
     return result

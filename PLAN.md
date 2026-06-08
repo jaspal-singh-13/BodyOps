@@ -94,6 +94,20 @@ Phase 6 — AI Coach + Progress Analytics         (Day 2, afternoon)
 Phase 7 — PWA Polish + Deployment               (Day 2, afternoon)
 ```
 
+### Dashboard Evolution — Card Stack per Phase
+
+The dashboard (`/app`) is built incrementally. Each phase appends new cards; earlier cards are never removed. Final stack order (top → bottom):
+
+| Order | Card | Added in |
+|-------|------|----------|
+| 1 | **Hero — Weight progress** (dark bg, progress bar, projection) | Phase 2 ✅ |
+| 2 | **Missions strip** (ring + checklist preview + streak) | Phase 5 |
+| 3 | **Quick actions** (Log meal · Weigh in, 2-col grid) | Phase 4 |
+| 4 | **Today · Nutrition** (donut + macro bars) | Phase 4 |
+| 5 | **Today's workout** (day name, exercises, Start session) | Phase 3 |
+| 6 | **Coach** (daily briefing excerpt, taps to Coach page) | Phase 6 |
+| 7 | **This week** (7-day avg weight + sparkline) | Phase 6 |
+
 ---
 
 ## Phase 0 — Project Setup & Infrastructure
@@ -325,6 +339,14 @@ User can import a workout plan by pasting text, see today's workout, log sets, a
 - [ ] History tab: past sessions list, tap to expand set details
 - [ ] Empty state: "Paste your workout plan to get started"
 
+**Dashboard integration**
+- Add "Today's workout" card to the dashboard:
+  - Header: "TODAY'S WORKOUT" eyebrow label
+  - Content row: workout icon square (`--paper-2` bg, 42×42 px) · day name in bold (e.g. "Push Day A") · "{N} exercises · ~{X} min" mono caption below
+  - "Start session" full-width primary button below the row; taps through to `/app/workouts`
+  - **Rest day variant**: show "Rest Day" label with a moon icon; hide the Start session button
+  - **Empty state** (no plan imported yet): "Import a workout plan to unlock this card" with a link to `/app/workouts`
+
 ### Acceptance Criteria
 
 - [ ] Parser correctly handles PPL format with rest days
@@ -338,6 +360,9 @@ User can import a workout plan by pasting text, see today's workout, log sets, a
 - [ ] Agent can tell the user what workout to do today via chat
 - [ ] Agent can log a workout set via chat ("bench press 70 kg × 8") and it appears in WorkoutSets
 - [ ] Agent returns next-session suggestion after logging a set
+- [ ] Dashboard shows "Today's workout" card with correct day name, exercise count, and duration
+- [ ] Rest day shows correct rest-day variant (no Start button)
+- [ ] Empty state renders when no workout plan is imported
 
 ---
 
@@ -380,9 +405,14 @@ User can photograph a meal, get AI-estimated calories and macros, confirm, and s
 - [ ] Empty state: "Tap the camera to log your first meal"
 
 **Dashboard integration**
-- [ ] Calories consumed today
-- [ ] Protein consumed today
-- [ ] Remaining calories
+- Add two **Quick Action** cards in a 2-column grid (inserted above the Nutrition card):
+  - **Log meal**: camera icon in a dark-bg square (38×38 px), "Log meal" bold title, "Snap a photo" mono caption; taps to `/app/meals` and triggers the camera/upload flow
+  - **Weigh in**: scale icon in a `--paper-2` bg square; title shows "Weigh in"; caption shows "Logged ✓" in mono if today's weight is already recorded, otherwise "Not logged yet"; taps to `/app/weight`
+- Add **"Today · Nutrition"** card:
+  - Header row: "TODAY · NUTRITION" eyebrow + "{N} meals logged" mono count (right-aligned)
+  - Left: `DonutStat` ring (104 px diameter, stroke 10): calories consumed / target with "kcal" label inside
+  - Right: stacked macro progress lines for **Protein**, **Carbs**, **Fat** — each line shows label, "**X** / Yg" value, and a filled `Bar` (h=6)
+  - **Empty state**: shows ring at 0%, all macro bars at 0, "Log your first meal to start tracking" caption
 
 ### Acceptance Criteria
 
@@ -392,7 +422,9 @@ User can photograph a meal, get AI-estimated calories and macros, confirm, and s
 - [ ] Confirmed meal saves one row to `Meals` and N rows to `MealItems`
 - [ ] `GET /api/meals/today` correctly sums all meals logged today
 - [ ] Editing a meal item before confirming updates totals in real time
-- [ ] Calories and protein appear on dashboard after logging
+- [ ] Dashboard Nutrition card shows correct calories, protein, carbs, and fat after logging
+- [ ] Dashboard Quick Action "Weigh in" caption switches to "Logged ✓" after today's weight is recorded
+- [ ] Nutrition card empty state renders when no meals logged today
 - [ ] Agent can report today's nutrition status via chat ("how are my macros?")
 - [ ] Agent can save a meal via chat ("had chicken, rice, broccoli for lunch")
 
@@ -437,8 +469,14 @@ User sees a daily checklist. System sends browser notifications as reminders.
 - [ ] Shows current permission status (granted / denied / not asked)
 
 **Dashboard integration**
-- [ ] Mission progress ring: X of Y complete
-- [ ] Task checklist widget (collapsed by default, expandable)
+- Add **Missions strip** card (inserted directly below the hero, above Quick Actions):
+  - Header row: "TODAY'S MISSIONS" eyebrow + flame icon streak badge ("{N}d streak"); chevron-right on the far right
+  - Left: `Ring` (52 px, stroke 6) showing `done/total × 100`%; "{done}/{total}" label inside the ring
+  - Right: first 3 mission items, each row: `MissionCheck` checkbox icon · mission label · right-aligned meta text in mono (e.g. "142 / 200 g")
+    - Completed missions: label has `line-through` style and muted color
+    - If more than 3 missions exist, show "+N more" caption in mono beneath the list
+  - Full card is tappable and navigates to `/app/missions`
+  - When all missions are done, the ring fills completely and the header shows "All done 🎯" (or similar celebration state)
 
 **Agent Tools (`agent/tools.py`)**
 - [ ] `get_task_status()` — returns today's mission list with name, completed flag, and completion timestamp
@@ -449,7 +487,10 @@ User sees a daily checklist. System sends browser notifications as reminders.
 - [ ] `generateDailyTasks` called twice for the same date produces the same rows (idempotent)
 - [ ] Logging weight auto-marks the "Log weight" mission complete
 - [ ] Reaching protein target auto-marks "Hit protein target" complete
-- [ ] Completing all missions shows 100% on dashboard
+- [ ] Dashboard Missions strip shows correct done/total count and ring percentage
+- [ ] Streak badge on dashboard increments after a full day with all missions complete
+- [ ] Completing all missions fills the ring and shows celebration state on dashboard
+- [ ] Tapping the Missions strip card navigates to `/app/missions`
 - [ ] Browser notification fires at configured time (requires granted permission)
 - [ ] Reminder settings persist across page reloads
 - [ ] Agent can tell the user their mission progress via chat ("what are my tasks today?")
@@ -497,6 +538,19 @@ User sees a daily coaching summary and progress charts across all tracked metric
 - [ ] Mission completion: % bar last 7 days
 - [ ] Goal projection: current pace vs target date
 
+**Dashboard integration**
+- Add **Coach** card (uses `--card-2` background, slightly elevated from the page) below the Workout card:
+  - Header row: `CoachMark` icon (38 px dark square with coach star icon) · "Coach" bold label · chevron-right on far right
+  - Body: first 2 lines of today's `summary` from `GET /api/coach/daily`, truncated with an ellipsis if longer; 13.5 px, line-height 1.5
+  - Full card taps through to `/app/coach`
+  - **Empty state**: "Complete some missions to unlock your daily coaching" — no icon, muted mono text
+- Add **"This week"** card at the bottom of the dashboard (last card in the stack):
+  - Header row: "THIS WEEK" eyebrow · weight-loss tag on the right ("{−N kg}" calculated from 7-day avg vs previous 7-day avg)
+  - Left column: 7-day average weight in large mono (28 px bold) + "7-day average" caption below
+  - Right: `Sparkline` of last 7 daily weights (150 × 44 px) with endpoint dot
+  - Full card taps through to `/app/progress`
+  - **Empty state** (fewer than 2 weigh-ins): "Log a few more weights to see your trend"
+
 ### Acceptance Criteria
 
 - [ ] Daily coaching only calls OpenAI once per day (second request reads from sheet)
@@ -504,6 +558,10 @@ User sees a daily coaching summary and progress charts across all tracked metric
 - [ ] Progress charts render with correct data
 - [ ] Empty coach state shows "Complete some missions to unlock your first coaching summary"
 - [ ] Refresh rate limit: returns cached result if last generate was under 1 hour ago
+- [ ] Dashboard Coach card shows the first 2 lines of today's coaching summary
+- [ ] Dashboard Coach card shows empty state when no coaching has been generated yet
+- [ ] Dashboard "This week" card shows correct 7-day average and sparkline
+- [ ] "This week" weight-loss tag calculates correctly from current vs prior 7-day average
 - [ ] Agent can generate and deliver a daily coaching summary via chat ("give me my coaching summary")
 - [ ] Agent can deliver the weekly review via chat ("how was my week?")
 

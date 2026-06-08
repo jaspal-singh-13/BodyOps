@@ -14,6 +14,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Dumbbell, Moon } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
 interface Settings {
@@ -34,12 +36,20 @@ interface TrendData {
   projected_goal_date: string | null;
 }
 
+interface TodayWorkout {
+  day_name: string;
+  is_rest_day: boolean;
+  exercises: { exercise_name: string }[];
+  estimated_duration_min: number;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [latestWeight, setLatestWeight] = useState<HistoryItem | null>(null);
   const [projectedDate, setProjectedDate] = useState<string | null>(null);
+  const [todayWorkout, setTodayWorkout] = useState<TodayWorkout | null | "loading">("loading");
 
   useEffect(() => {
     apiFetch<Settings>("/settings")
@@ -55,6 +65,10 @@ export default function DashboardPage() {
     apiFetch<TrendData>("/weight/trend")
       .then((t) => setProjectedDate(t.projected_goal_date))
       .catch(() => {});
+
+    apiFetch<TodayWorkout>("/workouts/today")
+      .then((tw) => setTodayWorkout(tw))
+      .catch(() => setTodayWorkout(null));
   }, [router]);
 
   if (loading) {
@@ -77,7 +91,7 @@ export default function DashboardPage() {
       </h1>
       <p className="text-zinc-500 text-sm mb-8">Let&apos;s crush today.</p>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 mb-6">
         <StatCard label="Current weight" value={`${displayWeight} kg`} />
         <StatCard label="Goal weight" value={`${settings.goal_weight_kg} kg`} />
         <StatCard label="To lose" value={`${remaining.toFixed(1)} kg`} />
@@ -87,6 +101,8 @@ export default function DashboardPage() {
           <StatCard label="Goal by" value={projectedDate} />
         )}
       </div>
+
+      <TodayWorkoutCard workout={todayWorkout} />
     </div>
   );
 }
@@ -97,6 +113,62 @@ function StatCard({ label, value }: { label: string; value: string }) {
     <div className="bg-white rounded-xl border border-zinc-100 p-4">
       <p className="text-xs text-zinc-500 mb-1">{label}</p>
       <p className="text-xl font-semibold text-zinc-900">{value}</p>
+    </div>
+  );
+}
+
+function TodayWorkoutCard({
+  workout,
+}: {
+  workout: TodayWorkout | null | "loading";
+}) {
+  if (workout === "loading") return null;
+
+  if (workout === null) {
+    return (
+      <div className="bg-white rounded-xl border border-zinc-100 p-4">
+        <p className="text-xs text-zinc-500 uppercase tracking-wide mb-3">Today&apos;s Workout</p>
+        <p className="text-sm text-zinc-400">
+          Import a workout plan to unlock this card.{" "}
+          <Link href="/app/workouts" className="text-zinc-700 underline">
+            Import plan
+          </Link>
+        </p>
+      </div>
+    );
+  }
+
+  if (workout.is_rest_day) {
+    return (
+      <div className="bg-white rounded-xl border border-zinc-100 p-4">
+        <p className="text-xs text-zinc-500 uppercase tracking-wide mb-3">Today&apos;s Workout</p>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-lg bg-zinc-50 flex items-center justify-center shrink-0">
+            <Moon size={18} className="text-zinc-400" />
+          </div>
+          <p className="text-sm font-semibold text-zinc-900">Rest Day</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-zinc-100 p-4">
+      <p className="text-xs text-zinc-500 uppercase tracking-wide mb-3">Today&apos;s Workout</p>
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-10 h-10 rounded-lg bg-zinc-50 flex items-center justify-center shrink-0">
+          <Dumbbell size={18} className="text-zinc-700" />
+        </div>
+        <div>
+          <p className="text-sm font-bold text-zinc-900">{workout.day_name} Day</p>
+          <p className="text-xs text-zinc-400 font-mono">
+            {workout.exercises.length} exercises · ~{workout.estimated_duration_min} min
+          </p>
+        </div>
+      </div>
+      <Link href="/app/workouts" className="btn-primary block text-center text-sm">
+        Start session
+      </Link>
     </div>
   );
 }

@@ -30,7 +30,15 @@ import pytest
 from api.agent.deps import AgentDeps
 
 
-def _make_deps(user_id: int, queue: asyncio.Queue, weight_logger=None, trend_getter=None) -> AgentDeps:
+def _make_deps(
+    user_id: int,
+    queue: asyncio.Queue,
+    weight_logger=None,
+    trend_getter=None,
+    today_workout_getter=None,
+    set_logger=None,
+    progression_getter=None,
+) -> AgentDeps:
     """
     Build an ``AgentDeps`` instance with mock service callables.
 
@@ -39,6 +47,9 @@ def _make_deps(user_id: int, queue: asyncio.Queue, weight_logger=None, trend_get
         queue: Async queue for event capture.
         weight_logger: Optional mock; defaults to one returning a sample entry dict.
         trend_getter: Optional mock; defaults to one returning an empty trend dict.
+        today_workout_getter: Optional mock for workout tool.
+        set_logger: Optional mock for workout set logging.
+        progression_getter: Optional mock for progression data.
 
     Returns:
         ``AgentDeps`` ready to be passed to a tool via a mock ``RunContext``.
@@ -48,6 +59,9 @@ def _make_deps(user_id: int, queue: asyncio.Queue, weight_logger=None, trend_get
         event_queue=queue,
         weight_logger=weight_logger or MagicMock(return_value={"weight_kg": 85.5, "date": "2026-06-08"}),
         trend_getter=trend_getter or MagicMock(return_value={"moving_avg": [], "total_loss_kg": None, "projected_goal_date": None}),
+        today_workout_getter=today_workout_getter or MagicMock(return_value={"day_name": "Push", "is_rest_day": False, "exercises": []}),
+        set_logger=set_logger or MagicMock(return_value={"session_id": "1-2026-06-08", "set_number": 1}),
+        progression_getter=progression_getter or MagicMock(return_value={"exercise_name": "Bench Press", "last_5_sessions": [], "suggestion": {"weight_kg": None, "reps": None, "note": "first session"}}),
     )
 
 
@@ -93,7 +107,7 @@ class TestLogWeightTool:
 
     @pytest.mark.asyncio
     async def test_delegates_to_weight_logger_with_correct_args(self):
-        import agent.tools  # noqa: F401
+        import api.agent.tools  # noqa: F401
 
         queue: asyncio.Queue = asyncio.Queue()
         weight_logger = MagicMock(return_value={"weight_kg": 90.0, "date": "2026-06-08"})
@@ -106,7 +120,7 @@ class TestLogWeightTool:
 
     @pytest.mark.asyncio
     async def test_returns_dict(self):
-        import agent.tools  # noqa: F401
+        import api.agent.tools  # noqa: F401
 
         queue: asyncio.Queue = asyncio.Queue()
         expected = {"weight_kg": 75.0, "date": "2026-06-08"}
@@ -123,7 +137,7 @@ class TestLogWeightTool:
 class TestGetWeightTrendTool:
     @pytest.mark.asyncio
     async def test_emits_tool_call_then_tool_result(self):
-        import agent.tools  # noqa: F401
+        import api.agent.tools  # noqa: F401
 
         queue: asyncio.Queue = asyncio.Queue()
         deps = _make_deps(1, queue)
@@ -141,7 +155,7 @@ class TestGetWeightTrendTool:
 
     @pytest.mark.asyncio
     async def test_delegates_to_trend_getter(self):
-        import agent.tools  # noqa: F401
+        import api.agent.tools  # noqa: F401
 
         queue: asyncio.Queue = asyncio.Queue()
         trend_getter = MagicMock(return_value={"moving_avg": [], "total_loss_kg": 5.0, "projected_goal_date": None})
@@ -154,14 +168,14 @@ class TestGetWeightTrendTool:
 
     @pytest.mark.asyncio
     async def test_returns_dict(self):
-        import agent.tools  # noqa: F401
+        import api.agent.tools  # noqa: F401
 
         queue: asyncio.Queue = asyncio.Queue()
         expected = {"moving_avg": [], "total_loss_kg": None, "projected_goal_date": None}
         deps = _make_deps(1, queue, trend_getter=MagicMock(return_value=expected))
         ctx = _make_ctx(deps)
 
-        result = await agent.tools.get_weight_trend(ctx)
+        result = await api.agent.tools.get_weight_trend(ctx)
 
         assert result == expected
         assert "moving_avg" in result

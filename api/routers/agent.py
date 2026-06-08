@@ -25,10 +25,11 @@ stream in real time, before the final text reply is assembled.
 
 Dependency injection
 --------------------
-``_make_weight_logger`` and ``_make_trend_getter`` create closures that
-capture ``user_id`` and delegate to the appropriate service functions.
-These callables are injected into ``AgentDeps`` so the top-level ``agent``
-package remains free of any ``api.*`` imports.
+Closure factories (``_make_weight_logger``, ``_make_trend_getter``,
+``_make_today_workout_getter``, ``_make_set_logger``, ``_make_progression_getter``)
+capture ``user_id`` and delegate to service functions. These callables are
+injected into ``AgentDeps`` so the top-level ``agent`` package remains free
+of any ``api.*`` imports.
 """
 
 import asyncio
@@ -46,9 +47,13 @@ from ..agent.history import clear_all_sessions, get_session, update_session
 
 from ..auth import get_current_user
 from ..models.weight import WeightEntryCreate
+from ..models.workout import LogSetRequest
 from ..services.settings_service import get_settings
 from ..services.weight_service import get_trend as svc_get_trend
 from ..services.weight_service import log_weight as svc_log_weight
+from ..services.workout_service import get_progression as svc_get_progression
+from ..services.workout_service import get_today_workout as svc_get_today_workout
+from ..services.workout_service import log_set as svc_log_set
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -99,6 +104,41 @@ def _make_trend_getter(user_id: int):
         goal = settings.goal_weight_kg if settings else 0.0
         return svc_get_trend(user_id, goal).model_dump()
     return trend_getter
+
+
+def _make_today_workout_getter(user_id: int):
+    """Return a callable that fetches today's workout for the given user."""
+    from datetime import date as _date
+
+    def today_workout_getter() -> dict:
+        return svc_get_today_workout(user_id, _date.today().isoformat()).model_dump()
+    return today_workout_getter
+
+
+def _make_set_logger(user_id: int):
+    """Return a callable that logs a workout set for the given user."""
+    from datetime import date as _date
+
+    def set_logger(exercise_name: str, weight_kg: float, reps: int) -> dict:
+        today = _date.today().isoformat()
+        today_workout = svc_get_today_workout(user_id, today)
+        day_name = today_workout.day_name
+        req = LogSetRequest(
+            date=today,
+            exercise_name=exercise_name,
+            weight_kg=weight_kg,
+            reps=reps,
+            day_name=day_name,
+        )
+        return svc_log_set(user_id, req).model_dump()
+    return set_logger
+
+
+def _make_progression_getter(user_id: int):
+    """Return a callable that fetches progression data for an exercise."""
+    def progression_getter(exercise_name: str) -> dict:
+        return svc_get_progression(user_id, exercise_name).model_dump()
+    return progression_getter
 
 
 async def _run_agent_to_queue(
@@ -162,6 +202,9 @@ async def _sse_generator(message: str, session_id: str, user_id: int):
         event_queue=queue,
         weight_logger=_make_weight_logger(user_id),
         trend_getter=_make_trend_getter(user_id),
+        today_workout_getter=_make_today_workout_getter(user_id),
+        set_logger=_make_set_logger(user_id),
+        progression_getter=_make_progression_getter(user_id),
     )
 
     # Run agent in background so this generator can yield events as they arrive

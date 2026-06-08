@@ -7,6 +7,7 @@ validates environment variables and tests the Sheets connection at startup.
 Routers mounted:
     /settings  — user profile / onboarding settings
     /weight    — weight logging and trend analytics
+    /workouts  — workout system (import, log, progression)
     /agent     — SSE-streaming AI coach chat
     /auth      — login (mounted directly, not via a router)
 """
@@ -27,6 +28,7 @@ from .logger import get_logger
 from .routers.agent import router as agent_router
 from .routers.settings import router as settings_router
 from .routers.weight import router as weight_router
+from .routers.workouts import router as workout_router
 from .sheets.sheets_client import get_main_sheet
 
 logger = get_logger("main")
@@ -44,7 +46,7 @@ REQUIRED_ENV_VARS = [
 # so we log a warning rather than blocking startup.
 AGENT_ENV_VARS = ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_DEPLOYMENT"]
 
-VERSION = "0.5.3"
+VERSION = "0.6.0"
 
 
 @asynccontextmanager
@@ -91,7 +93,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("BodyOps API shutting down")
 
 
-app = FastAPI(title="BodyOps API", version="0.5.3", lifespan=lifespan)
+app = FastAPI(title="BodyOps API", version="0.6.0", lifespan=lifespan)
 
 # Allow all origins in development; lock down to Vercel domain in production
 # by setting CORS_ORIGINS env var (not yet wired — acceptable for V1 single-user app).
@@ -105,6 +107,7 @@ app.add_middleware(
 
 app.include_router(settings_router)
 app.include_router(weight_router)
+app.include_router(workout_router)
 app.include_router(agent_router)
 
 
