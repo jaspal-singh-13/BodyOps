@@ -10,6 +10,10 @@ What it does:
 
 Auth Sheet is NOT touched — the owner manages it manually in Google Sheets.
 
+Schema reflects all applied migrations:
+    - migrate_add_user_id.py     — user_id as first column on all tabs
+    - migrate_add_weight_time.py — time column added to WeightLogs after date
+
 Usage:
     python scripts/setup.py
 """
@@ -39,7 +43,7 @@ REQUIRED_VARS = [
 
 # Tab name → ordered list of header columns
 MAIN_SHEET_TABS: dict[str, list[str]] = {
-    "WeightLogs": ["user_id", "id", "date", "weight_kg", "logged_at"],
+    "WeightLogs": ["user_id", "date", "time", "weight_kg", "logged_at"],
     "Meals": ["user_id", "id", "date", "meal_type", "photo_url", "total_calories", "total_protein_g", "total_carbs_g", "total_fat_g", "logged_at"],
     "MealItems": ["user_id", "id", "meal_id", "name", "quantity", "unit", "calories", "protein_g", "carbs_g", "fat_g"],
     "WorkoutPrograms": ["user_id", "program_name", "day_name", "exercise_name", "sets", "rep_min", "rep_max", "order", "created_at"],
