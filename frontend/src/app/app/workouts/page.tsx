@@ -86,7 +86,7 @@ interface SessionHistoryItem {
   completed_at: string;
 }
 
-type ActiveTab = "import" | "ai-import" | "today" | "log" | "schedule" | "history";
+type ActiveTab = "import" | "today" | "log" | "schedule" | "history";
 
 // ---------------------------------------------------------------------------
 // Page
@@ -98,18 +98,10 @@ export default function WorkoutsPage() {
 
   // Import tab state
   const [planText, setPlanText] = useState("");
-  const [scheduleText, setScheduleText] = useState("");
   const [programName, setProgramName] = useState("");
   const [importLoading, setImportLoading] = useState(false);
   const [importError, setImportError] = useState("");
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
-
-  // AI Import tab state
-  const [aiRawText, setAiRawText] = useState("");
-  const [aiProgramName, setAiProgramName] = useState("");
-  const [aiImportLoading, setAiImportLoading] = useState(false);
-  const [aiImportError, setAiImportError] = useState("");
-  const [aiImportResult, setAiImportResult] = useState<ImportResult | null>(null);
 
   // Today + Log tab state
   const [todayWorkout, setTodayWorkout] = useState<TodayWorkout | null>(null);
@@ -168,11 +160,10 @@ export default function WorkoutsPage() {
     setImportError("");
     setImportLoading(true);
     try {
-      const result = await apiFetch<ImportResult>("/workouts/import", {
+      const result = await apiFetch<ImportResult>("/workouts/ai-import", {
         method: "POST",
         body: JSON.stringify({
-          plan_text: planText,
-          schedule_text: scheduleText,
+          raw_text: planText,
           program_name: programName,
         }),
       });
@@ -182,28 +173,6 @@ export default function WorkoutsPage() {
       setImportError(err instanceof Error ? err.message : "Import failed");
     } finally {
       setImportLoading(false);
-    }
-  }
-
-  async function handleAiImport(e: React.FormEvent) {
-    e.preventDefault();
-    if (!aiRawText.trim() || !aiProgramName.trim()) return;
-    setAiImportError("");
-    setAiImportLoading(true);
-    try {
-      const result = await apiFetch<ImportResult>("/workouts/ai-import", {
-        method: "POST",
-        body: JSON.stringify({
-          raw_text: aiRawText,
-          program_name: aiProgramName,
-        }),
-      });
-      setAiImportResult(result);
-      await Promise.all([refreshToday(), refreshSchedule()]);
-    } catch (err) {
-      setAiImportError(err instanceof Error ? err.message : "Import failed");
-    } finally {
-      setAiImportLoading(false);
     }
   }
 
@@ -301,7 +270,6 @@ export default function WorkoutsPage() {
     { id: "schedule", label: "Schedule" },
     { id: "history", label: "History" },
     { id: "import", label: "Import" },
-    { id: "ai-import", label: "AI Import" },
   ];
 
   return (
@@ -328,28 +296,13 @@ export default function WorkoutsPage() {
       {activeTab === "import" && (
         <ImportTab
           planText={planText}
-          scheduleText={scheduleText}
           programName={programName}
           onPlanTextChange={setPlanText}
-          onScheduleTextChange={setScheduleText}
           onProgramNameChange={setProgramName}
           onSubmit={handleImport}
           loading={importLoading}
           error={importError}
           result={importResult}
-        />
-      )}
-
-      {activeTab === "ai-import" && (
-        <AiImportTab
-          rawText={aiRawText}
-          programName={aiProgramName}
-          onRawTextChange={setAiRawText}
-          onProgramNameChange={setAiProgramName}
-          onSubmit={handleAiImport}
-          loading={aiImportLoading}
-          error={aiImportError}
-          result={aiImportResult}
         />
       )}
 
@@ -398,13 +351,12 @@ export default function WorkoutsPage() {
 // ---------------------------------------------------------------------------
 
 function ImportTab({
-  planText, scheduleText, programName,
-  onPlanTextChange, onScheduleTextChange, onProgramNameChange,
+  planText, programName,
+  onPlanTextChange, onProgramNameChange,
   onSubmit, loading, error, result,
 }: {
-  planText: string; scheduleText: string; programName: string;
+  planText: string; programName: string;
   onPlanTextChange: (v: string) => void;
-  onScheduleTextChange: (v: string) => void;
   onProgramNameChange: (v: string) => void;
   onSubmit: (e: React.FormEvent) => void;
   loading: boolean; error: string;
@@ -413,110 +365,7 @@ function ImportTab({
   return (
     <div className="flex flex-col gap-6">
       <section className="bg-white rounded-xl border border-zinc-100 p-4">
-        <h2 className="text-sm font-semibold text-zinc-700 mb-3">Import workout plan</h2>
-        <form onSubmit={onSubmit} className="flex flex-col gap-3">
-          <div>
-            <label className="text-xs text-zinc-500 block mb-1">Program name</label>
-            <input
-              type="text"
-              value={programName}
-              onChange={(e) => onProgramNameChange(e.target.value)}
-              placeholder="PPL v1"
-              className="input"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-zinc-500 block mb-1">
-              Workout plan{" "}
-              <span className="text-zinc-400">(e.g. Push:\nBench Press 3x8-12)</span>
-            </label>
-            <textarea
-              value={planText}
-              onChange={(e) => onPlanTextChange(e.target.value)}
-              rows={10}
-              placeholder={"Push:\nBench Press 3x8-12\nOverhead Press 3x8-10\n\nPull:\nBarbell Row 3x8-12\n\nLegs:\nSquat 3x6-10\n\nRest\nRest"}
-              className="input font-mono text-xs resize-y w-full"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-zinc-500 block mb-1">
-              Schedule{" "}
-              <span className="text-zinc-400">(optional — leave blank to auto-assign)</span>
-            </label>
-            <textarea
-              value={scheduleText}
-              onChange={(e) => onScheduleTextChange(e.target.value)}
-              rows={4}
-              placeholder={"Mon - Push\nTue - Pull\nWed - Legs\nThu - Rest\nFri - Push\nSat - Pull\nSun - Rest"}
-              className="input font-mono text-xs resize-y w-full"
-            />
-          </div>
-          {error && <p className="text-sm text-red-500">{error}</p>}
-          <button
-            type="submit"
-            disabled={loading || !planText.trim() || !programName.trim()}
-            className="btn-primary w-full"
-          >
-            {loading ? "Importing…" : "Import plan"}
-          </button>
-        </form>
-      </section>
-
-      {result && (
-        <section className="bg-white rounded-xl border border-zinc-100 p-4">
-          <h2 className="text-sm font-semibold text-zinc-700 mb-3">
-            Imported: {result.program_name}
-          </h2>
-          <div className="grid grid-cols-3 gap-3 mb-4">
-            <div className="text-center">
-              <p className="text-xl font-bold text-zinc-900">{result.program_days}</p>
-              <p className="text-xs text-zinc-500">workout days</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xl font-bold text-zinc-900">{result.rest_days}</p>
-              <p className="text-xs text-zinc-500">rest days</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xl font-bold text-zinc-900">{result.total_exercises}</p>
-              <p className="text-xs text-zinc-500">exercises</p>
-            </div>
-          </div>
-          <div className="flex flex-col gap-1">
-            {result.days
-              .filter((d) => d.day_name !== "Rest")
-              .map((day) => (
-                <div key={day.day_name} className="flex items-center justify-between py-1.5 border-b border-zinc-50 last:border-0">
-                  <span className="text-sm font-medium text-zinc-900">{day.day_name}</span>
-                  <span className="text-xs text-zinc-500">{day.exercises.length} exercises</span>
-                </div>
-              ))}
-          </div>
-        </section>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// AI Import tab
-// ---------------------------------------------------------------------------
-
-function AiImportTab({
-  rawText, programName,
-  onRawTextChange, onProgramNameChange,
-  onSubmit, loading, error, result,
-}: {
-  rawText: string; programName: string;
-  onRawTextChange: (v: string) => void;
-  onProgramNameChange: (v: string) => void;
-  onSubmit: (e: React.FormEvent) => void;
-  loading: boolean; error: string;
-  result: ImportResult | null;
-}) {
-  return (
-    <div className="flex flex-col gap-6">
-      <section className="bg-white rounded-xl border border-zinc-100 p-4">
-        <h2 className="text-sm font-semibold text-zinc-700 mb-1">AI-powered import</h2>
+        <h2 className="text-sm font-semibold text-zinc-700 mb-1">Import workout plan</h2>
         <p className="text-xs text-zinc-400 mb-4">
           Paste your workout in any format — the AI will convert it automatically.
         </p>
@@ -534,8 +383,8 @@ function AiImportTab({
           <div>
             <label className="text-xs text-zinc-500 block mb-1">Workout plan — any format</label>
             <textarea
-              value={rawText}
-              onChange={(e) => onRawTextChange(e.target.value)}
+              value={planText}
+              onChange={(e) => onPlanTextChange(e.target.value)}
               rows={12}
               placeholder={"Monday: Chest day\nBench Press — 4 sets of 8-10 reps\nIncline Dumbbell 3 sets 12 reps\n\nWednesday: Rest\n\nFriday: Leg day\nSquat 4x5, Romanian Deadlift 3x10-12"}
               className="input font-mono text-xs resize-y w-full"
@@ -544,7 +393,7 @@ function AiImportTab({
           {error && <p className="text-sm text-red-500">{error}</p>}
           <button
             type="submit"
-            disabled={loading || !rawText.trim() || !programName.trim()}
+            disabled={loading || !planText.trim() || !programName.trim()}
             className="btn-primary w-full"
           >
             {loading ? "Importing…" : "Save plan"}
