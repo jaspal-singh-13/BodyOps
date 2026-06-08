@@ -294,7 +294,9 @@ def get_today_workout(user_id: int, today_date: str) -> TodayWorkoutResponse:
     ex_rows = sorted(
         [
             r for r in program_rows
-            if int(r.get("user_id", -1)) == user_id and r.get("day_name") == day_name
+            if int(r.get("user_id", -1)) == user_id
+            and r.get("day_name") == day_name
+            and r.get("exercise_name")
         ],
         key=lambda r: int(r.get("order", 0)),
     )
@@ -572,6 +574,8 @@ def get_schedule(user_id: int) -> WorkoutScheduleResponse:
             continue
         if program_name is None:
             program_name = str(r.get("program_name", "")) or None
+        if not r.get("exercise_name"):
+            continue
         day = str(r.get("day_name", ""))
         exercises_by_day.setdefault(day, []).append(
             ExerciseInfo(
