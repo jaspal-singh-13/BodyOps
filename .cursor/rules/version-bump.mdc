@@ -1,0 +1,46 @@
+---
+description: Version bump conventions — which files to update and when
+alwaysApply: true
+---
+
+# Version Bump Convention
+
+`pyproject.toml` is the **canonical app version** — always bump it for any meaningful change.
+`api/main.py` must always stay in sync with `pyproject.toml`.
+
+Only bump `frontend/package.json` when the change includes frontend code (`frontend/**`).
+
+| File | Bump when |
+|------|-----------|
+| `pyproject.toml` | **Always** |
+| `api/main.py` (`VERSION` + `FastAPI(version=...)`) | **Always** (synced with pyproject.toml) |
+| `frontend/package.json` | Only when `frontend/**` files changed |
+
+## Versioning scheme
+
+- **Patch** (`0.5.2 → 0.5.3`): bug fixes, small tweaks
+- **Minor** (`0.5.x → 0.6.0`): new features or notable changes
+- **Major** (`0.x.y → 1.0.0`): breaking changes
+
+## Examples
+
+Backend-only fix (e.g. `api/auth.py` change):
+```
+pyproject.toml      → 0.5.3
+api/main.py         → 0.5.3
+frontend/package.json → unchanged
+```
+
+Frontend-only fix (e.g. `frontend/src/**` change):
+```
+pyproject.toml      → 0.5.3
+api/main.py         → 0.5.3
+frontend/package.json → 0.5.3
+```
+
+Both changed:
+```
+pyproject.toml      → 0.5.3
+api/main.py         → 0.5.3
+frontend/package.json → 0.5.3
+```
