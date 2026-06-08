@@ -136,12 +136,12 @@ class TestPostMealsAnalyze:
         assert data["drive_url"] == DRIVE_URL
         assert "total" in data
 
-    def test_analyze_no_auth_returns_403(self, client):
+    def test_analyze_no_auth_returns_401(self, client):
         resp = client.post(
             "/meals/analyze",
             files={"file": ("meal.jpg", io.BytesIO(b"JPEG"), "image/jpeg")},
         )
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     def test_analyze_unsupported_mime_returns_400(self, client, auth_headers):
         resp = client.post(
@@ -226,9 +226,9 @@ class TestPostMeals:
         assert "daily_nutrition" in data
         assert data["daily_nutrition"]["meals_count"] == 1
 
-    def test_save_meal_no_auth_returns_403(self, client):
+    def test_save_meal_no_auth_returns_401(self, client):
         resp = client.post("/meals", json=CONFIRM_PAYLOAD)
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     def test_save_meal_invalid_meal_type_returns_422(self, client, auth_headers):
         payload = dict(CONFIRM_PAYLOAD, meal_type="InvalidType")
@@ -266,9 +266,9 @@ class TestGetMealsToday:
         assert data["meals_count"] == 1
         assert data["protein_g"] == pytest.approx(58.0)
 
-    def test_today_no_auth_returns_403(self, client):
+    def test_today_no_auth_returns_401(self, client):
         resp = client.get("/meals/today")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     def test_today_zero_meals_returns_zeros(self, client, auth_headers):
         empty = DailyNutrition(
@@ -307,9 +307,9 @@ class TestGetMealsHistory:
         assert data[0]["total_calories"] == 1280
         assert data[1]["date"] == "2026-06-07"
 
-    def test_history_no_auth_returns_403(self, client):
+    def test_history_no_auth_returns_401(self, client):
         resp = client.get("/meals/history")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     def test_history_empty_returns_empty_list(self, client, auth_headers):
         with patch("api.routers.meals.get_meals_history", return_value=[]):

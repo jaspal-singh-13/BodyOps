@@ -14,6 +14,7 @@ Token lifetime is controlled by ``JWT_EXPIRE_MINUTES`` (default: 10080 = 7 days)
 
 import os
 from datetime import datetime, timedelta, timezone
+from typing import Optional
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -25,8 +26,9 @@ from .sheets.auth_sheet import get_credentials  # pure in-memory after startup
 
 logger = get_logger("auth")
 
-# HTTPBearer extracts the token from the "Authorization: Bearer <token>" header.
-security = HTTPBearer()
+# auto_error=False so we can return 401 (Unauthorized) instead of 403 (Forbidden)
+# when no Authorization header is provided.
+security = HTTPBearer(auto_error=False)
 
 
 class LoginRequest(BaseModel):
@@ -100,7 +102,7 @@ def verify_jwt(token: str) -> int:
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
 ) -> int:
     """
     FastAPI dependency that extracts and verifies the bearer token.
@@ -117,6 +119,8 @@ def get_current_user(
     Raises:
         HTTPException(401): If the token is missing or invalid.
     """
+    if credentials is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     return verify_jwt(credentials.credentials)
 
 

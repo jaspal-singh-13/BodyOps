@@ -87,7 +87,7 @@ def _ai_mocks(parsed_return, mock_append=None, mock_delete=None):
     Return an ExitStack that wires up all mocks needed by ai_import_workout:
 
       - get_async_client() → mock client with beta.chat.completions.parse as AsyncMock
-      - append_row → no-op (or supplied mock) so no Sheets writes happen
+      - append_rows_batch → no-op (or supplied mock) so no Sheets writes happen
       - _delete_user_rows → no-op (or supplied mock)
     """
     mock_client = MagicMock()
@@ -99,7 +99,7 @@ def _ai_mocks(parsed_return, mock_append=None, mock_delete=None):
     stack = ExitStack()
     stack.enter_context(patch("api.agent.llm.get_async_client", return_value=mock_client))
     stack.enter_context(
-        patch("api.services.workout_service.append_row", mock_append or MagicMock())
+        patch("api.services.workout_service.append_rows_batch", mock_append or MagicMock())
     )
     stack.enter_context(
         patch("api.services.workout_service._delete_user_rows", mock_delete or MagicMock())
@@ -127,17 +127,16 @@ async def test_auto_schedule_used_when_no_explicit_schedule():
     assert result.program_days == 3
     assert result.total_exercises == 3
 
-    # WorkoutSchedules rows: weekday 0=Push, 1=Pull, 2=Legs, 3-6=Rest
-    sched_calls = [
-        c for c in mock_append.call_args_list if c.args[0] == "WorkoutSchedules"
-    ]
-    assert len(sched_calls) == 7
-    assert sched_calls[0].args[1]["weekday"] == 0
-    assert sched_calls[0].args[1]["day_name"] == "Push"
-    assert sched_calls[1].args[1]["day_name"] == "Pull"
-    assert sched_calls[2].args[1]["day_name"] == "Legs"
-    for sched_call in sched_calls[3:]:
-        assert sched_call.args[1]["day_name"] == "Rest"
+    # WorkoutSchedules batch: one call with 7 rows (Mon=Push, Tue=Pull, Wed=Legs, Thu-Sun=Rest)
+    sched_batch = next(c for c in mock_append.call_args_list if c.args[0] == "WorkoutSchedules")
+    sched_rows = sched_batch.args[1]
+    assert len(sched_rows) == 7
+    assert sched_rows[0]["weekday"] == 0
+    assert sched_rows[0]["day_name"] == "Push"
+    assert sched_rows[1]["day_name"] == "Pull"
+    assert sched_rows[2]["day_name"] == "Legs"
+    for row in sched_rows[3:]:
+        assert row["day_name"] == "Rest"
 
 
 async def test_explicit_schedule_day_index_maps_to_correct_day_name():
@@ -156,13 +155,13 @@ async def test_explicit_schedule_day_index_maps_to_correct_day_name():
 
     assert result.program_days == 2
 
-    sched_calls = [
-        c for c in mock_append.call_args_list if c.args[0] == "WorkoutSchedules"
-    ]
-    assert len(sched_calls) == 3
-    assert sched_calls[0].args[1] == {"user_id": 1, "weekday": 0, "day_name": "Upper", **{"created_at": sched_calls[0].args[1]["created_at"]}}
-    assert sched_calls[1].args[1]["day_name"] == "Lower"
-    assert sched_calls[2].args[1]["day_name"] == "Rest"
+    sched_batch = next(c for c in mock_append.call_args_list if c.args[0] == "WorkoutSchedules")
+    sched_rows = sched_batch.args[1]
+    # import_workout gap-fills all 7 weekdays; the first 3 come from the explicit schedule
+    assert len(sched_rows) == 7
+    assert sched_rows[0] == {"user_id": 1, "weekday": 0, "day_name": "Upper", "created_at": sched_rows[0]["created_at"]}
+    assert sched_rows[1]["day_name"] == "Lower"
+    assert sched_rows[2]["day_name"] == "Rest"
 
 
 async def test_explicit_schedule_day_name_matches_program_day_name():
@@ -180,20 +179,14 @@ async def test_explicit_schedule_day_name_matches_program_day_name():
     with _ai_mocks(_parsed(days, schedule=schedule), mock_append=mock_append):
         await ai_import_workout(user_id=1, program_name="PPL", raw_text="...")
 
-    program_day_names = {
-        c.args[1]["day_name"]
-        for c in mock_append.call_args_list
-        if c.args[0] == "WorkoutPrograms"
-    }
-    schedule_day_names = {
-        c.args[1]["day_name"]
-        for c in mock_append.call_args_list
-        if c.args[0] == "WorkoutSchedules"
-    }
+    prog_batch = next(c for c in mock_append.call_args_list if c.args[0] == "WorkoutPrograms")
+    sched_batch = next(c for c in mock_append.call_args_list if c.args[0] == "WorkoutSchedules")
+    program_day_names = {r["day_name"] for r in prog_batch.args[1]}
+    non_rest_schedule_day_names = {r["day_name"] for r in sched_batch.args[1] if r["day_name"] != "Rest"}
 
-    # Every day_name in the schedule must appear in the program
+    # Every training day_name in the schedule must appear in the program
     assert program_day_names == {"Push", "Pull"}
-    assert program_day_names == schedule_day_names
+    assert program_day_names == non_rest_schedule_day_names
 
 
 async def test_out_of_bounds_day_index_is_skipped():
@@ -208,13 +201,13 @@ async def test_out_of_bounds_day_index_is_skipped():
     with _ai_mocks(_parsed(days, schedule=schedule), mock_append=mock_append):
         await ai_import_workout(user_id=1, program_name="Minimal", raw_text="...")
 
-    sched_calls = [
-        c for c in mock_append.call_args_list if c.args[0] == "WorkoutSchedules"
-    ]
-    # Only the valid entry (day_index=0) survives
-    assert len(sched_calls) == 1
-    assert sched_calls[0].args[1]["weekday"] == 0
-    assert sched_calls[0].args[1]["day_name"] == "Full Body"
+    sched_batch = next(c for c in mock_append.call_args_list if c.args[0] == "WorkoutSchedules")
+    sched_rows = sched_batch.args[1]
+    # Only the valid entry (day_index=0) produces a non-Rest row; gaps are filled with Rest
+    valid_rows = [r for r in sched_rows if r["day_name"] != "Rest"]
+    assert len(valid_rows) == 1
+    assert valid_rows[0]["weekday"] == 0
+    assert valid_rows[0]["day_name"] == "Full Body"
 
 
 async def test_day_index_pointing_to_rest_day_produces_rest_in_schedule():
@@ -229,10 +222,10 @@ async def test_day_index_pointing_to_rest_day_produces_rest_in_schedule():
     with _ai_mocks(_parsed(days, schedule=schedule), mock_append=mock_append):
         await ai_import_workout(user_id=1, program_name="P", raw_text="...")
 
-    sched_calls = [
-        c for c in mock_append.call_args_list if c.args[0] == "WorkoutSchedules"
-    ]
-    assert sched_calls[1].args[1]["day_name"] == "Rest"
+    sched_batch = next(c for c in mock_append.call_args_list if c.args[0] == "WorkoutSchedules")
+    sched_rows = sched_batch.args[1]
+    # schedule = [(0, "Push"), (1, "Rest")] — index 1 must be "Rest"
+    assert sched_rows[1]["day_name"] == "Rest"
 
 
 async def test_non_sequential_day_indices_map_correctly():
@@ -249,12 +242,12 @@ async def test_non_sequential_day_indices_map_correctly():
     with _ai_mocks(_parsed(days, schedule=schedule), mock_append=mock_append):
         await ai_import_workout(user_id=1, program_name="X", raw_text="...")
 
-    sched_calls = [
-        c for c in mock_append.call_args_list if c.args[0] == "WorkoutSchedules"
-    ]
-    assert sched_calls[0].args[1]["day_name"] == "C"
-    assert sched_calls[1].args[1]["day_name"] == "A"
-    assert sched_calls[2].args[1]["day_name"] == "B"
+    sched_batch = next(c for c in mock_append.call_args_list if c.args[0] == "WorkoutSchedules")
+    sched_rows = sched_batch.args[1]
+    # schedule = [(0, "C"), (1, "A"), (2, "B")] — explicit order preserved
+    assert sched_rows[0]["day_name"] == "C"
+    assert sched_rows[1]["day_name"] == "A"
+    assert sched_rows[2]["day_name"] == "B"
 
 
 async def test_empty_schedule_list_falls_back_to_auto_schedule():
@@ -267,12 +260,11 @@ async def test_empty_schedule_list_falls_back_to_auto_schedule():
     with _ai_mocks(_parsed(days, schedule=[]), mock_append=mock_append):
         await ai_import_workout(user_id=1, program_name="P", raw_text="...")
 
-    sched_calls = [
-        c for c in mock_append.call_args_list if c.args[0] == "WorkoutSchedules"
-    ]
+    sched_batch = next(c for c in mock_append.call_args_list if c.args[0] == "WorkoutSchedules")
+    sched_rows = sched_batch.args[1]
     # _auto_schedule produces 7 entries (Mon=Push, Tue-Sun=Rest)
-    assert len(sched_calls) == 7
-    assert sched_calls[0].args[1]["day_name"] == "Push"
+    assert len(sched_rows) == 7
+    assert sched_rows[0]["day_name"] == "Push"
 
 
 # ---------------------------------------------------------------------------
@@ -330,10 +322,11 @@ async def test_multi_exercise_day_all_exercises_written_to_programs():
     with _ai_mocks(_parsed(days), mock_append=mock_append):
         result = await ai_import_workout(user_id=1, program_name="FB", raw_text="...")
 
-    program_calls = [c for c in mock_append.call_args_list if c.args[0] == "WorkoutPrograms"]
-    assert len(program_calls) == 5
+    prog_batch = next(c for c in mock_append.call_args_list if c.args[0] == "WorkoutPrograms")
+    prog_rows = prog_batch.args[1]
+    assert len(prog_rows) == 5
     assert result.total_exercises == 5
-    names = [c.args[1]["exercise_name"] for c in program_calls]
+    names = [r["exercise_name"] for r in prog_rows]
     assert names == ["Ex1", "Ex2", "Ex3", "Ex4", "Ex5"]
 
 
@@ -402,7 +395,8 @@ async def test_user_id_propagated_to_all_append_rows():
         await ai_import_workout(user_id=42, program_name="P", raw_text="...")
 
     for c in mock_append.call_args_list:
-        assert c.args[1]["user_id"] == 42
+        for row in c.args[1]:
+            assert row["user_id"] == 42
 
 
 async def test_program_name_propagated_to_workout_programs_rows():
@@ -413,8 +407,8 @@ async def test_program_name_propagated_to_workout_programs_rows():
     with _ai_mocks(_parsed(days), mock_append=mock_append):
         await ai_import_workout(user_id=1, program_name="My Custom Plan", raw_text="...")
 
-    prog_calls = [c for c in mock_append.call_args_list if c.args[0] == "WorkoutPrograms"]
-    assert all(c.args[1]["program_name"] == "My Custom Plan" for c in prog_calls)
+    prog_batch = next(c for c in mock_append.call_args_list if c.args[0] == "WorkoutPrograms")
+    assert all(r["program_name"] == "My Custom Plan" for r in prog_batch.args[1])
 
 
 # ---------------------------------------------------------------------------
@@ -433,7 +427,7 @@ async def test_parsed_none_raises_value_error_no_sheet_writes():
 
     with (
         patch("api.agent.llm.get_async_client", return_value=mock_client),
-        patch("api.services.workout_service.append_row", mock_append),
+        patch("api.services.workout_service.append_rows_batch", mock_append),
         patch("api.services.workout_service._delete_user_rows"),
         pytest.raises(ValueError, match="no result"),
     ):
@@ -452,7 +446,7 @@ async def test_no_sheet_writes_when_llm_raises():
 
     with (
         patch("api.agent.llm.get_async_client", return_value=mock_client),
-        patch("api.services.workout_service.append_row", mock_append),
+        patch("api.services.workout_service.append_rows_batch", mock_append),
         patch("api.services.workout_service._delete_user_rows"),
         pytest.raises(ValueError, match="unparseable"),
     ):
