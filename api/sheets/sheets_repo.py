@@ -6,11 +6,12 @@ Row ordering follows the Google Sheets convention: row 1 is the header row,
 row 2 is the first data row. All row indices in this module are 1-based.
 
 Functions:
-    read_rows   — return all records from a tab as a list of dicts.
-    append_row  — append a new row in header-column order.
-    update_row  — overwrite an existing row by 1-based row index.
-    find_row    — find the first row matching a column/value filter.
-    _col_letter — convert a 1-based column number to a spreadsheet letter.
+    read_rows        — return all records from a tab as a list of dicts.
+    append_row       — append a new row in header-column order.
+    append_rows_batch — append many rows in a single API call (avoids quota).
+    update_row       — overwrite an existing row by 1-based row index.
+    find_row         — find the first row matching a column/value filter.
+    _col_letter      — convert a 1-based column number to a spreadsheet letter.
 """
 
 from typing import Any
@@ -75,6 +76,31 @@ def append_row(tab: str, row: dict[str, Any]) -> None:
         _header_cache[tab] = headers
     values = [row.get(h, "") for h in headers]
     ws.append_row(values, value_input_option="USER_ENTERED")
+
+
+def append_rows_batch(tab: str, rows: list[dict[str, Any]]) -> None:
+    """
+    Append multiple rows to a tab in a single API call.
+
+    Dramatically reduces quota consumption compared to calling ``append_row``
+    in a loop — the entire batch counts as one write request instead of N.
+    The header row is cached the same way as ``append_row``.
+
+    Args:
+        tab:  Tab name (e.g. ``"WorkoutPrograms"``).
+        rows: List of dicts mapping column header names to values.
+              An empty list is a no-op.
+    """
+    if not rows:
+        return
+    ws = get_worksheet(tab)
+    headers = _get_headers(ws, tab)
+    if not headers:
+        headers = list(rows[0].keys())
+        ws.append_row(headers, value_input_option="USER_ENTERED")
+        _header_cache[tab] = headers
+    values = [[row.get(h, "") for h in headers] for row in rows]
+    ws.append_rows(values, value_input_option="USER_ENTERED")
 
 
 def update_row(tab: str, row_index: int, row: dict[str, Any]) -> None:

@@ -30,7 +30,7 @@ from ..models.workout import (
     WorkoutImportResponse,
 )
 from ..sheets.sheets_client import get_worksheet
-from ..sheets.sheets_repo import append_row, read_rows, update_row
+from ..sheets.sheets_repo import append_row, append_rows_batch, read_rows, update_row
 
 PROGRAMS_TAB = "WorkoutPrograms"
 SCHEDULES_TAB = "WorkoutSchedules"
@@ -209,14 +209,15 @@ def import_workout(
 
     total_exercises = 0
     program_days = 0
+    program_rows: list[dict] = []
+    schedule_rows: list[dict] = []
 
     for day in days:
         if day.day_name == "Rest":
             continue
         program_days += 1
         for ex in day.exercises:
-            append_row(
-                PROGRAMS_TAB,
+            program_rows.append(
                 {
                     "user_id": user_id,
                     "program_name": program_name,
@@ -227,20 +228,22 @@ def import_workout(
                     "rep_max": ex.rep_max,
                     "order": ex.order,
                     "created_at": now,
-                },
+                }
             )
             total_exercises += 1
 
     for weekday, day_name in schedule:
-        append_row(
-            SCHEDULES_TAB,
+        schedule_rows.append(
             {
                 "user_id": user_id,
                 "weekday": weekday,
                 "day_name": day_name,
                 "created_at": now,
-            },
+            }
         )
+
+    append_rows_batch(PROGRAMS_TAB, program_rows)
+    append_rows_batch(SCHEDULES_TAB, schedule_rows)
 
     rest_days = sum(1 for d in days if d.day_name == "Rest")
     logger.info("Imported workout for user_id=%s: %s days, %s exercises", user_id, program_days, total_exercises)
