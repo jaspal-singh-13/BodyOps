@@ -61,7 +61,10 @@ async def ai_import_workout_endpoint(
     body: AiWorkoutImportRequest,
     user_id: int = Depends(get_current_user),
 ) -> WorkoutImportResponse:
-    return await ai_import_workout(user_id, body.program_name, body.raw_text)
+    try:
+        return await ai_import_workout(user_id, body.program_name, body.raw_text)
+    except WorkoutParseError as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
 
 @router.get("/today", response_model=TodayWorkoutResponse)

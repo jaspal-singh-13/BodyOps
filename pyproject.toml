@@ -1,13 +1,13 @@
 [project]
 name = "bodyops"
-version = "0.9.1"
+version = "0.9.3"
 description = "BodyOps fitness tracking backend"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115.0",
     "uvicorn[standard]>=0.30.0",
-    "pydantic-ai[openai]>=0.2.0",
+    "pydantic-ai>=0.2.0",
     "python-jose[cryptography]>=3.3.0",
     "gspread>=6.0.0",
     "google-auth>=2.30.0",

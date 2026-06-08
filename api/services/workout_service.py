@@ -262,7 +262,7 @@ def get_today_workout(user_id: int, today_date: str) -> TodayWorkoutResponse:
     day_name: str | None = None
     for r in schedule_rows:
         if int(r.get("user_id", -1)) == user_id and int(r.get("weekday", -1)) == weekday:
-            day_name = str(r["day_name"])
+            day_name = str(r.get("day_name", "")) or None
             break
 
     if day_name is None or day_name == "Rest":
@@ -455,10 +455,18 @@ async def ai_import_workout(
     program_name: str,
     raw_text: str,
 ) -> WorkoutImportResponse:
-    """Use AI to parse free-form workout text and import it."""
+    """Use AI to parse free-form workout text and import it.
+
+    Uses ``instructor`` to enforce structured output from the LLM, guaranteeing
+    that the response validates against the ``_ParsedWorkout`` Pydantic model
+    before any sheet writes occur.
+    """
+    import os
+
+    import instructor
     from pydantic import BaseModel as _BaseModel
-    from pydantic_ai import Agent
-    from ..agent.llm import get_model
+
+    from ..agent.llm import get_async_client
     from .workout_parser import _auto_schedule
 
     class _ScheduleEntry(_BaseModel):
@@ -469,21 +477,26 @@ async def ai_import_workout(
         days: list[WorkoutDaySummary]
         schedule: list[_ScheduleEntry] | None = None
 
-    parser: Agent[None, _ParsedWorkout] = Agent(
-        get_model(),
-        output_type=_ParsedWorkout,
-        system_prompt=(
-            "Parse the workout text into structured days and exercises. "
-            "For each training day extract: day_name, exercises with exercise_name, sets, rep_min, rep_max, order. "
-            "Set rep_min = rep_max when only one rep count is given. "
-            "order is 1-based position within the day. "
-            "Include a schedule only when weekday assignments are explicit in the text (0=Mon…6=Sun). "
-            "Rest days have day_name='Rest' and empty exercises list."
-        ),
-    )
+    client = instructor.from_openai(get_async_client())
 
-    result = await parser.run(raw_text)
-    parsed = result.output
+    parsed: _ParsedWorkout = await client.chat.completions.create(
+        model=os.environ["AZURE_OPENAI_DEPLOYMENT"],
+        response_model=_ParsedWorkout,
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Parse the workout text into structured days and exercises. "
+                    "For each training day extract: day_name, exercises with exercise_name, sets, rep_min, rep_max, order. "
+                    "Set rep_min = rep_max when only one rep count is given. "
+                    "order is 1-based position within the day. "
+                    "Include a schedule only when weekday assignments are explicit in the text (0=Mon…6=Sun). "
+                    "Rest days have day_name='Rest' and empty exercises list."
+                ),
+            },
+            {"role": "user", "content": raw_text},
+        ],
+    )
 
     schedule = (
         [(e.weekday, e.day_name) for e in parsed.schedule]

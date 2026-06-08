@@ -6,6 +6,7 @@ gspread>=6.0.0
 google-auth>=2.30.0
 google-api-python-client>=2.130.0
 openai>=1.40.0
+instructor>=1.0.0
 python-multipart>=0.0.9
 httpx>=0.27.0
 python-dotenv>=1.0.0

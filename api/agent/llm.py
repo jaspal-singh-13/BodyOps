@@ -18,6 +18,26 @@ from pydantic_ai.models.openai import OpenAIChatModel
 from pydantic_ai.providers.openai import OpenAIProvider
 
 
+def get_async_client() -> AsyncAzureOpenAI:
+    """
+    Return a raw ``AsyncAzureOpenAI`` client built from environment variables.
+
+    Use this when you need the underlying OpenAI client directly (e.g. with
+    the ``instructor`` library for structured-output parsing).
+
+    Returns:
+        Configured ``AsyncAzureOpenAI`` instance.
+
+    Raises:
+        KeyError: If any required environment variable is missing.
+    """
+    return AsyncAzureOpenAI(
+        api_key=os.environ["AZURE_OPENAI_API_KEY"],
+        azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+        api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-08-01-preview"),
+    )
+
+
 def get_model() -> OpenAIChatModel:
     """
     Build and return a configured ``OpenAIChatModel`` backed by Azure OpenAI.
@@ -32,12 +52,7 @@ def get_model() -> OpenAIChatModel:
     Raises:
         KeyError: If any required environment variable is missing.
     """
-    client = AsyncAzureOpenAI(
-        api_key=os.environ["AZURE_OPENAI_API_KEY"],
-        azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
-        api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2024-08-01-preview"),
-    )
-    provider = OpenAIProvider(openai_client=client)
+    provider = OpenAIProvider(openai_client=get_async_client())
     return OpenAIChatModel(
         os.environ["AZURE_OPENAI_DEPLOYMENT"],
         provider=provider,

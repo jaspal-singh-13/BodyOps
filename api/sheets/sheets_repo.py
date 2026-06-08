@@ -60,12 +60,19 @@ def append_row(tab: str, row: dict[str, Any]) -> None:
     that don't match any header are silently ignored. Missing keys result in
     an empty string in the corresponding cell.
 
+    If the sheet is empty (no header row yet), the header row is written
+    automatically from the dict keys before appending the first data row.
+
     Args:
         tab: Tab name (e.g. ``"WeightLogs"``).
         row: Dict mapping column header names to values.
     """
     ws = get_worksheet(tab)
     headers = _get_headers(ws, tab)
+    if not headers:
+        headers = list(row.keys())
+        ws.append_row(headers, value_input_option="USER_ENTERED")
+        _header_cache[tab] = headers
     values = [row.get(h, "") for h in headers]
     ws.append_row(values, value_input_option="USER_ENTERED")
 

@@ -48,7 +48,7 @@ REQUIRED_ENV_VARS = [
 # so we log a warning rather than blocking startup.
 AGENT_ENV_VARS = ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_DEPLOYMENT"]
 
-VERSION = "0.9.1"
+VERSION = "0.9.2"
 
 
 @asynccontextmanager
@@ -105,7 +105,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("BodyOps API shutting down")
 
 
-app = FastAPI(title="BodyOps API", version="0.9.0", lifespan=lifespan)
+app = FastAPI(title="BodyOps API", version=VERSION, lifespan=lifespan)
 
 # Allow all origins in development; lock down to Vercel domain in production
 # by setting CORS_ORIGINS env var (not yet wired — acceptable for V1 single-user app).
@@ -132,6 +132,29 @@ async def login_endpoint(body: LoginRequest) -> TokenResponse:
     Returns a bearer token valid for ``JWT_EXPIRE_MINUTES`` (default: 7 days).
     """
     return await login(body)
+
+
+@app.get("/")
+async def root() -> dict:
+    """
+    Root endpoint — returns a friendly API info payload.
+
+    Useful when browsing the deployed Hugging Face Space directly.
+    """
+    return {
+        "name": "BodyOps API",
+        "version": VERSION,
+        "status": "running",
+        "docs": "/docs",
+        "health": "/health",
+        "endpoints": [
+            "/auth/login",
+            "/settings",
+            "/weight",
+            "/workouts",
+            "/agent",
+        ],
+    }
 
 
 @app.get("/health")
