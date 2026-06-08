@@ -10,6 +10,7 @@ Tabs used:
 
 from __future__ import annotations
 
+import asyncio
 import math
 from datetime import date, datetime, timezone
 from typing import Any
@@ -447,6 +448,50 @@ def get_progression(user_id: int, exercise_name: str) -> ExerciseProgressionResp
         last_5_sessions=last_5,
         suggestion=suggestion,
     )
+
+
+async def ai_import_workout(
+    user_id: int,
+    program_name: str,
+    raw_text: str,
+) -> WorkoutImportResponse:
+    """Use AI to parse free-form workout text and import it."""
+    from pydantic import BaseModel as _BaseModel
+    from pydantic_ai import Agent
+    from ..agent.llm import get_model
+    from .workout_parser import _auto_schedule
+
+    class _ScheduleEntry(_BaseModel):
+        weekday: int  # 0=Mon … 6=Sun
+        day_name: str
+
+    class _ParsedWorkout(_BaseModel):
+        days: list[WorkoutDaySummary]
+        schedule: list[_ScheduleEntry] | None = None
+
+    parser: Agent[None, _ParsedWorkout] = Agent(
+        get_model(),
+        result_type=_ParsedWorkout,
+        system_prompt=(
+            "Parse the workout text into structured days and exercises. "
+            "For each training day extract: day_name, exercises with exercise_name, sets, rep_min, rep_max, order. "
+            "Set rep_min = rep_max when only one rep count is given. "
+            "order is 1-based position within the day. "
+            "Include a schedule only when weekday assignments are explicit in the text (0=Mon…6=Sun). "
+            "Rest days have day_name='Rest' and empty exercises list."
+        ),
+    )
+
+    result = await parser.run(raw_text)
+    parsed = result.data
+
+    schedule = (
+        [(e.weekday, e.day_name) for e in parsed.schedule]
+        if parsed.schedule
+        else _auto_schedule(parsed.days)
+    )
+
+    return await asyncio.to_thread(import_workout, user_id, program_name, parsed.days, schedule)
 
 
 def get_history(user_id: int) -> WorkoutHistoryResponse:
