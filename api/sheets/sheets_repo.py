@@ -49,7 +49,7 @@ def read_rows(tab: str) -> list[dict[str, Any]]:
     Raises:
         gspread.exceptions.WorksheetNotFound: If the tab does not exist.
     """
-    return get_worksheet(tab).get_all_records(value_render_option="UNFORMATTED_VALUE")
+    return get_worksheet(tab).get_all_records()
 
 
 def append_row(tab: str, row: dict[str, Any]) -> None:
@@ -75,7 +75,7 @@ def append_row(tab: str, row: dict[str, Any]) -> None:
         ws.append_row(headers, value_input_option="USER_ENTERED")
         _header_cache[tab] = headers
     values = [row.get(h, "") for h in headers]
-    ws.append_row(values, value_input_option="USER_ENTERED")
+    ws.append_row(values, value_input_option="RAW")
 
 
 def append_rows_batch(tab: str, rows: list[dict[str, Any]]) -> None:
@@ -100,7 +100,7 @@ def append_rows_batch(tab: str, rows: list[dict[str, Any]]) -> None:
         ws.append_row(headers, value_input_option="USER_ENTERED")
         _header_cache[tab] = headers
     values = [[row.get(h, "") for h in headers] for row in rows]
-    ws.append_rows(values, value_input_option="USER_ENTERED")
+    ws.append_rows(values, value_input_option="RAW")
 
 
 def update_row(tab: str, row_index: int, row: dict[str, Any]) -> None:
@@ -119,7 +119,7 @@ def update_row(tab: str, row_index: int, row: dict[str, Any]) -> None:
     ws = get_worksheet(tab)
     headers = _get_headers(ws, tab)
     values = [row.get(h, "") for h in headers]
-    ws.update(f"A{row_index}:{_col_letter(len(headers))}{row_index}", [values])
+    ws.update(f"A{row_index}:{_col_letter(len(headers))}{row_index}", [values], value_input_option="RAW")
 
 
 def find_row(tab: str, column: str, value: str) -> tuple[int, dict[str, Any]] | None:

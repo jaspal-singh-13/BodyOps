@@ -10,10 +10,13 @@ Data flow:
 
 from __future__ import annotations
 
+import re
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
+_DATE_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$")
+_TIME_RE = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
 # ---------------------------------------------------------------------------
 # Shared / nested
@@ -28,6 +31,20 @@ class MacroTotal(BaseModel):
     carbs_g: float
     fat_g: float
 
+    @field_validator("calories")
+    @classmethod
+    def _calories_non_negative(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("calories must be >= 0")
+        return v
+
+    @field_validator("protein_g", "carbs_g", "fat_g")
+    @classmethod
+    def _macros_non_negative(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("macro values must be >= 0")
+        return v
+
 
 class DetectedItem(BaseModel):
     """
@@ -36,10 +53,10 @@ class DetectedItem(BaseModel):
     Attributes:
         name: Human-readable food name (e.g. "Grilled chicken breast").
         quantity: Amount including unit as a string (e.g. "180 g", "~1 tbsp").
-        calories: Estimated kcal for this item.
-        protein_g: Estimated protein in grams.
-        carbs_g: Estimated carbohydrates in grams.
-        fat_g: Estimated fat in grams.
+        calories: Estimated kcal for this item (>= 0).
+        protein_g: Estimated protein in grams (>= 0).
+        carbs_g: Estimated carbohydrates in grams (>= 0).
+        fat_g: Estimated fat in grams (>= 0).
         confidence: AI confidence level — "high", "med", or "low".
     """
 
@@ -50,6 +67,20 @@ class DetectedItem(BaseModel):
     carbs_g: float
     fat_g: float
     confidence: Literal["high", "med", "low"] = "med"
+
+    @field_validator("calories")
+    @classmethod
+    def _calories_non_negative(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("calories must be >= 0")
+        return v
+
+    @field_validator("protein_g", "carbs_g", "fat_g")
+    @classmethod
+    def _macros_non_negative(cls, v: float) -> float:
+        if v < 0:
+            raise ValueError("macro values must be >= 0")
+        return v
 
 
 MealType = Literal["Breakfast", "Lunch", "Dinner", "Snack"]
@@ -81,6 +112,13 @@ class ConfirmMealRequest(BaseModel):
     items: list[DetectedItem]
     drive_url: str = ""
     date: str  # YYYY-MM-DD
+
+    @field_validator("date")
+    @classmethod
+    def _validate_date(cls, v: str) -> str:
+        if not _DATE_RE.match(v):
+            raise ValueError("date must be in YYYY-MM-DD format")
+        return v
 
 
 # ---------------------------------------------------------------------------
@@ -205,3 +243,17 @@ class MealRecord(BaseModel):
     drive_url: str
     total: MacroTotal
     items: list[DetectedItem]
+
+    @field_validator("date")
+    @classmethod
+    def _validate_date(cls, v: str) -> str:
+        if not _DATE_RE.match(v):
+            raise ValueError("date must be in YYYY-MM-DD format")
+        return v
+
+    @field_validator("time")
+    @classmethod
+    def _validate_time(cls, v: str) -> str:
+        if not _TIME_RE.match(v):
+            raise ValueError("time must be in HH:MM (24-hour) format")
+        return v
