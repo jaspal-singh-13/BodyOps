@@ -15,10 +15,16 @@
  *   streamChat(message, sessionId) → async generator yielding `ChatEvent` objects
  */
 
+/** Read the raw JWT string from the `token` cookie, or `""` if absent. */
+export function getToken(): string {
+  if (typeof document === "undefined") return "";
+  const match = document.cookie.match(/(?:^|; )token=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
 /** Read the JWT from the `token` cookie; returns `true` if present. */
 export function isLoggedIn(): boolean {
-  if (typeof document === "undefined") return false;
-  return document.cookie.includes("token=");
+  return getToken() !== "";
 }
 
 /**
@@ -70,10 +76,12 @@ export async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
+  const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
 
   const res = await fetch(`/api${path}`, { ...options, headers });
 
@@ -136,9 +144,13 @@ export async function* streamChat(
   message: string,
   sessionId: string
 ): AsyncGenerator<ChatEvent> {
+  const token = getToken();
   const res = await fetch("/api/agent/chat", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
     body: JSON.stringify({ message, session_id: sessionId }),
   });
 

@@ -34,7 +34,6 @@ type Context = { params: Promise<{ path: string[] }> };
  * @returns Upstream response with the original body and `Content-Type` header.
  */
 async function proxy(req: NextRequest, pathSegments: string[]): Promise<Response> {
-  const jwt = req.cookies.get("token")?.value ?? "";
   const targetUrl = `${HF_URL}/${pathSegments.join("/")}${req.nextUrl.search}`;
 
   const headers: Record<string, string> = {};
@@ -43,7 +42,17 @@ async function proxy(req: NextRequest, pathSegments: string[]): Promise<Response
   const contentType = req.headers.get("content-type");
   if (contentType) headers["Content-Type"] = contentType;
 
-  if (jwt) headers["Authorization"] = `Bearer ${jwt}`;
+  // Prefer the Authorization header set explicitly by apiFetch/streamChat on the
+  // client side; fall back to reading the token cookie for any requests that do
+  // not yet attach the header themselves (e.g. direct fetch calls).
+  const incomingAuth = req.headers.get("authorization");
+  if (incomingAuth) {
+    headers["Authorization"] = incomingAuth;
+  } else {
+    const jwt = req.cookies.get("token")?.value ?? "";
+    if (jwt) headers["Authorization"] = `Bearer ${jwt}`;
+  }
+
   if (HF_TOKEN) headers["X-HF-Token"] = HF_TOKEN;
 
   // Only attach a body for methods that allow one; GET/HEAD have no body
