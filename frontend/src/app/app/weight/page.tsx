@@ -203,7 +203,7 @@ export default function WeightPage() {
               />
               <YAxis domain={["auto", "auto"]} tick={{ fontSize: 10 }} width={36} />
               <Tooltip
-                formatter={(value: number) => [`${value} kg`]}
+                formatter={(value) => [`${value} kg`]}
                 labelFormatter={(label: string) => label}
               />
               <Line
