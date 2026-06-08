@@ -199,12 +199,12 @@ export default function WeightPage() {
                 dataKey="date"
                 tick={{ fontSize: 10 }}
                 // Show MM-DD only to save horizontal space
-                tickFormatter={(v: string) => v.slice(5)}
+                tickFormatter={(v) => String(v).slice(5)}
               />
               <YAxis domain={["auto", "auto"]} tick={{ fontSize: 10 }} width={36} />
               <Tooltip
                 formatter={(value) => [`${value} kg`]}
-                labelFormatter={(label: string) => label}
+                labelFormatter={(label) => label}
               />
               <Line
                 type="monotone"
