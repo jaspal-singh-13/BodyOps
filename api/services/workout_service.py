@@ -232,7 +232,14 @@ def import_workout(
             )
             total_exercises += 1
 
-    for weekday, day_name in schedule:
+    # Ensure all 7 weekdays are present — fill gaps with "Rest" so that
+    # get_today_workout never returns a rest day just because the AI omitted a day.
+    covered_weekdays = {weekday for weekday, _ in schedule}
+    full_schedule = list(schedule) + [
+        (wd, "Rest") for wd in range(7) if wd not in covered_weekdays
+    ]
+
+    for weekday, day_name in full_schedule:
         schedule_rows.append(
             {
                 "user_id": user_id,
@@ -275,6 +282,8 @@ def get_today_workout(user_id: int, today_date: str) -> TodayWorkoutResponse:
             is_rest_day=True,
             exercises=[],
             estimated_duration_min=0,
+            session_id=None,
+            is_completed=False,
         )
 
     program_rows = _safe_read_rows(PROGRAMS_TAB)
@@ -287,8 +296,26 @@ def get_today_workout(user_id: int, today_date: str) -> TodayWorkoutResponse:
         key=lambda r: int(r.get("order", 0)),
     )
 
-    # Read SETS_TAB once for all exercises — eliminates the N+1
+    # Read SETS_TAB and SESSIONS_TAB once — eliminates the N+1
     all_set_rows = _safe_read_rows(SETS_TAB)
+    session_rows = _safe_read_rows(SESSIONS_TAB)
+
+    # Look up today's session
+    today_session_id = f"{user_id}-{today_date}"
+    today_session: dict[str, Any] | None = None
+    for r in session_rows:
+        if r.get("session_id") == today_session_id and int(r.get("user_id", -1)) == user_id:
+            today_session = r
+            break
+
+    is_completed = bool(today_session and today_session.get("completed_at", ""))
+
+    # Count sets already logged today per exercise
+    today_sets_by_exercise: dict[str, int] = {}
+    for r in all_set_rows:
+        if r.get("session_id") == today_session_id:
+            ex = str(r.get("exercise_name", ""))
+            today_sets_by_exercise[ex] = today_sets_by_exercise.get(ex, 0) + 1
 
     exercises: list[TodayExercise] = []
     total_sets = 0
@@ -309,6 +336,7 @@ def get_today_workout(user_id: int, today_date: str) -> TodayWorkoutResponse:
                 last_weight_kg=last_weight,
                 last_reps=last_reps,
                 suggestion=suggestion,
+                sets_logged_today=today_sets_by_exercise.get(ex_name, 0),
             )
         )
         total_sets += sets
@@ -321,6 +349,8 @@ def get_today_workout(user_id: int, today_date: str) -> TodayWorkoutResponse:
         is_rest_day=False,
         exercises=exercises,
         estimated_duration_min=estimated_duration_min,
+        session_id=today_session_id if today_session else None,
+        is_completed=is_completed,
     )
 
 

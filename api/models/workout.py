@@ -86,6 +86,7 @@ class TodayExercise(BaseModel):
     last_weight_kg: float | None
     last_reps: int | None
     suggestion: ProgressionSuggestion
+    sets_logged_today: int  # sets already logged in today's session (0 if none)
 
 
 class TodayWorkoutResponse(BaseModel):
@@ -94,6 +95,8 @@ class TodayWorkoutResponse(BaseModel):
     is_rest_day: bool
     exercises: list[TodayExercise]
     estimated_duration_min: int  # sum(e.sets) * 2 + 5; 0 on rest day
+    session_id: str | None  # None if no session started yet today
+    is_completed: bool  # True once complete_session has been called
 
 
 class LogSetResponse(BaseModel):
