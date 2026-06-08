@@ -107,7 +107,11 @@ def ensure_tabs(spreadsheet: gspread.Spreadsheet, tabs: dict[str, list[str]]) ->
     """
     Create missing tabs in a spreadsheet and write their header rows.
 
-    Already-existing tabs are left untouched (headers are not modified).
+    For existing tabs, the current header row is compared against the expected
+    schema. A mismatch is printed as a warning so the operator knows to run
+    migrate_sheet_headers.py. Headers are never silently overwritten here to
+    avoid accidental data loss.
+
     Each new worksheet is created with 1000 rows and the appropriate number
     of columns.
 
@@ -115,10 +119,17 @@ def ensure_tabs(spreadsheet: gspread.Spreadsheet, tabs: dict[str, list[str]]) ->
         spreadsheet: Opened ``gspread.Spreadsheet`` to modify.
         tabs: Dict mapping tab name to ordered list of column header strings.
     """
-    existing = {ws.title for ws in spreadsheet.worksheets()}
+    existing = {ws.title: ws for ws in spreadsheet.worksheets()}
     for tab_name, headers in tabs.items():
         if tab_name in existing:
-            print(f"  {OK} {tab_name} (exists)")
+            current_headers = existing[tab_name].row_values(1)
+            if current_headers == headers:
+                print(f"  {OK} {tab_name} (exists, headers correct)")
+            else:
+                print(f"  {FAIL} {tab_name} (exists but headers are WRONG)")
+                print(f"        expected: {headers}")
+                print(f"        actual:   {current_headers}")
+                print(f"        → run: python scripts/migrate_sheet_headers.py")
         else:
             ws = spreadsheet.add_worksheet(title=tab_name, rows=1000, cols=len(headers))
             ws.append_row(headers)
