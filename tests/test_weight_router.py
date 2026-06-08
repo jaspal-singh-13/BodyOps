@@ -9,13 +9,14 @@ WEIGHT_PAYLOAD = {"date": "2026-06-08", "weight_kg": 85.5}
 WEIGHT_RESPONSE = WeightEntryResponse(
     user_id=1,
     date="2026-06-08",
+    time="10:00",
     weight_kg=85.5,
     logged_at="2026-06-08T10:00:00+00:00",
 )
 
 HISTORY_RESPONSE = [
-    WeightHistoryItem(date="2026-06-08", weight_kg=85.5, change_kg=-0.5),
-    WeightHistoryItem(date="2026-06-07", weight_kg=86.0, change_kg=None),
+    WeightHistoryItem(date="2026-06-08", time="10:00", weight_kg=85.5, change_kg=-0.5),
+    WeightHistoryItem(date="2026-06-07", time="08:00", weight_kg=86.0, change_kg=None),
 ]
 
 TREND_RESPONSE = WeightTrendResponse(
@@ -48,9 +49,9 @@ class TestPostWeight:
         assert data["weight_kg"] == 85.5
         assert data["user_id"] == 1
 
-    def test_log_weight_no_auth_returns_403(self, client):
+    def test_log_weight_no_auth_returns_401(self, client):
         resp = client.post("/weight", json=WEIGHT_PAYLOAD)
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     def test_log_weight_missing_date_returns_422(self, client, auth_headers):
         resp = client.post("/weight", json={"weight_kg": 85.5}, headers=auth_headers)
@@ -80,9 +81,9 @@ class TestGetHistory:
         assert resp.status_code == 200
         assert resp.json() == []
 
-    def test_get_history_no_auth_returns_403(self, client):
+    def test_get_history_no_auth_returns_401(self, client):
         resp = client.get("/weight/history")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
 
 class TestGetTrend:
@@ -103,6 +104,6 @@ class TestGetTrend:
             resp = client.get("/weight/trend", headers=auth_headers)
         assert resp.status_code == 404
 
-    def test_get_trend_no_auth_returns_403(self, client):
+    def test_get_trend_no_auth_returns_401(self, client):
         resp = client.get("/weight/trend")
-        assert resp.status_code == 403
+        assert resp.status_code == 401

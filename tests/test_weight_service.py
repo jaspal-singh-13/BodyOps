@@ -24,10 +24,12 @@ from api.services.weight_service import (
 USER_ID = 1
 OTHER_USER_ID = 2
 
-# A typical sheet row as returned by gspread (all values are strings)
+# A typical sheet row as returned by gspread (all values are strings).
+# time must be present so the upsert lookup (user_id + date + time) can match.
 EXISTING_ROW = {
     "user_id": "1",
     "date": "2026-06-08",
+    "time": "08:00",
     "weight_kg": "85.0",
     "logged_at": "2026-06-08T08:00:00+00:00",
 }
@@ -53,7 +55,8 @@ class TestLogWeight:
         assert result.user_id == USER_ID
 
     def test_updates_row_when_date_already_logged(self):
-        data = WeightEntryCreate(date="2026-06-08", weight_kg=86.0)
+        # Supply the same time as in EXISTING_ROW so the upsert match hits
+        data = WeightEntryCreate(date="2026-06-08", weight_kg=86.0, time="08:00")
         with (
             patch("api.services.weight_service.read_rows", return_value=[EXISTING_ROW]),
             patch("api.services.weight_service.append_row") as mock_append,

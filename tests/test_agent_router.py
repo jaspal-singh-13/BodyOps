@@ -60,7 +60,7 @@ def auth_headers():
 class TestChatEndpoint:
     def test_requires_auth(self, client):
         resp = client.post("/agent/chat", json={"message": "hi", "session_id": "s1"})
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     def test_returns_422_for_missing_fields(self, client, auth_headers):
         resp = client.post("/agent/chat", json={}, headers=auth_headers)
@@ -100,7 +100,7 @@ class TestChatEndpoint:
 class TestClearHistoryEndpoint:
     def test_requires_auth(self, client):
         resp = client.delete("/agent/history")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
     def test_returns_204_with_auth(self, client, auth_headers):
         with patch("api.routers.agent.clear_all_sessions") as mock_clear:

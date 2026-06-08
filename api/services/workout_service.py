@@ -470,7 +470,7 @@ async def ai_import_workout(
 
     class _ScheduleEntry(_BaseModel):
         weekday: int  # 0=Mon … 6=Sun
-        day_name: str
+        day_index: int  # 0-based index into the days list
 
     class _ParsedWorkout(_BaseModel):
         days: list[WorkoutDaySummary]
@@ -489,7 +489,8 @@ async def ai_import_workout(
                     "For each training day extract: day_name, exercises with exercise_name, sets, rep_min, rep_max, order. "
                     "Set rep_min = rep_max when only one rep count is given. "
                     "order is 1-based position within the day. "
-                    "Include a schedule only when weekday assignments are explicit in the text (0=Mon…6=Sun). "
+                    "If weekday assignments are explicit in the text, include a schedule where each entry has "
+                    "weekday (0=Mon…6=Sun) and day_index as the 0-based index of that day in the days array. "
                     "Rest days have day_name='Rest' and empty exercises list."
                 ),
             },
@@ -502,7 +503,11 @@ async def ai_import_workout(
         raise ValueError("Structured output parsing returned no result — model may have refused or run out of tokens.")
 
     schedule = (
-        [(e.weekday, e.day_name) for e in parsed.schedule]
+        [
+            (e.weekday, parsed.days[e.day_index].day_name)
+            for e in parsed.schedule
+            if 0 <= e.day_index < len(parsed.days)
+        ]
         if parsed.schedule
         else _auto_schedule(parsed.days)
     )

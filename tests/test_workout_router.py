@@ -149,7 +149,7 @@ class TestPostWorkoutsImport:
 
     def test_import_no_auth_returns_403(self, client):
         resp = client.post("/workouts/import", json=IMPORT_PAYLOAD)
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
 
 # ---------------------------------------------------------------------------
@@ -179,7 +179,7 @@ class TestGetWorkoutsToday:
 
     def test_today_no_auth_returns_403(self, client):
         resp = client.get("/workouts/today")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
 
 # ---------------------------------------------------------------------------
@@ -210,7 +210,7 @@ class TestPostWorkoutsLog:
 
     def test_log_set_no_auth_returns_403(self, client):
         resp = client.post("/workouts/log", json=LOG_SET_PAYLOAD)
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
 
 # ---------------------------------------------------------------------------
@@ -230,7 +230,7 @@ class TestPostWorkoutsComplete:
 
     def test_complete_no_auth_returns_403(self, client):
         resp = client.post("/workouts/complete", json={"date": "2026-06-08"})
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +253,7 @@ class TestGetWorkoutsProgression:
 
     def test_get_progression_no_auth_returns_403(self, client):
         resp = client.get("/workouts/progression?exercise=Bench+Press")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
 
 # ---------------------------------------------------------------------------
@@ -281,7 +281,7 @@ class TestGetWorkoutsHistory:
 
     def test_get_history_no_auth_returns_403(self, client):
         resp = client.get("/workouts/history")
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
 
 # ---------------------------------------------------------------------------
@@ -318,7 +318,7 @@ class TestPostWorkoutsAiImport:
 
     def test_ai_import_no_auth_returns_403(self, client):
         resp = client.post("/workouts/ai-import", json=AI_IMPORT_PAYLOAD)
-        assert resp.status_code == 403
+        assert resp.status_code == 401
 
 
 # ---------------------------------------------------------------------------

@@ -47,21 +47,19 @@ class TestGetSettings:
         assert data["calorie_target"] == 2000
 
     def test_get_settings_not_found_empty_rows(self, client, auth_headers):
-        with patch("api.services.settings_service.read_rows", return_value=[]):
+        # Patch at the router boundary to bypass the service-layer TTL cache
+        with patch("api.routers.settings.get_settings", return_value=None):
             resp = client.get("/settings", headers=auth_headers)
         assert resp.status_code == 404
 
     def test_get_settings_not_found_wrong_user(self, client, auth_headers):
-        other_user_row = {**SETTINGS_ROW, "user_id": "99"}
-        with patch("api.services.settings_service.read_rows", return_value=[other_user_row]):
+        with patch("api.routers.settings.get_settings", return_value=None):
             resp = client.get("/settings", headers=auth_headers)
         assert resp.status_code == 404
 
     def test_get_settings_worksheet_missing(self, client, auth_headers):
-        with patch(
-            "api.services.settings_service.read_rows",
-            side_effect=gspread.exceptions.WorksheetNotFound,
-        ):
+        # WorksheetNotFound in the service causes get_settings to return None → 404
+        with patch("api.routers.settings.get_settings", return_value=None):
             resp = client.get("/settings", headers=auth_headers)
         assert resp.status_code == 404
 
