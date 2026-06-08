@@ -17,10 +17,13 @@ class WeightEntryCreate(BaseModel):
     Attributes:
         date: Date of the weigh-in in ``YYYY-MM-DD`` format.
         weight_kg: Body weight in kilograms.
+        time: Time of the weigh-in in ``HH:MM`` (24-hour) format. Defaults to
+            the current local time when omitted, allowing multiple entries per day.
     """
 
     date: str        # YYYY-MM-DD
     weight_kg: float
+    time: str | None = None  # HH:MM — defaults to current time in service layer
 
 
 class WeightEntryResponse(BaseModel):
@@ -30,12 +33,14 @@ class WeightEntryResponse(BaseModel):
     Attributes:
         user_id: Authenticated user's integer ID.
         date: Date of the weigh-in in ``YYYY-MM-DD`` format.
+        time: Time of the weigh-in in ``HH:MM`` format.
         weight_kg: Logged body weight in kilograms.
         logged_at: ISO 8601 UTC timestamp when the entry was written.
     """
 
     user_id: int
     date: str
+    time: str
     weight_kg: float
     logged_at: str
 
@@ -46,6 +51,7 @@ class WeightHistoryItem(BaseModel):
 
     Attributes:
         date: Date in ``YYYY-MM-DD`` format.
+        time: Time of the weigh-in in ``HH:MM`` format.
         weight_kg: Body weight in kilograms.
         change_kg: Difference from the previous chronological entry (positive
             means gained, negative means lost). ``None`` for the oldest entry
@@ -53,6 +59,7 @@ class WeightHistoryItem(BaseModel):
     """
 
     date: str
+    time: str
     weight_kg: float
     change_kg: float | None  # None for the oldest entry in the window
 

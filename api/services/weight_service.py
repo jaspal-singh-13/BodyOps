@@ -28,44 +28,52 @@ WEIGHT_TAB = "WeightLogs"
 
 def log_weight(user_id: int, data: WeightEntryCreate) -> WeightEntryResponse:
     """
-    Upsert a weight entry: append if the date is new, update if it exists.
+    Upsert a weight entry: append if the date+time is new, update if it exists.
 
-    Scans all rows in ``WeightLogs`` looking for a row where both ``user_id``
-    and ``date`` match. If found, updates that row in place. Otherwise appends
-    a new row. ``logged_at`` is always set to the current UTC timestamp.
+    Scans all rows in ``WeightLogs`` looking for a row where ``user_id``,
+    ``date``, and ``time`` all match. If found, updates that row in place.
+    Otherwise appends a new row, allowing multiple entries per day.
+
+    ``time`` defaults to the current local HH:MM when not supplied by the caller.
+    ``logged_at`` is always set to the current UTC timestamp.
 
     Args:
         user_id: Authenticated user's integer ID.
-        data: ``WeightEntryCreate`` with ``date`` (YYYY-MM-DD) and ``weight_kg``.
+        data: ``WeightEntryCreate`` with ``date``, ``weight_kg``, and optional ``time``.
 
     Returns:
         ``WeightEntryResponse`` reflecting the saved state.
     """
     now = datetime.now(timezone.utc).isoformat()
+    entry_time = data.time if data.time else datetime.now().strftime("%H:%M")
     try:
         rows = read_rows(WEIGHT_TAB)
     except gspread.exceptions.WorksheetNotFound:
-        # Tab may not exist on first run — treat as empty
         rows = []
 
     existing_index: int | None = None
     for i, row in enumerate(rows):
-        if int(row.get("user_id", -1)) == user_id and row.get("date") == data.date:
+        if (
+            int(row.get("user_id", -1)) == user_id
+            and row.get("date") == data.date
+            and row.get("time") == entry_time
+        ):
             existing_index = i + 2  # +1 for header row, +1 for 0-based → 1-based
             break
 
     row_dict = {
         "user_id": user_id,
         "date": data.date,
+        "time": entry_time,
         "weight_kg": data.weight_kg,
         "logged_at": now,
     }
 
     if existing_index is not None:
-        logger.info("Updating weight entry for user_id=%s date=%s -> %.2f kg", user_id, data.date, data.weight_kg)
+        logger.info("Updating weight entry for user_id=%s date=%s time=%s -> %.2f kg", user_id, data.date, entry_time, data.weight_kg)
         update_row(WEIGHT_TAB, existing_index, row_dict)
     else:
-        logger.info("Appending weight entry for user_id=%s date=%s -> %.2f kg", user_id, data.date, data.weight_kg)
+        logger.info("Appending weight entry for user_id=%s date=%s time=%s -> %.2f kg", user_id, data.date, entry_time, data.weight_kg)
         append_row(WEIGHT_TAB, row_dict)
 
     return WeightEntryResponse(**row_dict)
@@ -95,19 +103,19 @@ def get_history(user_id: int) -> list[WeightHistoryItem]:
     # Filter to this user and entries within the 90-day window
     cutoff = (date_type.today() - timedelta(days=90)).isoformat()
     entries = [
-        {"date": r["date"], "weight_kg": float(r["weight_kg"])}
+        {"date": r["date"], "time": r.get("time", ""), "weight_kg": float(r["weight_kg"])}
         for r in rows
         if int(r.get("user_id", -1)) == user_id and r.get("date", "") >= cutoff
     ]
 
-    # Sort chronologically to compute diffs, then reverse for the response
-    entries.sort(key=lambda e: e["date"])
+    # Sort chronologically by date then time to compute diffs, then reverse for the response
+    entries.sort(key=lambda e: (e["date"], e["time"]))
 
     result: list[WeightHistoryItem] = []
     for i, entry in enumerate(entries):
         prev = entries[i - 1]["weight_kg"] if i > 0 else None
         change = round(entry["weight_kg"] - prev, 2) if prev is not None else None
-        result.append(WeightHistoryItem(date=entry["date"], weight_kg=entry["weight_kg"], change_kg=change))
+        result.append(WeightHistoryItem(date=entry["date"], time=entry["time"], weight_kg=entry["weight_kg"], change_kg=change))
 
     result.reverse()
     return result
@@ -136,14 +144,19 @@ def get_trend(user_id: int, goal_weight_kg: float) -> WeightTrendResponse:
         logger.warning("Worksheet '%s' not found — returning empty trend", WEIGHT_TAB)
         return WeightTrendResponse(moving_avg=[], total_loss_kg=None, projected_goal_date=None)
 
-    entries = sorted(
+    all_entries = sorted(
         [
-            {"date": r["date"], "weight_kg": float(r["weight_kg"])}
+            {"date": r["date"], "time": r.get("time", ""), "weight_kg": float(r["weight_kg"])}
             for r in rows
             if int(r.get("user_id", -1)) == user_id
         ],
-        key=lambda e: e["date"],
+        key=lambda e: (e["date"], e["time"]),
     )
+    # Use the last entry per day so multiple daily logs don't skew the trend chart
+    seen: dict[str, dict] = {}
+    for e in all_entries:
+        seen[e["date"]] = e
+    entries = list(seen.values())
 
     if not entries:
         return WeightTrendResponse(moving_avg=[], total_loss_kg=None, projected_goal_date=None)

@@ -105,7 +105,7 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("BodyOps API shutting down")
 
 
-app = FastAPI(title="BodyOps API", version="0.7.0", lifespan=lifespan)
+app = FastAPI(title="BodyOps API", version="0.8.0", lifespan=lifespan)
 
 # Allow all origins in development; lock down to Vercel domain in production
 # by setting CORS_ORIGINS env var (not yet wired — acceptable for V1 single-user app).
