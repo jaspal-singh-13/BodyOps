@@ -24,11 +24,14 @@ import pytest
 
 from api.models.workout import (
     ExerciseProgressionResponse,
+    ExerciseInfo,
     LogSetResponse,
     ProgressionSuggestion,
+    ScheduleDay,
     TodayWorkoutResponse,
     WorkoutHistoryResponse,
     WorkoutImportResponse,
+    WorkoutScheduleResponse,
     WorkoutDaySummary,
 )
 
@@ -55,6 +58,8 @@ TODAY_RESPONSE = TodayWorkoutResponse(
     is_rest_day=False,
     exercises=[],
     estimated_duration_min=11,
+    session_id="1-2026-06-08",
+    is_completed=False,
 )
 
 REST_DAY_RESPONSE = TodayWorkoutResponse(
@@ -63,6 +68,23 @@ REST_DAY_RESPONSE = TodayWorkoutResponse(
     is_rest_day=True,
     exercises=[],
     estimated_duration_min=0,
+    session_id=None,
+    is_completed=False,
+)
+
+SCHEDULE_RESPONSE = WorkoutScheduleResponse(
+    program_name="PPL v1",
+    days=[
+        ScheduleDay(weekday=0, weekday_name="Monday", day_name="Push", is_rest=False, exercises=[
+            ExerciseInfo(exercise_name="Bench Press", sets=3, rep_min=8, rep_max=12, order=1),
+        ]),
+        ScheduleDay(weekday=1, weekday_name="Tuesday", day_name="Pull", is_rest=False, exercises=[]),
+        ScheduleDay(weekday=2, weekday_name="Wednesday", day_name="Legs", is_rest=False, exercises=[]),
+        ScheduleDay(weekday=3, weekday_name="Thursday", day_name="Rest", is_rest=True, exercises=[]),
+        ScheduleDay(weekday=4, weekday_name="Friday", day_name="Push", is_rest=False, exercises=[]),
+        ScheduleDay(weekday=5, weekday_name="Saturday", day_name="Rest", is_rest=True, exercises=[]),
+        ScheduleDay(weekday=6, weekday_name="Sunday", day_name="Rest", is_rest=True, exercises=[]),
+    ],
 )
 
 LOG_SET_RESPONSE = LogSetResponse(
@@ -167,6 +189,8 @@ class TestGetWorkoutsToday:
         assert data["is_rest_day"] is False
         assert "exercises" in data
         assert "estimated_duration_min" in data
+        assert data["session_id"] == "1-2026-06-08"
+        assert data["is_completed"] is False
 
     def test_today_returns_rest_day(self, client, auth_headers):
         with patch("api.routers.workouts.get_today_workout", return_value=REST_DAY_RESPONSE):
@@ -281,6 +305,59 @@ class TestGetWorkoutsHistory:
 
     def test_get_history_no_auth_returns_403(self, client):
         resp = client.get("/workouts/history")
+        assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# GET /workouts/schedule
+# ---------------------------------------------------------------------------
+
+
+class TestGetWorkoutsSchedule:
+    def test_schedule_returns_7_days(self, client, auth_headers):
+        with patch("api.routers.workouts.get_schedule", return_value=SCHEDULE_RESPONSE):
+            resp = client.get("/workouts/schedule", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["program_name"] == "PPL v1"
+        assert len(data["days"]) == 7
+
+    def test_schedule_day_structure(self, client, auth_headers):
+        with patch("api.routers.workouts.get_schedule", return_value=SCHEDULE_RESPONSE):
+            resp = client.get("/workouts/schedule", headers=auth_headers)
+        data = resp.json()
+        monday = data["days"][0]
+        assert monday["weekday"] == 0
+        assert monday["weekday_name"] == "Monday"
+        assert monday["day_name"] == "Push"
+        assert monday["is_rest"] is False
+        assert monday["exercises"][0]["exercise_name"] == "Bench Press"
+
+    def test_schedule_rest_day_has_no_exercises(self, client, auth_headers):
+        with patch("api.routers.workouts.get_schedule", return_value=SCHEDULE_RESPONSE):
+            resp = client.get("/workouts/schedule", headers=auth_headers)
+        data = resp.json()
+        thursday = data["days"][3]
+        assert thursday["is_rest"] is True
+        assert thursday["exercises"] == []
+
+    def test_schedule_empty_program_returns_all_rest(self, client, auth_headers):
+        empty = WorkoutScheduleResponse(
+            program_name=None,
+            days=[
+                ScheduleDay(weekday=i, weekday_name=n, day_name="Rest", is_rest=True, exercises=[])
+                for i, n in enumerate(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"])
+            ],
+        )
+        with patch("api.routers.workouts.get_schedule", return_value=empty):
+            resp = client.get("/workouts/schedule", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["program_name"] is None
+        assert all(d["is_rest"] for d in data["days"])
+
+    def test_schedule_no_auth_returns_401(self, client):
+        resp = client.get("/workouts/schedule")
         assert resp.status_code == 401
 
 

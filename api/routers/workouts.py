@@ -22,13 +22,14 @@ from ..auth import get_current_user
 from ..models.workout import (
     AiWorkoutImportRequest,
     CompleteSessionRequest,
+    ExerciseProgressionResponse,
     LogSetRequest,
     LogSetResponse,
     TodayWorkoutResponse,
     WorkoutHistoryResponse,
     WorkoutImportRequest,
     WorkoutImportResponse,
-    ExerciseProgressionResponse,
+    WorkoutScheduleResponse,
 )
 from ..services.workout_parser import WorkoutParseError, parse_workout_import
 from ..services.workout_service import (
@@ -36,6 +37,7 @@ from ..services.workout_service import (
     complete_session,
     get_history,
     get_progression,
+    get_schedule,
     get_today_workout,
     import_workout,
     log_set,
@@ -96,6 +98,13 @@ async def get_progression_endpoint(
     user_id: int = Depends(get_current_user),
 ) -> ExerciseProgressionResponse:
     return await asyncio.to_thread(get_progression, user_id, exercise)
+
+
+@router.get("/schedule", response_model=WorkoutScheduleResponse)
+async def get_schedule_endpoint(
+    user_id: int = Depends(get_current_user),
+) -> WorkoutScheduleResponse:
+    return await asyncio.to_thread(get_schedule, user_id)
 
 
 @router.get("/history", response_model=WorkoutHistoryResponse)

@@ -23,6 +23,7 @@ interface TodayExercise {
   last_weight_kg: number | null;
   last_reps: number | null;
   suggestion: ProgressionSuggestion;
+  sets_logged_today: number;
 }
 
 interface TodayWorkout {
@@ -31,6 +32,29 @@ interface TodayWorkout {
   is_rest_day: boolean;
   exercises: TodayExercise[];
   estimated_duration_min: number;
+  session_id: string | null;
+  is_completed: boolean;
+}
+
+interface ScheduleExercise {
+  exercise_name: string;
+  sets: number;
+  rep_min: number;
+  rep_max: number;
+  order: number;
+}
+
+interface ScheduleDay {
+  weekday: number;
+  weekday_name: string;
+  day_name: string;
+  is_rest: boolean;
+  exercises: ScheduleExercise[];
+}
+
+interface WorkoutSchedule {
+  program_name: string | null;
+  days: ScheduleDay[];
 }
 
 interface WorkoutDaySummary {
@@ -62,7 +86,7 @@ interface SessionHistoryItem {
   completed_at: string;
 }
 
-type ActiveTab = "import" | "ai-import" | "today" | "log" | "history";
+type ActiveTab = "import" | "ai-import" | "today" | "log" | "schedule" | "history";
 
 // ---------------------------------------------------------------------------
 // Page
@@ -98,14 +122,19 @@ export default function WorkoutsPage() {
   const [historyLoading, setHistoryLoading] = useState(true);
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
 
+  // Schedule tab state
+  const [schedule, setSchedule] = useState<WorkoutSchedule | null>(null);
+
   useEffect(() => {
     Promise.all([
       apiFetch<TodayWorkout>("/workouts/today").catch(() => null),
       apiFetch<{ sessions: SessionHistoryItem[] }>("/workouts/history").catch(() => ({ sessions: [] })),
+      apiFetch<WorkoutSchedule>("/workouts/schedule").catch(() => null),
     ])
-      .then(([tw, hist]) => {
+      .then(([tw, hist, sched]) => {
         setTodayWorkout(tw);
         setHistory(hist?.sessions ?? []);
+        setSchedule(sched);
       })
       .catch(() => {})
       .finally(() => {
@@ -122,6 +151,11 @@ export default function WorkoutsPage() {
   async function refreshHistory() {
     const hist = await apiFetch<{ sessions: SessionHistoryItem[] }>("/workouts/history").catch(() => ({ sessions: [] }));
     setHistory(hist?.sessions ?? []);
+  }
+
+  async function refreshSchedule() {
+    const sched = await apiFetch<WorkoutSchedule>("/workouts/schedule").catch(() => null);
+    setSchedule(sched);
   }
 
   // ---------------------------------------------------------------------------
@@ -143,7 +177,7 @@ export default function WorkoutsPage() {
         }),
       });
       setImportResult(result);
-      await refreshToday();
+      await Promise.all([refreshToday(), refreshSchedule()]);
     } catch (err) {
       setImportError(err instanceof Error ? err.message : "Import failed");
     } finally {
@@ -165,7 +199,7 @@ export default function WorkoutsPage() {
         }),
       });
       setAiImportResult(result);
-      await refreshToday();
+      await Promise.all([refreshToday(), refreshSchedule()]);
     } catch (err) {
       setAiImportError(err instanceof Error ? err.message : "Import failed");
     } finally {
@@ -264,6 +298,7 @@ export default function WorkoutsPage() {
   const tabs: { id: ActiveTab; label: string }[] = [
     { id: "today", label: "Today" },
     { id: "log", label: "Log" },
+    { id: "schedule", label: "Schedule" },
     { id: "history", label: "History" },
     { id: "import", label: "Import" },
     { id: "ai-import", label: "AI Import" },
@@ -336,6 +371,13 @@ export default function WorkoutsPage() {
           onComplete={handleCompleteSession}
           completing={completingSession}
           completed={sessionCompleted}
+        />
+      )}
+
+      {activeTab === "schedule" && (
+        <ScheduleTab
+          schedule={schedule}
+          onGoToImport={() => setActiveTab("import")}
         />
       )}
 
@@ -751,6 +793,108 @@ function LogTab({
           {completing ? "Saving…" : "Complete workout"}
         </button>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Schedule tab
+// ---------------------------------------------------------------------------
+
+function ScheduleTab({
+  schedule,
+  onGoToImport,
+}: {
+  schedule: WorkoutSchedule | null;
+  onGoToImport: () => void;
+}) {
+  const todayWeekday = new Date().getDay(); // 0=Sun in JS
+  // Convert JS Sunday-first (0=Sun) to Python Monday-first (0=Mon)
+  const todayIndex = todayWeekday === 0 ? 6 : todayWeekday - 1;
+
+  if (!schedule || schedule.days.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center gap-4">
+        <Dumbbell className="text-zinc-300" size={40} />
+        <p className="text-zinc-500 text-sm">No schedule imported yet</p>
+        <button onClick={onGoToImport} className="btn-primary">
+          Import plan
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {schedule.program_name && (
+        <p className="text-xs text-zinc-400 uppercase tracking-wide font-medium mb-1">
+          {schedule.program_name}
+        </p>
+      )}
+
+      {schedule.days.map((day) => {
+        const isToday = day.weekday === todayIndex;
+
+        return (
+          <div
+            key={day.weekday}
+            className={`rounded-xl border p-4 transition-colors ${
+              isToday
+                ? "bg-zinc-900 border-zinc-900 text-white"
+                : "bg-white border-zinc-100"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className={`text-sm font-semibold ${isToday ? "text-white" : "text-zinc-900"}`}>
+                  {day.weekday_name}
+                </span>
+                {isToday && (
+                  <span className="text-xs font-medium bg-white text-zinc-900 px-2 py-0.5 rounded-full">
+                    Today
+                  </span>
+                )}
+              </div>
+              <span
+                className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                  day.is_rest
+                    ? isToday
+                      ? "bg-zinc-700 text-zinc-300"
+                      : "bg-zinc-50 text-zinc-400"
+                    : isToday
+                    ? "bg-zinc-700 text-zinc-100"
+                    : "bg-zinc-50 text-zinc-700"
+                }`}
+              >
+                {day.day_name}
+              </span>
+            </div>
+
+            {day.is_rest ? (
+              <div className={`flex items-center gap-1.5 ${isToday ? "text-zinc-400" : "text-zinc-400"}`}>
+                <Moon size={13} />
+                <span className="text-xs">Rest day</span>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1 mt-1">
+                {day.exercises.map((ex) => (
+                  <div
+                    key={ex.exercise_name}
+                    className={`flex items-center justify-between text-xs ${
+                      isToday ? "text-zinc-300" : "text-zinc-600"
+                    }`}
+                  >
+                    <span>{ex.exercise_name}</span>
+                    <span className={`font-mono ${isToday ? "text-zinc-400" : "text-zinc-400"}`}>
+                      {ex.sets}×{ex.rep_min === ex.rep_max ? ex.rep_min : `${ex.rep_min}–${ex.rep_max}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

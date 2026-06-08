@@ -19,15 +19,18 @@ import gspread.exceptions
 
 from ..logger import get_logger
 from ..models.workout import (
+    ExerciseInfo,
     ExerciseProgressionResponse,
     LogSetRequest,
     LogSetResponse,
     ProgressionSuggestion,
+    ScheduleDay,
     TodayExercise,
     TodayWorkoutResponse,
     WorkoutDaySummary,
     WorkoutHistoryResponse,
     WorkoutImportResponse,
+    WorkoutScheduleResponse,
 )
 from ..sheets.sheets_client import get_worksheet
 from ..sheets.sheets_repo import append_row, append_rows_batch, read_rows, update_row
@@ -546,6 +549,55 @@ async def ai_import_workout(
     )
 
     return await asyncio.to_thread(import_workout, user_id, program_name, parsed.days, schedule)
+
+
+_WEEKDAY_NAMES = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+
+def get_schedule(user_id: int) -> WorkoutScheduleResponse:
+    schedule_rows = _safe_read_rows(SCHEDULES_TAB)
+    program_rows = _safe_read_rows(PROGRAMS_TAB)
+
+    # Build weekday → day_name map from stored schedule
+    day_name_by_weekday: dict[int, str] = {}
+    for r in schedule_rows:
+        if int(r.get("user_id", -1)) == user_id:
+            day_name_by_weekday[int(r["weekday"])] = str(r.get("day_name", "Rest"))
+
+    # Build day_name → exercises map from program
+    exercises_by_day: dict[str, list[ExerciseInfo]] = {}
+    program_name: str | None = None
+    for r in sorted(program_rows, key=lambda r: int(r.get("order", 0))):
+        if int(r.get("user_id", -1)) != user_id:
+            continue
+        if program_name is None:
+            program_name = str(r.get("program_name", "")) or None
+        day = str(r.get("day_name", ""))
+        exercises_by_day.setdefault(day, []).append(
+            ExerciseInfo(
+                exercise_name=str(r["exercise_name"]),
+                sets=int(r["sets"]),
+                rep_min=int(r["rep_min"]),
+                rep_max=int(r["rep_max"]),
+                order=int(r.get("order", 0)),
+            )
+        )
+
+    days: list[ScheduleDay] = []
+    for weekday in range(7):
+        day_name = day_name_by_weekday.get(weekday, "Rest")
+        is_rest = day_name == "Rest"
+        days.append(
+            ScheduleDay(
+                weekday=weekday,
+                weekday_name=_WEEKDAY_NAMES[weekday],
+                day_name=day_name,
+                is_rest=is_rest,
+                exercises=[] if is_rest else exercises_by_day.get(day_name, []),
+            )
+        )
+
+    return WorkoutScheduleResponse(program_name=program_name, days=days)
 
 
 def get_history(user_id: int) -> WorkoutHistoryResponse:

@@ -6,3 +6,4 @@ bodyops-*.json
 frontend/.env.local
 .cursor/*
 !.cursor/rules/
+.DS_Store

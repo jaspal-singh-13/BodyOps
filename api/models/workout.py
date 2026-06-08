@@ -117,3 +117,16 @@ class ExerciseProgressionResponse(BaseModel):
 
 class WorkoutHistoryResponse(BaseModel):
     sessions: list[dict]
+
+
+class ScheduleDay(BaseModel):
+    weekday: int          # 0=Mon … 6=Sun
+    weekday_name: str     # "Monday" … "Sunday"
+    day_name: str         # "Push", "Rest", etc.
+    is_rest: bool
+    exercises: list[ExerciseInfo]  # empty on rest days
+
+
+class WorkoutScheduleResponse(BaseModel):
+    program_name: str | None
+    days: list[ScheduleDay]  # always 7, Mon–Sun order
