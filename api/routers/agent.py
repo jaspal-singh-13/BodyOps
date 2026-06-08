@@ -25,11 +25,9 @@ stream in real time, before the final text reply is assembled.
 
 Dependency injection
 --------------------
-Closure factories (``_make_weight_logger``, ``_make_trend_getter``,
-``_make_today_workout_getter``, ``_make_set_logger``, ``_make_progression_getter``)
-capture ``user_id`` and delegate to service functions. These callables are
-injected into ``AgentDeps`` so the top-level ``agent`` package remains free
-of any ``api.*`` imports.
+Closure factories capture ``user_id`` and delegate to service functions.
+These callables are injected into ``AgentDeps`` so the top-level ``agent``
+package remains free of any ``api.*`` imports.
 """
 
 import asyncio
@@ -51,6 +49,10 @@ from ..models.workout import LogSetRequest
 from ..services.settings_service import get_settings
 from ..services.weight_service import get_trend as svc_get_trend
 from ..services.weight_service import log_weight as svc_log_weight
+from ..services.meal_service import get_meals_today as svc_get_meals_today
+from ..services.meal_service import save_meal as svc_save_meal
+from ..services.meal_vision import analyze_meal as svc_analyze_meal
+from ..models.meal import ConfirmMealRequest, DetectedItem
 from ..services.workout_service import ai_import_workout as svc_ai_import_workout
 from ..services.workout_service import get_progression as svc_get_progression
 from ..services.workout_service import get_today_workout as svc_get_today_workout
@@ -149,6 +151,49 @@ def _make_workout_importer(user_id: int):
     return workout_importer
 
 
+def _make_nutrition_getter(user_id: int):
+    """Return a callable that fetches today's nutrition totals for the user."""
+    def nutrition_getter() -> dict:
+        return svc_get_meals_today(user_id, "UTC").model_dump()
+    return nutrition_getter
+
+
+def _make_meal_saver(user_id: int):
+    """Return an async callable that saves a meal from free-form item dicts."""
+    from datetime import date as _date
+
+    async def meal_saver(meal_type: str, items: list[dict]) -> dict:
+        detected = [
+            DetectedItem(
+                name=it.get("name", "Unknown"),
+                quantity=it.get("quantity", ""),
+                calories=int(it.get("calories", 0)),
+                protein_g=float(it.get("protein_g", 0)),
+                carbs_g=float(it.get("carbs_g", 0)),
+                fat_g=float(it.get("fat_g", 0)),
+                confidence=it.get("confidence", "med"),  # type: ignore[arg-type]
+            )
+            for it in items
+        ]
+        req = ConfirmMealRequest(
+            meal_type=meal_type,  # type: ignore[arg-type]
+            items=detected,
+            drive_url="",
+            date=_date.today().isoformat(),
+        )
+        import asyncio as _asyncio
+        return (await _asyncio.to_thread(svc_save_meal, user_id, req, "UTC")).model_dump()
+    return meal_saver
+
+
+def _make_meal_analyzer(user_id: int):  # noqa: ARG001 — user_id reserved for future scoping
+    """Return an async callable that runs vision analysis on a meal photo URL."""
+    async def meal_analyzer(image_url: str) -> dict:
+        result = await svc_analyze_meal(image_url, image_url)
+        return result.model_dump()
+    return meal_analyzer
+
+
 async def _run_agent_to_queue(
     message: str,
     history: list,
@@ -214,6 +259,9 @@ async def _sse_generator(message: str, session_id: str, user_id: int):
         set_logger=_make_set_logger(user_id),
         progression_getter=_make_progression_getter(user_id),
         workout_importer=_make_workout_importer(user_id),
+        nutrition_getter=_make_nutrition_getter(user_id),
+        meal_saver=_make_meal_saver(user_id),
+        meal_analyzer=_make_meal_analyzer(user_id),
     )
 
     # Run agent in background so this generator can yield events as they arrive

@@ -303,44 +303,44 @@ User can import a workout plan by pasting text, see today's workout, log sets, a
 
 ### TODOs
 
-**Workout Import Parser (`lib/workout-parser.ts`)**
-- [ ] Parse day headers: `Push:`, `Pull:`, `Legs:`, `Upper:`, `Lower:`, `Rest`
-- [ ] Parse exercise lines: `Exercise Name NxM-P` (sets × rep range)
-- [ ] Detect and flag invalid lines with line number
-- [ ] Return structured `WorkoutDay[]` or `ValidationError[]`
-- [ ] Write unit tests for: valid PPL, Upper/Lower, rest days, invalid format, partial valid
+**Workout Import Parser (`api/services/workout_parser.py`)**
+- [x] Parse day headers: `Push:`, `Pull:`, `Legs:`, `Upper:`, `Lower:`, `Rest`
+- [x] Parse exercise lines: `Exercise Name NxM-P` (sets × rep range)
+- [x] Detect and flag invalid lines with line number
+- [x] Return structured `WorkoutDay[]` or `ValidationError[]`
+- [x] Write unit tests for: valid PPL, Upper/Lower, rest days, invalid format, partial valid
 
-**Workout Schedule Parser (`lib/schedule-parser.ts`)**
-- [ ] Parse `Mon - Push`, `Tue - Rest`, etc. into weekday→workout-day mapping
-- [ ] Fall back to auto-assign cycle if no schedule is given (Day 1, Day 2, Day 3… in order)
+**Workout Schedule Parser (`api/services/workout_parser.py`)**
+- [x] Parse `Mon - Push`, `Tue - Rest`, etc. into weekday→workout-day mapping
+- [x] Fall back to auto-assign cycle if no schedule is given (Day 1, Day 2, Day 3… in order)
 
 **API**
-- [ ] `POST /api/workouts/import` — runs parser, validates, writes to `WorkoutPrograms` and `WorkoutSchedules` sheets, returns confirmation summary
-- [ ] `GET /api/workouts/today` — determines today's workout day from schedule + current date, returns exercises with previous bests and suggested targets
-- [ ] `POST /api/workouts/log` — saves a set to `WorkoutSets`, updates session in `WorkoutSessions`
-- [ ] `GET /api/workouts/progression` — returns last 5 sessions per exercise with trend
-- [ ] `GET /api/workouts/history` — returns past sessions list
+- [x] `POST /api/workouts/import` — runs parser, validates, writes to `WorkoutPrograms` and `WorkoutSchedules` sheets, returns confirmation summary
+- [x] `GET /api/workouts/today` — determines today's workout day from schedule + current date, returns exercises with previous bests and suggested targets
+- [x] `POST /api/workouts/log` — saves a set to `WorkoutSets`, updates session in `WorkoutSessions`
+- [x] `GET /api/workouts/progression` — returns last 5 sessions per exercise with trend
+- [x] `GET /api/workouts/history` — returns past sessions list
 
-**Progressive Overload Logic (`lib/progression.ts`)**
-- [ ] If last set hit upper rep range: suggest +2.5 kg same reps
-- [ ] If last set hit middle of range: suggest same weight +1 rep
-- [ ] If last set was below lower range: suggest -2.5 kg
-- [ ] No prior data: return `null` suggestion (show "first session" state)
+**Progressive Overload Logic (`api/services/workout_service.py`)**
+- [x] If last set hit upper rep range: suggest +2.5 kg same reps
+- [x] If last set hit middle of range: suggest same weight +1 rep
+- [x] If last set was below lower range: suggest -2.5 kg
+- [x] No prior data: return `null` suggestion (show "first session" state)
 
 **Agent Tools (`agent/tools.py`)**
-- [ ] `get_today_workout()` — returns today's day name, exercise list with suggested weights and rep targets
-- [ ] `log_workout_set(exercise, weight_kg, reps)` — logs a single set, returns confirmation with progressive overload feedback
-- [ ] `get_progression_target(exercise)` — returns suggested weight + reps for next session based on last performance
+- [x] `get_today_workout()` — returns today's day name, exercise list with suggested weights and rep targets
+- [x] `log_workout_set(exercise, weight_kg, reps)` — logs a single set, returns confirmation with progressive overload feedback
+- [x] `get_progression_target(exercise)` — returns suggested weight + reps for next session based on last performance
 
 **UI — Workouts Page (`/app/workouts`)**
-- [ ] Import tab: textarea for pasting plan + schedule, submit, show confirmation card
-- [ ] Today tab: show today's day name, exercise list, sets/reps target, suggested weight
-- [ ] Log tab: for each exercise, add set rows (weight, reps), mark complete
-- [ ] History tab: past sessions list, tap to expand set details
-- [ ] Empty state: "Paste your workout plan to get started"
+- [x] Import tab: textarea for pasting plan + schedule, submit, show confirmation card
+- [x] Today tab: show today's day name, exercise list, sets/reps target, suggested weight
+- [x] Log tab: for each exercise, add set rows (weight, reps), mark complete
+- [x] History tab: past sessions list, tap to expand set details
+- [x] Empty state: "Paste your workout plan to get started"
 
 **Dashboard integration**
-- Add "Today's workout" card to the dashboard:
+- [x] Add "Today's workout" card to the dashboard:
   - Header: "TODAY'S WORKOUT" eyebrow label
   - Content row: workout icon square (`--paper-2` bg, 42×42 px) · day name in bold (e.g. "Push Day A") · "{N} exercises · ~{X} min" mono caption below
   - "Start session" full-width primary button below the row; taps through to `/app/workouts`
@@ -349,20 +349,20 @@ User can import a workout plan by pasting text, see today's workout, log sets, a
 
 ### Acceptance Criteria
 
-- [ ] Parser correctly handles PPL format with rest days
-- [ ] Parser returns line-level error for invalid input
-- [ ] Import writes correct rows to `WorkoutPrograms` sheet (one row per exercise)
-- [ ] `GET /api/workouts/today` returns correct day based on weekday schedule
-- [ ] On rest day, returns `{ rest: true }`
-- [ ] Logging a set persists to `WorkoutSets` sheet
-- [ ] Progressive overload suggestion is correct for hit/miss/new scenarios
-- [ ] Confirmation card shows: program name, workout days count, rest days count, total exercises
-- [ ] Agent can tell the user what workout to do today via chat
-- [ ] Agent can log a workout set via chat ("bench press 70 kg × 8") and it appears in WorkoutSets
-- [ ] Agent returns next-session suggestion after logging a set
-- [ ] Dashboard shows "Today's workout" card with correct day name, exercise count, and duration
-- [ ] Rest day shows correct rest-day variant (no Start button)
-- [ ] Empty state renders when no workout plan is imported
+- [x] Parser correctly handles PPL format with rest days
+- [x] Parser returns line-level error for invalid input
+- [x] Import writes correct rows to `WorkoutPrograms` sheet (one row per exercise)
+- [x] `GET /api/workouts/today` returns correct day based on weekday schedule
+- [x] On rest day, returns `{ rest: true }`
+- [x] Logging a set persists to `WorkoutSets` sheet
+- [x] Progressive overload suggestion is correct for hit/miss/new scenarios
+- [x] Confirmation card shows: program name, workout days count, rest days count, total exercises
+- [x] Agent can tell the user what workout to do today via chat
+- [x] Agent can log a workout set via chat ("bench press 70 kg × 8") and it appears in WorkoutSets
+- [x] Agent returns next-session suggestion after logging a set
+- [x] Dashboard shows "Today's workout" card with correct day name, exercise count, and duration
+- [x] Rest day shows correct rest-day variant (no Start button)
+- [x] Empty state renders when no workout plan is imported
 
 ---
 
@@ -617,7 +617,7 @@ The `POST /agent/chat` SSE endpoint and "Chat to log" drawer UI are shared infra
 | Phase | Tools | Status |
 |-------|-------|--------|
 | Phase 2 | `log_weight`, `get_weight_trend` | ✅ done |
-| Phase 3 | `get_today_workout`, `log_workout_set`, `get_progression_target` | ⬜ pending |
+| Phase 3 | `get_today_workout`, `log_workout_set`, `get_progression_target` | ✅ done |
 | Phase 4 | `get_daily_nutrition`, `save_meal`, `analyze_meal_photo` | ⬜ pending |
 | Phase 5 | `get_task_status`, `complete_task` | ⬜ pending |
 | Phase 6 | `generate_daily_coaching`, `generate_weekly_review` | ⬜ pending |

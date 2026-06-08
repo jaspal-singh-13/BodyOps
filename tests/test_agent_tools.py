@@ -65,6 +65,9 @@ def _make_deps(
         set_logger=set_logger or MagicMock(return_value={"session_id": "1-2026-06-08", "set_number": 1}),
         progression_getter=progression_getter or MagicMock(return_value={"exercise_name": "Bench Press", "last_5_sessions": [], "suggestion": {"weight_kg": None, "reps": None, "note": "first session"}}),
         workout_importer=workout_importer or AsyncMock(return_value={}),
+        nutrition_getter=MagicMock(return_value={"calories": 0, "meals_count": 0}),
+        meal_saver=AsyncMock(return_value={"meal_id": "test-id"}),
+        meal_analyzer=AsyncMock(return_value={"title": "Test", "detected": []}),
     )
 
 

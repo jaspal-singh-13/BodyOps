@@ -1,5 +1,5 @@
 """
-Pydantic AI tool definitions for Phases 2–3 (Weight Tracking + Workout System).
+Pydantic AI tool definitions for Phases 2–4 (Weight, Workout, Meal Tracking).
 
 Each function decorated with ``@agent.tool`` is automatically registered on the
 ``agent`` instance (imported from ``agent.py``). Tools must be async and accept
@@ -148,6 +148,88 @@ async def get_progression_target(ctx: RunContext[AgentDeps], exercise_name: str)
     })
     result = ctx.deps.progression_getter(exercise_name)
     await ctx.deps.event_queue.put({"type": "tool_result", "tool": "get_progression_target", "result": result})
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Phase 4 — Meal Tracking
+# ---------------------------------------------------------------------------
+
+
+@agent.tool
+async def get_daily_nutrition(ctx: RunContext[AgentDeps]) -> dict:
+    """
+    Return today's consumed nutrition vs targets.
+
+    Args:
+        ctx: Pydantic AI run context carrying ``AgentDeps``.
+
+    Returns:
+        Serialised ``DailyNutrition`` dict with consumed calories, protein,
+        carbs, fat and their corresponding daily targets from Settings.
+    """
+    await ctx.deps.event_queue.put({"type": "tool_call", "tool": "get_daily_nutrition", "args": {}})
+    result = ctx.deps.nutrition_getter()
+    await ctx.deps.event_queue.put({"type": "tool_result", "tool": "get_daily_nutrition", "result": result})
+    return result
+
+
+@agent.tool
+async def save_meal(
+    ctx: RunContext[AgentDeps],
+    meal_type: str,
+    items: list[dict],
+) -> dict:
+    """
+    Save a meal and its items to the Sheets.
+
+    Use this when the user describes a meal in text (e.g. "had chicken, rice,
+    and broccoli for lunch").  Items should be a list of dicts with at least
+    ``name``, ``calories``, ``protein_g``, ``carbs_g``, ``fat_g`` fields.
+    Quantity and confidence fields are optional.
+
+    Args:
+        ctx: Pydantic AI run context carrying ``AgentDeps``.
+        meal_type: One of "Breakfast", "Lunch", "Dinner", "Snack".
+        items: List of food item dicts with macro estimates.
+
+    Returns:
+        Serialised ``SavedMealResponse`` with the meal ID and updated
+        ``daily_nutrition`` totals.
+    """
+    await ctx.deps.event_queue.put({
+        "type": "tool_call",
+        "tool": "save_meal",
+        "args": {"meal_type": meal_type, "items": items},
+    })
+    result = await ctx.deps.meal_saver(meal_type, items)
+    await ctx.deps.event_queue.put({"type": "tool_result", "tool": "save_meal", "result": result})
+    return result
+
+
+@agent.tool
+async def analyze_meal_photo(ctx: RunContext[AgentDeps], image_url: str) -> dict:
+    """
+    Run AI vision analysis on a Drive-hosted meal photo URL.
+
+    Returns a macro breakdown with detected food items.  The result is NOT
+    automatically saved — call ``save_meal`` with the items to persist it.
+
+    Args:
+        ctx: Pydantic AI run context carrying ``AgentDeps``.
+        image_url: Publicly accessible URL of the meal photo (Google Drive
+            ``uc?id=…`` URL, or any direct image URL).
+
+    Returns:
+        Serialised ``AnalyzeMealResponse`` with ``detected`` items and totals.
+    """
+    await ctx.deps.event_queue.put({
+        "type": "tool_call",
+        "tool": "analyze_meal_photo",
+        "args": {"image_url": image_url},
+    })
+    result = await ctx.deps.meal_analyzer(image_url)
+    await ctx.deps.event_queue.put({"type": "tool_result", "tool": "analyze_meal_photo", "result": result})
     return result
 
 

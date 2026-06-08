@@ -8,6 +8,7 @@ Routers mounted:
     /settings  — user profile / onboarding settings
     /weight    — weight logging and trend analytics
     /workouts  — workout system (import, log, progression)
+    /meals     — meal photo analysis, confirmation, and history
     /agent     — SSE-streaming AI coach chat
     /auth      — login (mounted directly, not via a router)
 """
@@ -27,6 +28,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .auth import LoginRequest, TokenResponse, login
 from .logger import get_logger
 from .routers.agent import router as agent_router
+from .routers.meals import router as meals_router
 from .routers.settings import router as settings_router
 from .routers.weight import router as weight_router
 from .routers.workouts import router as workout_router
@@ -48,7 +50,7 @@ REQUIRED_ENV_VARS = [
 # so we log a warning rather than blocking startup.
 AGENT_ENV_VARS = ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_DEPLOYMENT"]
 
-VERSION = "0.10.2"
+VERSION = "0.11.0"
 
 
 @asynccontextmanager
@@ -120,6 +122,7 @@ app.add_middleware(
 app.include_router(settings_router)
 app.include_router(weight_router)
 app.include_router(workout_router)
+app.include_router(meals_router)
 app.include_router(agent_router)
 
 
@@ -152,6 +155,7 @@ async def root() -> dict:
             "/settings",
             "/weight",
             "/workouts",
+            "/meals",
             "/agent",
         ],
     }

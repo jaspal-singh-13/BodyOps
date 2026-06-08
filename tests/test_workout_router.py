@@ -420,6 +420,9 @@ def _make_workout_deps(queue: asyncio.Queue) -> "AgentDeps":
             return_value={"exercise_name": "Bench Press", "last_5_sessions": [], "suggestion": {"note": "first session"}}
         ),
         workout_importer=AsyncMock(return_value=IMPORT_RESPONSE.model_dump()),
+        nutrition_getter=MagicMock(return_value={"calories": 0, "meals_count": 0}),
+        meal_saver=AsyncMock(return_value={"meal_id": "test-id"}),
+        meal_analyzer=AsyncMock(return_value={"title": "Test", "detected": []}),
     )
 
 

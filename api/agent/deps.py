@@ -28,6 +28,9 @@ class AgentDeps:
         set_logger: ``(exercise_name, weight_kg, reps) -> dict`` — log a single set.
         progression_getter: ``(exercise_name) -> dict`` — return last 5 sessions + suggestion.
         workout_importer: ``async (raw_text, program_name) -> dict`` — AI-import a workout from free-form text.
+        nutrition_getter: ``() -> dict`` — return today's nutrition totals vs targets.
+        meal_saver: ``async (meal_type, items) -> dict`` — save a confirmed meal.
+        meal_analyzer: ``async (image_url) -> dict`` — run vision analysis on a meal photo.
     """
 
     user_id: int
@@ -38,3 +41,6 @@ class AgentDeps:
     set_logger: Callable[[str, float, int], dict]
     progression_getter: Callable[[str], dict]
     workout_importer: Callable[[str, str], dict]
+    nutrition_getter: Callable[[], dict]
+    meal_saver: Callable[..., dict]
+    meal_analyzer: Callable[[str], dict]
