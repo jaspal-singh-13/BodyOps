@@ -9,6 +9,8 @@ Both endpoints require a valid JWT. The service layer scopes all reads/writes
 to the authenticated ``user_id``, so one user can never read another's settings.
 """
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from ..auth import get_current_user
@@ -35,7 +37,7 @@ async def get_settings_endpoint(
     Raises:
         HTTPException(404): If no settings row exists for this user.
     """
-    settings = get_settings(user_id)
+    settings = await asyncio.to_thread(get_settings, user_id)
     if settings is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No settings found")
     return settings
@@ -59,4 +61,4 @@ async def save_settings_endpoint(
     Returns:
         ``SettingsResponse`` reflecting the saved state, including ``updated_at``.
     """
-    return save_settings(user_id, body)
+    return await asyncio.to_thread(save_settings, user_id, body)

@@ -12,6 +12,7 @@ Routers mounted:
     /auth      — login (mounted directly, not via a router)
 """
 
+import asyncio
 import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
@@ -29,6 +30,7 @@ from .routers.agent import router as agent_router
 from .routers.settings import router as settings_router
 from .routers.weight import router as weight_router
 from .routers.workouts import router as workout_router
+from .sheets.auth_sheet import load_credentials, poll_credentials
 from .sheets.sheets_client import get_main_sheet
 
 logger = get_logger("main")
@@ -88,6 +90,16 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
         sheets_ok,
         sheets_ok,
     )
+
+    try:
+        await asyncio.to_thread(load_credentials)
+        logger.info("Credentials cache: warmed")
+    except Exception as e:
+        logger.warning("Could not pre-warm credentials cache: %s", e)
+
+    asyncio.create_task(poll_credentials(interval=60))
+    logger.info("Credentials poller: started (interval=60s)")
+
     logger.info("BodyOps API v%s ready", VERSION)
     yield
     logger.info("BodyOps API shutting down")
@@ -125,21 +137,13 @@ async def login_endpoint(body: LoginRequest) -> TokenResponse:
 @app.get("/health")
 async def health() -> dict:
     """
-    Liveness / readiness probe.
+    Liveness probe — returns immediately without any I/O.
 
-    Tests the Google Sheets connection on every call. Both ``sheets`` and
-    ``drive`` reflect the same service-account connectivity since a single
-    service account covers both APIs.
+    Google Sheets connectivity is verified once at startup inside the
+    lifespan hook; there is no benefit to re-testing it on every probe
+    and doing so burns Sheets API quota every 30 seconds.
 
     Returns:
-        ``{"ok": bool, "sheets": bool, "drive": bool}``
+        ``{"ok": True}``
     """
-    sheets_ok = False
-    drive_ok = False
-    try:
-        get_main_sheet()
-        sheets_ok = True
-        drive_ok = True  # same service account covers Drive
-    except Exception:
-        pass
-    return {"ok": sheets_ok and drive_ok, "sheets": sheets_ok, "drive": drive_ok}
+    return {"ok": True}

@@ -5,6 +5,10 @@ A single ``gspread.Client`` instance is reused across the process lifetime to
 avoid re-authenticating on every request. The client is initialised lazily on
 the first call to ``get_client()``.
 
+The main spreadsheet object and individual ``Worksheet`` handles are also
+cached so that repeated operations on the same tab do not pay the cost of
+``open_by_key`` + ``worksheet()`` on every call.
+
 Required env vars:
     GOOGLE_SERVICE_ACCOUNT_JSON  — full service account JSON as a string.
     GOOGLE_SPREADSHEET_ID        — ID of the Main Data Sheet.
@@ -17,8 +21,10 @@ import os
 import gspread
 from google.oauth2.service_account import Credentials
 
-# Module-level singleton — initialised on first call to get_client()
+# Module-level singletons
 _client: gspread.Client | None = None
+_spreadsheet: gspread.Spreadsheet | None = None
+_worksheet_cache: dict[str, gspread.Worksheet] = {}
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -49,11 +55,21 @@ def get_client() -> gspread.Client:
     return _client
 
 
+def _get_spreadsheet() -> gspread.Spreadsheet:
+    """Return the cached main Spreadsheet, opening it once on first access."""
+    global _spreadsheet
+    if _spreadsheet is None:
+        _spreadsheet = get_client().open_by_key(os.environ["GOOGLE_SPREADSHEET_ID"])
+    return _spreadsheet
+
+
 def get_main_sheet() -> gspread.Spreadsheet:
     """
     Open and return the Main Data Sheet spreadsheet.
 
     The Main Data Sheet contains all app tabs: WeightLogs, Settings, Meals, etc.
+    The ``Spreadsheet`` object is cached after the first call — subsequent calls
+    return the same instance without an additional ``open_by_key`` round-trip.
 
     Returns:
         ``gspread.Spreadsheet`` for the Main Data Sheet.
@@ -63,7 +79,29 @@ def get_main_sheet() -> gspread.Spreadsheet:
         gspread.exceptions.SpreadsheetNotFound: If the ID is invalid or the
             service account does not have access.
     """
-    return get_client().open_by_key(os.environ["GOOGLE_SPREADSHEET_ID"])
+    return _get_spreadsheet()
+
+
+def get_worksheet(name: str) -> gspread.Worksheet:
+    """
+    Return a cached ``Worksheet`` handle for the given tab name.
+
+    On the first call for a given ``name``, opens the worksheet via the
+    Sheets API and stores it in a module-level dict.  All subsequent calls
+    return the cached object instantly — no HTTP round-trip.
+
+    Args:
+        name: Tab name as it appears in the spreadsheet (e.g. ``"WeightLogs"``).
+
+    Returns:
+        Cached ``gspread.Worksheet`` instance.
+
+    Raises:
+        gspread.exceptions.WorksheetNotFound: If no tab with that name exists.
+    """
+    if name not in _worksheet_cache:
+        _worksheet_cache[name] = _get_spreadsheet().worksheet(name)
+    return _worksheet_cache[name]
 
 
 def get_chat_history_sheet() -> gspread.Spreadsheet:

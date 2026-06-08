@@ -9,6 +9,8 @@ Endpoints:
 All endpoints require a valid JWT. Data is scoped to the authenticated user_id.
 """
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from ..auth import get_current_user
@@ -37,7 +39,7 @@ async def log_weight_endpoint(
     Returns:
         The saved ``WeightEntryResponse`` including ``logged_at`` timestamp.
     """
-    return log_weight(user_id, body)
+    return await asyncio.to_thread(log_weight, user_id, body)
 
 
 @router.get("/history", response_model=list[WeightHistoryItem])
@@ -53,7 +55,7 @@ async def get_history_endpoint(
     Returns:
         List of ``WeightHistoryItem`` objects; empty list if no entries exist.
     """
-    return get_history(user_id)
+    return await asyncio.to_thread(get_history, user_id)
 
 
 @router.get("/trend", response_model=WeightTrendResponse)
@@ -74,7 +76,7 @@ async def get_trend_endpoint(
     Raises:
         HTTPException(404): If no settings row exists for this user.
     """
-    settings = get_settings(user_id)
+    settings = await asyncio.to_thread(get_settings, user_id)
     if settings is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No settings found")
-    return get_trend(user_id, settings.goal_weight_kg)
+    return await asyncio.to_thread(get_trend, user_id, settings.goal_weight_kg)

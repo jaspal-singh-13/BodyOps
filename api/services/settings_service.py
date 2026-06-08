@@ -6,8 +6,14 @@ Each user has at most one row, identified by ``user_id``.
 
 Operations are upsert-based: ``save_settings`` checks for an existing row
 via ``find_row`` and either updates it or appends a new one.
+
+A 60-second per-user TTL cache avoids redundant full-tab reads when
+``get_settings`` is called multiple times per request cycle (e.g. both
+``/settings`` and ``/weight/trend`` on the same dashboard load).
+``save_settings`` always invalidates the cache for the affected user.
 """
 
+import time
 from datetime import datetime, timezone
 from typing import Any
 
@@ -20,14 +26,36 @@ from ..sheets.sheets_repo import append_row, find_row, read_rows, update_row
 logger = get_logger("settings_service")
 SETTINGS_TAB = "Settings"
 
+# (cached_at_monotonic, value)
+_settings_cache: dict[int, tuple[float, SettingsResponse | None]] = {}
+SETTINGS_TTL = 60.0  # seconds
+
+
+def _cache_get(user_id: int) -> tuple[bool, SettingsResponse | None]:
+    """Return (hit, value). hit is True only when the entry is within TTL."""
+    entry = _settings_cache.get(user_id)
+    if entry is None:
+        return False, None
+    cached_at, value = entry
+    if time.monotonic() - cached_at < SETTINGS_TTL:
+        return True, value
+    return False, None
+
+
+def _cache_set(user_id: int, value: SettingsResponse | None) -> None:
+    _settings_cache[user_id] = (time.monotonic(), value)
+
+
+def _cache_invalidate(user_id: int) -> None:
+    _settings_cache.pop(user_id, None)
+
 
 def get_settings(user_id: int) -> SettingsResponse | None:
     """
     Fetch the settings row for a user from the ``Settings`` sheet tab.
 
-    Scans all rows returned by ``read_rows`` and returns the first one whose
-    ``user_id`` column matches. Returns ``None`` if no row exists (i.e. the
-    user has not completed onboarding yet).
+    Results are cached for ``SETTINGS_TTL`` seconds (60s) per user to avoid
+    redundant full-tab reads across concurrent endpoints on the same page load.
 
     Args:
         user_id: Authenticated user's integer ID.
@@ -36,22 +64,28 @@ def get_settings(user_id: int) -> SettingsResponse | None:
         ``SettingsResponse`` populated from the sheet row, or ``None`` if
         no matching row is found.
     """
+    hit, cached = _cache_get(user_id)
+    if hit:
+        logger.debug("Settings cache hit for user_id=%s", user_id)
+        return cached
+
     logger.debug("Fetching settings for user_id=%s", user_id)
     try:
         rows = read_rows(SETTINGS_TAB)
     except gspread.exceptions.WorksheetNotFound:
         logger.warning("Worksheet '%s' not found", SETTINGS_TAB)
+        _cache_set(user_id, None)
         return None
 
-    # Find the first row whose user_id matches — there should be exactly one
     row: dict[str, Any] | None = next(
         (r for r in rows if int(r.get("user_id", -1)) == user_id), None
     )
     if row is None:
         logger.debug("No settings row found for user_id=%s", user_id)
+        _cache_set(user_id, None)
         return None
 
-    return SettingsResponse(
+    result = SettingsResponse(
         user_id=int(row.get("user_id", 0)),
         name=str(row.get("name", "")),
         current_weight_kg=float(row.get("current_weight_kg", 0)),
@@ -66,6 +100,8 @@ def get_settings(user_id: int) -> SettingsResponse | None:
         reminders_json=str(row.get("reminders_json", "{}")),
         updated_at=str(row.get("updated_at", "")),
     )
+    _cache_set(user_id, result)
+    return result
 
 
 def save_settings(user_id: int, data: SettingsCreate) -> SettingsResponse:
@@ -75,6 +111,9 @@ def save_settings(user_id: int, data: SettingsCreate) -> SettingsResponse:
     Stamps ``updated_at`` with the current UTC ISO timestamp on every save.
     The ``user_id`` in the row always comes from the authenticated caller —
     the ``user_id`` field in ``data`` is ignored in favour of the parameter.
+
+    Invalidates the per-user settings cache so the next ``get_settings`` call
+    reads the freshly written row.
 
     Args:
         user_id: Authenticated user's integer ID (scopes the write).
@@ -100,4 +139,5 @@ def save_settings(user_id: int, data: SettingsCreate) -> SettingsResponse:
         logger.info("Creating settings for user_id=%s", user_id)
         append_row(SETTINGS_TAB, row_dict)
 
+    _cache_invalidate(user_id)
     return SettingsResponse(**row_dict)

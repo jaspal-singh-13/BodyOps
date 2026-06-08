@@ -21,7 +21,7 @@ from jose import JWTError, jwt
 from pydantic import BaseModel
 
 from .logger import get_logger
-from .sheets.auth_sheet import get_credentials
+from .sheets.auth_sheet import get_credentials  # pure in-memory after startup
 
 logger = get_logger("auth")
 
