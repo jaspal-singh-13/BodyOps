@@ -11,7 +11,7 @@
  *   detail    — single meal detail view
  */
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Camera,
@@ -94,6 +94,14 @@ type Screen = "list" | "camera" | "analyzing" | "analysis" | "detail";
 // ---------------------------------------------------------------------------
 
 export default function MealsPage() {
+  return (
+    <Suspense>
+      <MealsPageInner />
+    </Suspense>
+  );
+}
+
+function MealsPageInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
 
