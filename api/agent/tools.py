@@ -149,3 +149,38 @@ async def get_progression_target(ctx: RunContext[AgentDeps], exercise_name: str)
     result = ctx.deps.progression_getter(exercise_name)
     await ctx.deps.event_queue.put({"type": "tool_result", "tool": "get_progression_target", "result": result})
     return result
+
+
+@agent.tool
+async def import_workout_from_text(
+    ctx: RunContext[AgentDeps],
+    raw_text: str,
+    program_name: str,
+) -> dict:
+    """
+    Import a workout plan from free-form text in any format.
+
+    Uses AI to convert the text into the structured format, then saves it as
+    the user's active workout program. Replaces any previously imported plan.
+
+    Args:
+        ctx: Pydantic AI run context carrying ``AgentDeps``.
+        raw_text: The workout plan in any free-form format.
+        program_name: A name for the program (e.g. "PPL v2").
+
+    Returns:
+        Serialised ``WorkoutImportResponse`` dict with program/rest day counts
+        and the list of imported days.
+    """
+    await ctx.deps.event_queue.put({
+        "type": "tool_call",
+        "tool": "import_workout_from_text",
+        "args": {"program_name": program_name, "raw_text": raw_text},
+    })
+    result = await ctx.deps.workout_importer(raw_text, program_name)
+    await ctx.deps.event_queue.put({
+        "type": "tool_result",
+        "tool": "import_workout_from_text",
+        "result": result,
+    })
+    return result

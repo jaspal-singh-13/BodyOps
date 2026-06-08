@@ -9,7 +9,7 @@ Agent tool tests: get_today_workout, log_workout_set, get_progression_target
 
 import asyncio
 import os
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 os.environ.setdefault("JWT_SECRET", "test-secret-key-for-tests")
 os.environ.setdefault("GOOGLE_SERVICE_ACCOUNT_JSON", '{"type":"service_account"}')
@@ -285,6 +285,43 @@ class TestGetWorkoutsHistory:
 
 
 # ---------------------------------------------------------------------------
+# POST /workouts/ai-import
+# ---------------------------------------------------------------------------
+
+AI_IMPORT_PAYLOAD = {
+    "raw_text": "Monday: Chest day\nBench Press 4 sets 8-10 reps",
+    "program_name": "PPL v1",
+}
+
+
+class TestPostWorkoutsAiImport:
+    def test_ai_import_success(self, client, auth_headers):
+        with patch("api.routers.workouts.ai_import_workout", new_callable=AsyncMock, return_value=IMPORT_RESPONSE):
+            resp = client.post("/workouts/ai-import", json=AI_IMPORT_PAYLOAD, headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["program_name"] == "PPL v1"
+        assert data["program_days"] == 3
+        assert data["rest_days"] == 4
+        assert data["total_exercises"] == 6
+
+    def test_ai_import_parse_error_returns_422(self, client, auth_headers):
+        from api.services.workout_parser import WorkoutParseError
+        with patch(
+            "api.routers.workouts.ai_import_workout",
+            new_callable=AsyncMock,
+            side_effect=WorkoutParseError("unrecognised line: 'bad'", 3),
+        ):
+            resp = client.post("/workouts/ai-import", json=AI_IMPORT_PAYLOAD, headers=auth_headers)
+        assert resp.status_code == 422
+        assert "line 3" in resp.json()["detail"]
+
+    def test_ai_import_no_auth_returns_403(self, client):
+        resp = client.post("/workouts/ai-import", json=AI_IMPORT_PAYLOAD)
+        assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
 # Agent tools — workout
 # ---------------------------------------------------------------------------
 
@@ -305,6 +342,7 @@ def _make_workout_deps(queue: asyncio.Queue) -> "AgentDeps":
         progression_getter=MagicMock(
             return_value={"exercise_name": "Bench Press", "last_5_sessions": [], "suggestion": {"note": "first session"}}
         ),
+        workout_importer=AsyncMock(return_value=IMPORT_RESPONSE.model_dump()),
     )
 
 
@@ -401,3 +439,35 @@ class TestGetProgressionTargetTool:
         await api.agent.tools.get_progression_target(ctx, "Deadlift")
 
         deps.progression_getter.assert_called_once_with("Deadlift")
+
+
+class TestImportWorkoutFromTextTool:
+    @pytest.mark.asyncio
+    async def test_emits_tool_call_then_tool_result(self):
+        import api.agent.tools  # noqa: F401
+
+        queue: asyncio.Queue = asyncio.Queue()
+        deps = _make_workout_deps(queue)
+        ctx = _make_ctx(deps)
+
+        await api.agent.tools.import_workout_from_text(ctx, "Monday: Chest\nBench Press 3x8", "PPL v1")
+
+        assert queue.qsize() == 2
+        call_evt = await queue.get()
+        result_evt = await queue.get()
+        assert call_evt["type"] == "tool_call"
+        assert call_evt["tool"] == "import_workout_from_text"
+        assert call_evt["args"]["program_name"] == "PPL v1"
+        assert result_evt["type"] == "tool_result"
+
+    @pytest.mark.asyncio
+    async def test_delegates_to_workout_importer(self):
+        import api.agent.tools  # noqa: F401
+
+        queue: asyncio.Queue = asyncio.Queue()
+        deps = _make_workout_deps(queue)
+        ctx = _make_ctx(deps)
+
+        await api.agent.tools.import_workout_from_text(ctx, "raw plan text", "My PPL")
+
+        deps.workout_importer.assert_awaited_once_with("raw plan text", "My PPL")

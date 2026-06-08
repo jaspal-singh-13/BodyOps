@@ -51,6 +51,7 @@ from ..models.workout import LogSetRequest
 from ..services.settings_service import get_settings
 from ..services.weight_service import get_trend as svc_get_trend
 from ..services.weight_service import log_weight as svc_log_weight
+from ..services.workout_service import ai_import_workout as svc_ai_import_workout
 from ..services.workout_service import get_progression as svc_get_progression
 from ..services.workout_service import get_today_workout as svc_get_today_workout
 from ..services.workout_service import log_set as svc_log_set
@@ -141,6 +142,13 @@ def _make_progression_getter(user_id: int):
     return progression_getter
 
 
+def _make_workout_importer(user_id: int):
+    """Return an async callable that AI-imports a workout from free-form text."""
+    async def workout_importer(raw_text: str, program_name: str) -> dict:
+        return (await svc_ai_import_workout(user_id, program_name, raw_text)).model_dump()
+    return workout_importer
+
+
 async def _run_agent_to_queue(
     message: str,
     history: list,
@@ -205,6 +213,7 @@ async def _sse_generator(message: str, session_id: str, user_id: int):
         today_workout_getter=_make_today_workout_getter(user_id),
         set_logger=_make_set_logger(user_id),
         progression_getter=_make_progression_getter(user_id),
+        workout_importer=_make_workout_importer(user_id),
     )
 
     # Run agent in background so this generator can yield events as they arrive

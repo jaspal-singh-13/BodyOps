@@ -3,6 +3,7 @@ Workout system API routes.
 
 Endpoints:
     POST   /workouts/import      — parse + import workout plan
+    POST   /workouts/ai-import   — AI-powered import from free-form text
     GET    /workouts/today       — today's workout with progression suggestions
     POST   /workouts/log         — log a single set
     POST   /workouts/complete    — mark today's session complete
@@ -18,17 +19,19 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import get_current_user
 from ..models.workout import (
+    AiWorkoutImportRequest,
     CompleteSessionRequest,
+    ExerciseProgressionResponse,
     LogSetRequest,
     LogSetResponse,
     TodayWorkoutResponse,
     WorkoutHistoryResponse,
     WorkoutImportRequest,
     WorkoutImportResponse,
-    ExerciseProgressionResponse,
 )
 from ..services.workout_parser import WorkoutParseError, parse_workout_import
 from ..services.workout_service import (
+    ai_import_workout,
     complete_session,
     get_history,
     get_progression,
@@ -38,6 +41,17 @@ from ..services.workout_service import (
 )
 
 router = APIRouter(prefix="/workouts", tags=["workouts"])
+
+
+@router.post("/ai-import", response_model=WorkoutImportResponse)
+async def ai_import_endpoint(
+    body: AiWorkoutImportRequest,
+    user_id: int = Depends(get_current_user),
+) -> WorkoutImportResponse:
+    try:
+        return await ai_import_workout(user_id, body.program_name, body.raw_text)
+    except WorkoutParseError as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
 
 @router.post("/import", response_model=WorkoutImportResponse)

@@ -47,6 +47,11 @@ class WorkoutImportRequest(BaseModel):
     program_name: str
 
 
+class AiWorkoutImportRequest(BaseModel):
+    raw_text: str      # free-form workout text, any format
+    program_name: str
+
+
 class LogSetRequest(BaseModel):
     date: str
     exercise_name: str

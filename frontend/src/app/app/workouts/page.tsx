@@ -62,7 +62,7 @@ interface SessionHistoryItem {
   completed_at: string;
 }
 
-type ActiveTab = "import" | "today" | "log" | "history";
+type ActiveTab = "import" | "ai-import" | "today" | "log" | "history";
 
 // ---------------------------------------------------------------------------
 // Page
@@ -79,6 +79,13 @@ export default function WorkoutsPage() {
   const [importLoading, setImportLoading] = useState(false);
   const [importError, setImportError] = useState("");
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+
+  // AI Import tab state
+  const [aiRawText, setAiRawText] = useState("");
+  const [aiProgramName, setAiProgramName] = useState("");
+  const [aiImportLoading, setAiImportLoading] = useState(false);
+  const [aiImportError, setAiImportError] = useState("");
+  const [aiImportResult, setAiImportResult] = useState<ImportResult | null>(null);
 
   // Today + Log tab state
   const [todayWorkout, setTodayWorkout] = useState<TodayWorkout | null>(null);
@@ -141,6 +148,28 @@ export default function WorkoutsPage() {
       setImportError(err instanceof Error ? err.message : "Import failed");
     } finally {
       setImportLoading(false);
+    }
+  }
+
+  async function handleAiImport(e: React.FormEvent) {
+    e.preventDefault();
+    if (!aiRawText.trim() || !aiProgramName.trim()) return;
+    setAiImportError("");
+    setAiImportLoading(true);
+    try {
+      const result = await apiFetch<ImportResult>("/workouts/ai-import", {
+        method: "POST",
+        body: JSON.stringify({
+          raw_text: aiRawText,
+          program_name: aiProgramName,
+        }),
+      });
+      setAiImportResult(result);
+      await refreshToday();
+    } catch (err) {
+      setAiImportError(err instanceof Error ? err.message : "Import failed");
+    } finally {
+      setAiImportLoading(false);
     }
   }
 
@@ -237,6 +266,7 @@ export default function WorkoutsPage() {
     { id: "log", label: "Log" },
     { id: "history", label: "History" },
     { id: "import", label: "Import" },
+    { id: "ai-import", label: "AI Import" },
   ];
 
   return (
@@ -272,6 +302,19 @@ export default function WorkoutsPage() {
           loading={importLoading}
           error={importError}
           result={importResult}
+        />
+      )}
+
+      {activeTab === "ai-import" && (
+        <AiImportTab
+          rawText={aiRawText}
+          programName={aiProgramName}
+          onRawTextChange={setAiRawText}
+          onProgramNameChange={setAiProgramName}
+          onSubmit={handleAiImport}
+          loading={aiImportLoading}
+          error={aiImportError}
+          result={aiImportResult}
         />
       )}
 
@@ -373,6 +416,96 @@ function ImportTab({
             className="btn-primary w-full"
           >
             {loading ? "Importing…" : "Import plan"}
+          </button>
+        </form>
+      </section>
+
+      {result && (
+        <section className="bg-white rounded-xl border border-zinc-100 p-4">
+          <h2 className="text-sm font-semibold text-zinc-700 mb-3">
+            Imported: {result.program_name}
+          </h2>
+          <div className="grid grid-cols-3 gap-3 mb-4">
+            <div className="text-center">
+              <p className="text-xl font-bold text-zinc-900">{result.program_days}</p>
+              <p className="text-xs text-zinc-500">workout days</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xl font-bold text-zinc-900">{result.rest_days}</p>
+              <p className="text-xs text-zinc-500">rest days</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xl font-bold text-zinc-900">{result.total_exercises}</p>
+              <p className="text-xs text-zinc-500">exercises</p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1">
+            {result.days
+              .filter((d) => d.day_name !== "Rest")
+              .map((day) => (
+                <div key={day.day_name} className="flex items-center justify-between py-1.5 border-b border-zinc-50 last:border-0">
+                  <span className="text-sm font-medium text-zinc-900">{day.day_name}</span>
+                  <span className="text-xs text-zinc-500">{day.exercises.length} exercises</span>
+                </div>
+              ))}
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AI Import tab
+// ---------------------------------------------------------------------------
+
+function AiImportTab({
+  rawText, programName,
+  onRawTextChange, onProgramNameChange,
+  onSubmit, loading, error, result,
+}: {
+  rawText: string; programName: string;
+  onRawTextChange: (v: string) => void;
+  onProgramNameChange: (v: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  loading: boolean; error: string;
+  result: ImportResult | null;
+}) {
+  return (
+    <div className="flex flex-col gap-6">
+      <section className="bg-white rounded-xl border border-zinc-100 p-4">
+        <h2 className="text-sm font-semibold text-zinc-700 mb-1">AI-powered import</h2>
+        <p className="text-xs text-zinc-400 mb-4">
+          Paste your workout in any format — the AI will convert it automatically.
+        </p>
+        <form onSubmit={onSubmit} className="flex flex-col gap-3">
+          <div>
+            <label className="text-xs text-zinc-500 block mb-1">Program name</label>
+            <input
+              type="text"
+              value={programName}
+              onChange={(e) => onProgramNameChange(e.target.value)}
+              placeholder="PPL v1"
+              className="input"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-zinc-500 block mb-1">Workout plan — any format</label>
+            <textarea
+              value={rawText}
+              onChange={(e) => onRawTextChange(e.target.value)}
+              rows={12}
+              placeholder={"Monday: Chest day\nBench Press — 4 sets of 8-10 reps\nIncline Dumbbell 3 sets 12 reps\n\nWednesday: Rest\n\nFriday: Leg day\nSquat 4x5, Romanian Deadlift 3x10-12"}
+              className="input font-mono text-xs resize-y w-full"
+            />
+          </div>
+          {error && <p className="text-sm text-red-500">{error}</p>}
+          <button
+            type="submit"
+            disabled={loading || !rawText.trim() || !programName.trim()}
+            className="btn-primary w-full"
+          >
+            {loading ? "Importing…" : "Save plan"}
           </button>
         </form>
       </section>

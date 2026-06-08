@@ -27,6 +27,7 @@ class AgentDeps:
         today_workout_getter: ``() -> dict`` — return today's workout with suggestions.
         set_logger: ``(exercise_name, weight_kg, reps) -> dict`` — log a single set.
         progression_getter: ``(exercise_name) -> dict`` — return last 5 sessions + suggestion.
+        workout_importer: ``async (raw_text, program_name) -> dict`` — AI-import a workout from free-form text.
     """
 
     user_id: int
@@ -36,3 +37,4 @@ class AgentDeps:
     today_workout_getter: Callable[[], dict]
     set_logger: Callable[[str, float, int], dict]
     progression_getter: Callable[[str], dict]
+    workout_importer: Callable[[str, str], dict]

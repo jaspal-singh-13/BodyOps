@@ -11,10 +11,13 @@ Tabs used:
 from __future__ import annotations
 
 import math
+import os
 from datetime import date, datetime, timezone
 
 import gspread.exceptions
+from openai import AsyncAzureOpenAI
 
+from ..agent.prompts import WORKOUT_IMPORT_PROMPT
 from ..logger import get_logger
 from ..models.workout import (
     ExerciseInfo,
@@ -28,6 +31,7 @@ from ..models.workout import (
     WorkoutHistoryResponse,
     WorkoutImportResponse,
 )
+from .workout_parser import parse_workout_import
 from ..sheets.sheets_client import get_main_sheet
 from ..sheets.sheets_repo import append_row, read_rows, update_row
 
@@ -439,3 +443,24 @@ def get_history(user_id: int) -> WorkoutHistoryResponse:
 
     user_sessions.sort(key=lambda s: s["date"], reverse=True)
     return WorkoutHistoryResponse(sessions=user_sessions)
+
+
+async def ai_import_workout(user_id: int, program_name: str, raw_text: str) -> WorkoutImportResponse:
+    client = AsyncAzureOpenAI(
+        api_key=os.environ["AZURE_OPENAI_API_KEY"],
+        azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+        api_version="2024-08-01-preview",
+    )
+    deployment = os.environ["AZURE_OPENAI_DEPLOYMENT"]
+    response = await client.chat.completions.create(
+        model=deployment,
+        messages=[
+            {"role": "system", "content": WORKOUT_IMPORT_PROMPT},
+            {"role": "user", "content": raw_text},
+        ],
+        temperature=0.1,
+    )
+    converted_text = response.choices[0].message.content.strip()
+    logger.info("AI-converted workout plan for user %s:\n%s", user_id, converted_text)
+    days, schedule = parse_workout_import(converted_text, schedule_text="")
+    return import_workout(user_id, program_name, days, schedule)

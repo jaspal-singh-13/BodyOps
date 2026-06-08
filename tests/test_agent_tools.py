@@ -23,7 +23,7 @@ os.environ.setdefault("AZURE_OPENAI_API_KEY", "test-key")
 os.environ.setdefault("AZURE_OPENAI_ENDPOINT", "https://test.openai.azure.com")
 os.environ.setdefault("AZURE_OPENAI_DEPLOYMENT", "gpt-4o")
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -38,6 +38,7 @@ def _make_deps(
     today_workout_getter=None,
     set_logger=None,
     progression_getter=None,
+    workout_importer=None,
 ) -> AgentDeps:
     """
     Build an ``AgentDeps`` instance with mock service callables.
@@ -50,6 +51,7 @@ def _make_deps(
         today_workout_getter: Optional mock for workout tool.
         set_logger: Optional mock for workout set logging.
         progression_getter: Optional mock for progression data.
+        workout_importer: Optional async mock for AI workout import.
 
     Returns:
         ``AgentDeps`` ready to be passed to a tool via a mock ``RunContext``.
@@ -62,6 +64,7 @@ def _make_deps(
         today_workout_getter=today_workout_getter or MagicMock(return_value={"day_name": "Push", "is_rest_day": False, "exercises": []}),
         set_logger=set_logger or MagicMock(return_value={"session_id": "1-2026-06-08", "set_number": 1}),
         progression_getter=progression_getter or MagicMock(return_value={"exercise_name": "Bench Press", "last_5_sessions": [], "suggestion": {"weight_kg": None, "reps": None, "note": "first session"}}),
+        workout_importer=workout_importer or AsyncMock(return_value={}),
     )
 
 
