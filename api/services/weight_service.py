@@ -15,6 +15,7 @@ Private helpers:
 """
 
 from datetime import date as date_type, datetime, timedelta, timezone
+from typing import Any
 
 import gspread.exceptions
 
@@ -24,6 +25,18 @@ from ..sheets.sheets_repo import append_row, read_rows, update_row
 
 logger = get_logger("weight_service")
 WEIGHT_TAB = "WeightLogs"
+
+
+def _parse_weight(value: Any) -> float | None:
+    """Return ``value`` as float, or ``None`` if it cannot be converted.
+
+    Guards against column-mapping drift in the Google Sheet where a ``time``
+    string (e.g. ``'04:48'``) occasionally lands in the ``weight_kg`` column.
+    """
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return None
 
 
 def log_weight(user_id: int, data: WeightEntryCreate) -> WeightEntryResponse:
@@ -102,11 +115,15 @@ def get_history(user_id: int) -> list[WeightHistoryItem]:
 
     # Filter to this user and entries within the 90-day window
     cutoff = (date_type.today() - timedelta(days=90)).isoformat()
-    entries = [
-        {"date": r["date"], "time": r.get("time", ""), "weight_kg": float(r["weight_kg"])}
-        for r in rows
-        if int(r.get("user_id", -1)) == user_id and r.get("date", "") >= cutoff
-    ]
+    entries: list[dict] = []
+    for r in rows:
+        if int(r.get("user_id", -1)) != user_id or r.get("date", "") < cutoff:
+            continue
+        w = _parse_weight(r.get("weight_kg"))
+        if w is None:
+            logger.warning("Skipping malformed WeightLogs row (weight_kg=%r): %s", r.get("weight_kg"), r)
+            continue
+        entries.append({"date": r["date"], "time": r.get("time", ""), "weight_kg": w})
 
     # Sort chronologically by date then time to compute diffs, then reverse for the response
     entries.sort(key=lambda e: (e["date"], e["time"]))
@@ -144,14 +161,16 @@ def get_trend(user_id: int, goal_weight_kg: float) -> WeightTrendResponse:
         logger.warning("Worksheet '%s' not found — returning empty trend", WEIGHT_TAB)
         return WeightTrendResponse(moving_avg=[], total_loss_kg=None, projected_goal_date=None)
 
-    all_entries = sorted(
-        [
-            {"date": r["date"], "time": r.get("time", ""), "weight_kg": float(r["weight_kg"])}
-            for r in rows
-            if int(r.get("user_id", -1)) == user_id
-        ],
-        key=lambda e: (e["date"], e["time"]),
-    )
+    raw: list[dict] = []
+    for r in rows:
+        if int(r.get("user_id", -1)) != user_id:
+            continue
+        w = _parse_weight(r.get("weight_kg"))
+        if w is None:
+            logger.warning("Skipping malformed WeightLogs row (weight_kg=%r): %s", r.get("weight_kg"), r)
+            continue
+        raw.append({"date": r["date"], "time": r.get("time", ""), "weight_kg": w})
+    all_entries = sorted(raw, key=lambda e: (e["date"], e["time"]))
     # Use the last entry per day so multiple daily logs don't skew the trend chart
     seen: dict[str, dict] = {}
     for e in all_entries:

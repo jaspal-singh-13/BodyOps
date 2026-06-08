@@ -49,7 +49,7 @@ def read_rows(tab: str) -> list[dict[str, Any]]:
     Raises:
         gspread.exceptions.WorksheetNotFound: If the tab does not exist.
     """
-    return get_worksheet(tab).get_all_records()
+    return get_worksheet(tab).get_all_records(value_render_option="UNFORMATTED_VALUE")
 
 
 def append_row(tab: str, row: dict[str, Any]) -> None:
