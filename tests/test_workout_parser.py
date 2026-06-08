@@ -18,7 +18,7 @@ os.environ.setdefault("AZURE_OPENAI_API_VERSION", "2024-08-01-preview")
 
 import pytest
 
-from api.services.workout_parser import WorkoutParseError, parse_workout_import
+from api.services.workout_parser import WorkoutParseError, _auto_schedule, parse_workout_import
 
 # ---------------------------------------------------------------------------
 # Plan parsing
@@ -172,3 +172,54 @@ def test_rest_line_case_insensitive():
     with pytest.raises(WorkoutParseError):
         # "REST" (all caps) should NOT match — only "Rest" or "rest" per spec
         parse_workout_import(plan, "")
+
+
+# ---------------------------------------------------------------------------
+# _auto_schedule: rest-like name handling (regression tests)
+# ---------------------------------------------------------------------------
+
+
+def _day(name: str, has_exercises: bool = True):
+    from api.models.workout import ExerciseInfo, WorkoutDaySummary
+    exercises = [ExerciseInfo(exercise_name="Ex", sets=3, rep_min=8, rep_max=12, order=1)] if has_exercises else []
+    return WorkoutDaySummary(day_name=name, exercises=exercises)
+
+
+def test_auto_schedule_treats_verbose_rest_as_rest():
+    """'Thursday — Rest' must not occupy a weekday slot."""
+    days = [
+        _day("Legs"),
+        _day("Push"),
+        _day("Thursday — Rest", has_exercises=False),
+    ]
+    result = dict(_auto_schedule(days))
+    assert result[0] == "Legs"
+    assert result[1] == "Push"
+    # "Thursday — Rest" is rest-like → not assigned to a slot
+    assert "Thursday — Rest" not in result.values()
+    assert all(result[i] == "Rest" for i in range(2, 7))
+
+
+def test_auto_schedule_treats_rest_day_as_rest():
+    """'Rest Day' (with suffix) must also be treated as rest."""
+    days = [
+        _day("Pull"),
+        _day("Rest Day", has_exercises=False),
+    ]
+    result = dict(_auto_schedule(days))
+    assert result[0] == "Pull"
+    assert "Rest Day" not in result.values()
+    assert all(result[i] == "Rest" for i in range(1, 7))
+
+
+def test_auto_schedule_treats_sunday_rest_as_rest():
+    """'Sunday — Rest' produced by AI should be treated as rest."""
+    days = [
+        _day("Upper"),
+        _day("Lower"),
+        _day("Sunday — Rest", has_exercises=False),
+    ]
+    result = dict(_auto_schedule(days))
+    non_rest = [v for v in result.values() if v != "Rest"]
+    assert set(non_rest) == {"Upper", "Lower"}
+    assert "Sunday — Rest" not in result.values()

@@ -522,14 +522,16 @@ async def ai_import_workout(
         messages=[
             {
                 "role": "system",
-                "content": (
+                    "content": (
                     "Parse the workout text into structured days and exercises. "
                     "For each training day extract: day_name, exercises with exercise_name, sets, rep_min, rep_max, order. "
                     "Set rep_min = rep_max when only one rep count is given. "
                     "order is 1-based position within the day. "
                     "If weekday assignments are explicit in the text, include a schedule where each entry has "
                     "weekday (0=Mon…6=Sun) and day_index as the 0-based index of that day in the days array. "
-                    "Rest days have day_name='Rest' and empty exercises list."
+                    "IMPORTANT: rest days MUST use day_name='Rest' (exactly, no weekday prefix or suffix). "
+                    "Never use names like 'Thursday — Rest', 'Sunday Rest', or 'Rest Day' — only the single word 'Rest'. "
+                    "Rest days have day_name='Rest' and an empty exercises list."
                 ),
             },
             {"role": "user", "content": raw_text},
@@ -540,15 +542,16 @@ async def ai_import_workout(
     if parsed is None:
         raise ValueError("Structured output parsing returned no result — model may have refused or run out of tokens.")
 
-    schedule = (
-        [
+    if parsed.schedule:
+        schedule = [
             (e.weekday, parsed.days[e.day_index].day_name)
             for e in parsed.schedule
             if 0 <= e.day_index < len(parsed.days)
         ]
-        if parsed.schedule
-        else _auto_schedule(parsed.days)
-    )
+        if not schedule:
+            schedule = _auto_schedule(parsed.days)
+    else:
+        schedule = _auto_schedule(parsed.days)
 
     return await asyncio.to_thread(import_workout, user_id, program_name, parsed.days, schedule)
 

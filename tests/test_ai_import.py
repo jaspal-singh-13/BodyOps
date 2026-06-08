@@ -459,3 +459,56 @@ async def test_no_sheet_writes_when_llm_raises():
         await ai_import_workout(user_id=1, program_name="Bad", raw_text="garbage")
 
     mock_append.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Regression: all-out-of-bounds day_index falls back to _auto_schedule
+# ---------------------------------------------------------------------------
+
+
+async def test_all_out_of_bounds_day_index_falls_back_to_auto_schedule():
+    """
+    Regression test for the 'all-Rest schedule' bug.
+
+    When parsed.schedule is non-empty but every day_index is out of bounds for
+    the days list, the filtered schedule is []. Before the fix this silently
+    produced 7 Rest-only rows in WorkoutSchedules. After the fix _auto_schedule
+    is called as a fallback, so at least one weekday gets a real workout day.
+    """
+    days = [
+        WorkoutDaySummary(day_name="Legs", exercises=[_ex("Squat")]),
+        WorkoutDaySummary(day_name="Push", exercises=[_ex("Bench")]),
+        WorkoutDaySummary(day_name="Pull", exercises=[_ex("Row")]),
+    ]
+    # All day_index values (10, 11, 12) are >= len(days)==3 → all filtered out
+    schedule = _sched((0, 10), (1, 11), (2, 12), (3, 10), (4, 11), (5, 12), (6, 10))
+
+    mock_batch = MagicMock()
+    mock_client = MagicMock()
+    mock_completion = MagicMock()
+    mock_completion.choices = [MagicMock()]
+    mock_completion.choices[0].message.parsed = _parsed(days, schedule=schedule)
+    mock_client.beta.chat.completions.parse = AsyncMock(return_value=mock_completion)
+
+    with (
+        patch("api.agent.llm.get_async_client", return_value=mock_client),
+        patch("api.services.workout_service.append_rows_batch", mock_batch),
+        patch("api.services.workout_service._delete_user_rows"),
+    ):
+        result = await ai_import_workout(user_id=1, program_name="PPL", raw_text="...")
+
+    # Result should still show the correct parsed days
+    assert result.program_days == 3
+
+    # WorkoutSchedules batch write must include at least one non-Rest day
+    sched_batch_calls = [
+        c for c in mock_batch.call_args_list if c.args[0] == "WorkoutSchedules"
+    ]
+    assert len(sched_batch_calls) == 1
+    written_rows = sched_batch_calls[0].args[1]
+    day_names_written = [r["day_name"] for r in written_rows]
+    # _auto_schedule assigns Legs→Mon, Push→Tue, Pull→Wed, Rest for Thu-Sun
+    assert "Legs" in day_names_written
+    assert "Push" in day_names_written
+    assert "Pull" in day_names_written
+    assert day_names_written.count("Rest") == 4

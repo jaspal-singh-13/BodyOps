@@ -120,7 +120,7 @@ def _parse_schedule(schedule_text: str) -> list[tuple[int, str]]:
 
 def _auto_schedule(days: list[WorkoutDaySummary]) -> list[tuple[int, str]]:
     """Cycle non-rest days over Mon–Sun; remaining slots get 'Rest'."""
-    non_rest = [d.day_name for d in days if d.day_name != "Rest"]
+    non_rest = [d.day_name for d in days if "rest" not in d.day_name.lower()]
     result: list[tuple[int, str]] = []
     cycle_idx = 0
     for weekday in range(7):

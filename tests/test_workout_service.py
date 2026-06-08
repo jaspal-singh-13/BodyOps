@@ -307,3 +307,103 @@ class TestImportWorkoutScheduleGapFill:
         rows = self._run_import(schedule)
         weekdays = [r["weekday"] for r in rows]
         assert len(weekdays) == len(set(weekdays)), "duplicate weekdays written"
+
+
+# ---------------------------------------------------------------------------
+# Robustness: rows with missing / empty exercise_name in WorkoutPrograms
+# ---------------------------------------------------------------------------
+# These tests guard against the KeyError: 'exercise_name' crash that occurred
+# in production when get_schedule / get_today_workout processed rows written
+# by an earlier import that left the exercise_name cell blank.
+
+
+class TestMissingExerciseNameRows:
+    """get_schedule and get_today_workout must never crash on rows that have
+    exercise_name missing or empty — they should silently skip those rows."""
+
+    def _make_today_patch(self, schedule_rows, program_rows, set_rows=None, session_rows=None):
+        def side_effect(tab):
+            from api.services.workout_service import SCHEDULES_TAB, PROGRAMS_TAB, SETS_TAB, SESSIONS_TAB
+            return {
+                SCHEDULES_TAB: schedule_rows,
+                PROGRAMS_TAB: program_rows,
+                SETS_TAB: set_rows or [],
+                SESSIONS_TAB: session_rows or [],
+            }[tab]
+        return side_effect
+
+    # --- get_schedule ----------------------------------------------------------
+
+    def test_get_schedule_skips_row_with_missing_exercise_name_key(self):
+        """Row dict has no 'exercise_name' key at all — must not raise KeyError."""
+        schedule_rows = [_schedule_row(1, 0, "Push")]
+        # Row missing the exercise_name key entirely (simulates old sheet schema)
+        bad_row = {"user_id": 1, "program_name": "PPL", "day_name": "Push",
+                   "sets": 3, "rep_min": 8, "rep_max": 12, "order": 1, "created_at": ""}
+        good_row = _program_row(1, "PPL", "Push", "Bench Press", order=2)
+        with patch("api.services.workout_service._safe_read_rows",
+                   side_effect=[schedule_rows, [bad_row, good_row]]):
+            result = get_schedule(user_id=1)
+        monday = result.days[0]
+        assert len(monday.exercises) == 1
+        assert monday.exercises[0].exercise_name == "Bench Press"
+
+    def test_get_schedule_skips_row_with_empty_exercise_name(self):
+        """Row has exercise_name='' (gspread returns empty string for blank cells)."""
+        schedule_rows = [_schedule_row(1, 0, "Push")]
+        empty_name_row = _program_row(1, "PPL", "Push", "", order=1)
+        good_row = _program_row(1, "PPL", "Push", "OHP", order=2)
+        with patch("api.services.workout_service._safe_read_rows",
+                   side_effect=[schedule_rows, [empty_name_row, good_row]]):
+            result = get_schedule(user_id=1)
+        monday = result.days[0]
+        assert len(monday.exercises) == 1
+        assert monday.exercises[0].exercise_name == "OHP"
+
+    def test_get_schedule_all_bad_rows_returns_empty_exercises(self):
+        """All program rows for a day are bad — day should have 0 exercises, not crash."""
+        schedule_rows = [_schedule_row(1, 0, "Push")]
+        bad_rows = [
+            {"user_id": 1, "program_name": "PPL", "day_name": "Push",
+             "sets": 3, "rep_min": 8, "rep_max": 12, "order": 1, "created_at": ""},
+            _program_row(1, "PPL", "Push", "", order=2),
+        ]
+        with patch("api.services.workout_service._safe_read_rows",
+                   side_effect=[schedule_rows, bad_rows]):
+            result = get_schedule(user_id=1)
+        assert result.days[0].exercises == []
+
+    # --- get_today_workout -----------------------------------------------------
+
+    def test_get_today_workout_skips_row_with_missing_exercise_name_key(self):
+        """Row dict has no 'exercise_name' key — must not raise KeyError."""
+        schedule_rows = [_schedule_row(1, 0, "Push")]
+        bad_row = {"user_id": 1, "program_name": "PPL", "day_name": "Push",
+                   "sets": 3, "rep_min": 8, "rep_max": 12, "order": 1, "created_at": ""}
+        good_row = _program_row(1, "PPL", "Push", "Bench Press", order=2)
+        side_effect = self._make_today_patch(schedule_rows, [bad_row, good_row])
+        with patch("api.services.workout_service._safe_read_rows", side_effect=side_effect):
+            result = get_today_workout(user_id=1, today_date="2026-06-08")
+        assert len(result.exercises) == 1
+        assert result.exercises[0].exercise_name == "Bench Press"
+
+    def test_get_today_workout_skips_row_with_empty_exercise_name(self):
+        """Row has exercise_name='' — must be skipped, not raise."""
+        schedule_rows = [_schedule_row(1, 0, "Push")]
+        empty_name_row = _program_row(1, "PPL", "Push", "", order=1)
+        good_row = _program_row(1, "PPL", "Push", "Squat", order=2)
+        side_effect = self._make_today_patch(schedule_rows, [empty_name_row, good_row])
+        with patch("api.services.workout_service._safe_read_rows", side_effect=side_effect):
+            result = get_today_workout(user_id=1, today_date="2026-06-08")
+        assert len(result.exercises) == 1
+        assert result.exercises[0].exercise_name == "Squat"
+
+    def test_get_today_workout_all_bad_rows_returns_no_exercises(self):
+        """All program rows for today's day are bad — should return 0 exercises, not crash."""
+        schedule_rows = [_schedule_row(1, 0, "Push")]
+        bad_rows = [_program_row(1, "PPL", "Push", "", order=1)]
+        side_effect = self._make_today_patch(schedule_rows, bad_rows)
+        with patch("api.services.workout_service._safe_read_rows", side_effect=side_effect):
+            result = get_today_workout(user_id=1, today_date="2026-06-08")
+        assert result.exercises == []
+        assert result.is_rest_day is False
