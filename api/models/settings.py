@@ -23,7 +23,6 @@ class SettingsCreate(BaseModel):
     Request body for ``POST /settings`` (onboarding + updates).
 
     Attributes:
-        user_id: Integer user ID — must match the authenticated user.
         name: Display name.
         current_weight_kg: Starting body weight in kilograms (must be positive).
         height_cm: Height in centimetres (must be positive).
@@ -40,7 +39,6 @@ class SettingsCreate(BaseModel):
             string in the sheet. Defaults to ``"{}"``.
     """
 
-    user_id: int
     name: str
     current_weight_kg: float
     height_cm: float

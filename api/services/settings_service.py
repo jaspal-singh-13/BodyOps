@@ -123,7 +123,7 @@ def save_settings(user_id: int, data: SettingsCreate) -> SettingsResponse:
         ``SettingsResponse`` reflecting the saved state, including ``updated_at``.
     """
     now = datetime.now(timezone.utc).isoformat()
-    row_dict = {"user_id": user_id, **data.model_dump(exclude={"user_id"}), "updated_at": now}
+    row_dict = {"user_id": user_id, **data.model_dump(), "updated_at": now}
 
     try:
         result = find_row(SETTINGS_TAB, "user_id", str(user_id))
