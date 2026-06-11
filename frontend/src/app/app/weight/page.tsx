@@ -258,8 +258,8 @@ export default function WeightPage() {
                 }}
                 labelStyle={{ color: "#a1a1aa", fontSize: 11, marginBottom: 4 }}
                 itemStyle={{ color: "#fff", fontSize: 12 }}
-                formatter={(value: number, name: string) => [
-                  `${value} kg`,
+                formatter={(value, name) => [
+                  value != null ? `${value} kg` : "—",
                   name === "weight_kg" ? "Weight" : "7-day avg",
                 ]}
                 labelFormatter={(label) => label}
