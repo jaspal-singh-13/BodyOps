@@ -19,6 +19,9 @@ import asyncio
 from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile, status
 
 from ..auth import get_current_user
+from ..logger import get_logger
+
+logger = get_logger("routers.meals")
 from ..models.meal import (
     AnalyzeMealResponse,
     ConfirmMealRequest,
@@ -87,16 +90,17 @@ async def analyze_meal_endpoint(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Uploaded file is empty."
         )
 
+    # Drive upload is best-effort — a failure stores an empty URL but never
+    # blocks the analysis.  Analysis uses raw bytes via base64 so it is
+    # independent of Drive availability.
+    drive_url = ""
     try:
         drive_url = await upload_meal_image(data, mime)
     except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Drive upload failed: {exc}",
-        ) from exc
+        logger.warning("Drive upload failed (non-fatal): %s", exc)
 
     try:
-        result = await analyze_meal(drive_url, drive_url)
+        result = await analyze_meal(data, mime, drive_url)
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

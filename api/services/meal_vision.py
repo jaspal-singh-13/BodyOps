@@ -16,6 +16,7 @@ Required env vars (inherited from llm.py):
 
 from __future__ import annotations
 
+import base64
 import os
 import time
 from typing import Literal
@@ -89,22 +90,24 @@ Rules:
 # ---------------------------------------------------------------------------
 
 
-async def analyze_meal(image_url: str, drive_url: str) -> AnalyzeMealResponse:
+async def analyze_meal(
+    data: bytes,
+    mime_type: str,
+    drive_url: str = "",
+) -> AnalyzeMealResponse:
     """
     Analyse a meal photo and return a structured macro breakdown.
 
-    Sends the image URL to Azure OpenAI gpt-4o vision using the SDK's
-    structured-output API (``beta.chat.completions.parse``) so that the
-    response is guaranteed to conform to ``_MealAnalysisSchema`` before any
-    further processing.
+    Encodes the raw image bytes as a base64 data URL and sends it directly to
+    Azure OpenAI gpt-4o vision.  This avoids any dependency on Google Drive
+    being accessible from the OpenAI API servers.
 
     Args:
-        image_url: Publicly accessible URL for the meal photo.  This must be
-            reachable by the OpenAI API servers — a Google Drive ``uc?id=``
-            URL works after the file permission is set to public reader.
-        drive_url: The same (or equivalent) Drive URL stored in the response
-            so the caller can pass it straight through to ``ConfirmMealRequest``
-            without re-uploading.
+        data: Raw image bytes (JPEG, PNG, WebP, etc.).
+        mime_type: MIME type of the image (e.g. ``"image/jpeg"``).
+        drive_url: Optional Drive URL stored in the response for later use
+            (e.g. displaying the photo in the meal history).  Defaults to ``""``
+            if the Drive upload was skipped or failed.
 
     Returns:
         ``AnalyzeMealResponse`` with detected items, totals, and drive URL.
@@ -114,8 +117,16 @@ async def analyze_meal(image_url: str, drive_url: str) -> AnalyzeMealResponse:
         openai.APIError: On OpenAI / Azure API failure.
     """
     deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "?")
-    logger.info("Vision analysis start deployment=%s url=%s", deployment, image_url)
+    logger.info(
+        "Vision analysis start deployment=%s mime=%s bytes=%d",
+        deployment,
+        mime_type,
+        len(data),
+    )
     t0 = time.perf_counter()
+
+    b64 = base64.b64encode(data).decode("utf-8")
+    data_url = f"data:{mime_type};base64,{b64}"
 
     client = get_async_client()
 
@@ -129,7 +140,7 @@ async def analyze_meal(image_url: str, drive_url: str) -> AnalyzeMealResponse:
                 "content": [
                     {
                         "type": "image_url",
-                        "image_url": {"url": image_url, "detail": "high"},
+                        "image_url": {"url": data_url, "detail": "high"},
                     },
                     {
                         "type": "text",
