@@ -31,6 +31,8 @@ class AgentDeps:
         nutrition_getter: ``() -> dict`` — return today's nutrition totals vs targets.
         meal_saver: ``async (meal_type, items) -> dict`` — save a confirmed meal.
         meal_analyzer: ``async (image_url) -> dict`` — run vision analysis on a meal photo.
+        task_status_getter: ``() -> dict`` — return today's mission list with completion state.
+        task_completer: ``(task_id) -> dict`` — mark a mission complete, return updated status.
     """
 
     user_id: int
@@ -44,3 +46,5 @@ class AgentDeps:
     nutrition_getter: Callable[[], dict]
     meal_saver: Callable[..., dict]
     meal_analyzer: Callable[[str], dict]
+    task_status_getter: Callable[[], dict]
+    task_completer: Callable[[str], dict]

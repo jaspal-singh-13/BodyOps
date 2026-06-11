@@ -15,7 +15,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { Home, Utensils, Dumbbell, TrendingUp, Scale, MessageCircle } from "lucide-react";
+import { Home, Utensils, Dumbbell, TrendingUp, Scale, MessageCircle, CheckSquare } from "lucide-react";
 import { clearToken } from "@/lib/api";
 import { ChatDrawer } from "@/components/ChatDrawer";
 import { RefreshProvider } from "@/lib/refresh";
@@ -25,7 +25,7 @@ const navItems = [
   { href: "/app/weight", label: "Weight", icon: Scale },
   { href: "/app/meals", label: "Meals", icon: Utensils },
   { href: "/app/workouts", label: "Workouts", icon: Dumbbell },
-  { href: "/app/progress", label: "Progress", icon: TrendingUp },
+  { href: "/app/missions", label: "Missions", icon: CheckSquare },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

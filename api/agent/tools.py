@@ -233,6 +233,55 @@ async def analyze_meal_photo(ctx: RunContext[AgentDeps], image_url: str) -> dict
     return result
 
 
+# ---------------------------------------------------------------------------
+# Phase 5 — Daily Missions
+# ---------------------------------------------------------------------------
+
+
+@agent.tool
+async def get_task_status(ctx: RunContext[AgentDeps]) -> dict:
+    """
+    Return today's mission list with name, completion flag, and timestamp.
+
+    Args:
+        ctx: Pydantic AI run context carrying ``AgentDeps``.
+
+    Returns:
+        Serialised ``DailyStatusResponse`` dict with ``date``, ``tasks``
+        (each with ``name``, ``completed``, ``completed_at``), ``total``,
+        ``completed`` count, and ``percentage``.
+    """
+    await ctx.deps.event_queue.put({"type": "tool_call", "tool": "get_task_status", "args": {}})
+    result = ctx.deps.task_status_getter()
+    await ctx.deps.event_queue.put({"type": "tool_result", "tool": "get_task_status", "result": result})
+    return result
+
+
+@agent.tool
+async def complete_task(ctx: RunContext[AgentDeps], task_id: str) -> dict:
+    """
+    Mark a daily mission complete by its task ID.
+
+    Use ``get_task_status`` first to find the correct ``task_id`` for the
+    mission the user wants to complete.
+
+    Args:
+        ctx: Pydantic AI run context carrying ``AgentDeps``.
+        task_id: The ``id`` field from the task in ``get_task_status`` output.
+
+    Returns:
+        Updated ``DailyStatusResponse`` dict after marking the task complete.
+    """
+    await ctx.deps.event_queue.put({
+        "type": "tool_call",
+        "tool": "complete_task",
+        "args": {"task_id": task_id},
+    })
+    result = ctx.deps.task_completer(task_id)
+    await ctx.deps.event_queue.put({"type": "tool_result", "tool": "complete_task", "result": result})
+    return result
+
+
 @agent.tool
 async def import_workout_from_text(
     ctx: RunContext[AgentDeps],

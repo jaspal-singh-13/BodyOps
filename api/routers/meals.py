@@ -27,6 +27,7 @@ from ..models.meal import (
     SavedMealResponse,
 )
 from ..services.drive_service import upload_meal_image
+from ..services.task_service import check_nutrition_targets
 from ..services.meal_service import (
     get_meal_records_today,
     get_meals_history,
@@ -36,6 +37,14 @@ from ..services.meal_service import (
 from ..services.meal_vision import analyze_meal
 
 router = APIRouter(prefix="/meals", tags=["meals"])
+
+
+async def _bg_check_nutrition(user_id: int, tz_str: str) -> None:
+    """Fire-and-forget wrapper so nutrition target checks never delay the response."""
+    try:
+        await asyncio.to_thread(check_nutrition_targets, user_id, tz_str)
+    except Exception:
+        pass
 
 _ALLOWED_MIME = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
 
@@ -118,7 +127,9 @@ async def save_meal_endpoint(
     Returns:
         ``SavedMealResponse`` with the new meal ID and updated daily totals.
     """
-    return await asyncio.to_thread(save_meal, user_id, body, x_timezone)
+    result = await asyncio.to_thread(save_meal, user_id, body, x_timezone)
+    asyncio.create_task(_bg_check_nutrition(user_id, x_timezone))
+    return result
 
 
 @router.get("/today", response_model=DailyNutrition)

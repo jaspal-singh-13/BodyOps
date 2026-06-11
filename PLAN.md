@@ -438,24 +438,24 @@ User sees a daily checklist. System sends browser notifications as reminders.
 ### TODOs
 
 **Daily Mission Engine (`lib/missions.ts`)**
-- [ ] `generateDailyTasks(date, settings)` — produce task list based on current settings:
+- [x] `generateDailyTasks(date, settings)` — produce task list based on current settings:
   - Log weight (daily)
   - Hit protein target
   - Stay under calorie target
   - Complete workout (only on workout days per schedule)
   - Drink water (if enabled in settings)
-- [ ] Store generated tasks in `DailyTaskStatus` tab (one row per task per day)
-- [ ] Idempotent — calling twice for same date does not duplicate rows
+- [x] Store generated tasks in `DailyTaskStatus` tab (one row per task per day)
+- [x] Idempotent — calling twice for same date does not duplicate rows
 
 **API**
-- [ ] `GET /api/tasks/today` — return today's task list with completion status
-- [ ] `POST /api/tasks/complete` — mark task as complete, timestamp completion
-- [ ] `GET /api/tasks/status` — summary: total, completed, percentage
+- [x] `GET /api/tasks/today` — return today's task list with completion status
+- [x] `POST /api/tasks/complete` — mark task as complete, timestamp completion
+- [x] `GET /api/tasks/status` — summary: total, completed, percentage
 
 **Auto-completion hooks**
-- [ ] Mark "Log weight" complete when `POST /api/weight` succeeds for today
-- [ ] Mark "Hit protein target" complete when daily protein ≥ target (check on every `POST /api/meals`)
-- [ ] Mark "Complete workout" complete when workout session is finished for today
+- [x] Mark "Log weight" complete when `POST /api/weight` succeeds for today
+- [x] Mark "Hit protein target" complete when daily protein ≥ target (check on every `POST /api/meals`)
+- [x] Mark "Complete workout" complete when workout session is finished for today
 
 **Reminders (browser-only)**
 - [ ] `POST /api/reminders` — save reminder config (type, time, enabled) to `Settings` tab (not a separate table — store as JSON field in Settings row)
@@ -470,31 +470,31 @@ User sees a daily checklist. System sends browser notifications as reminders.
 
 **Dashboard integration**
 - Add **Missions strip** card (inserted directly below the hero, above Quick Actions):
-  - Header row: "TODAY'S MISSIONS" eyebrow + flame icon streak badge ("{N}d streak"); chevron-right on the far right
-  - Left: `Ring` (52 px, stroke 6) showing `done/total × 100`%; "{done}/{total}" label inside the ring
-  - Right: first 3 mission items, each row: `MissionCheck` checkbox icon · mission label · right-aligned meta text in mono (e.g. "142 / 200 g")
+  - [x] Header row: "TODAY'S MISSIONS" eyebrow + flame icon streak badge ("{N}d streak"); chevron-right on the far right
+  - [x] Left: `Ring` (52 px, stroke 6) showing `done/total × 100`%; "{done}/{total}" label inside the ring
+  - [x] Right: first 3 mission items, each row: `MissionCheck` checkbox icon · mission label · right-aligned meta text in mono (e.g. "142 / 200 g")
     - Completed missions: label has `line-through` style and muted color
     - If more than 3 missions exist, show "+N more" caption in mono beneath the list
-  - Full card is tappable and navigates to `/app/missions`
-  - When all missions are done, the ring fills completely and the header shows "All done 🎯" (or similar celebration state)
+  - [x] Full card is tappable and navigates to `/app/missions`
+  - [x] When all missions are done, the ring fills completely and the header shows "All done 🎯" (or similar celebration state)
 
 **Agent Tools (`agent/tools.py`)**
-- [ ] `get_task_status()` — returns today's mission list with name, completed flag, and completion timestamp
-- [ ] `complete_task(task_id)` — marks a mission as complete, returns updated status summary
+- [x] `get_task_status()` — returns today's mission list with name, completed flag, and completion timestamp
+- [x] `complete_task(task_id)` — marks a mission as complete, returns updated status summary
 
 ### Acceptance Criteria
 
-- [ ] `generateDailyTasks` called twice for the same date produces the same rows (idempotent)
-- [ ] Logging weight auto-marks the "Log weight" mission complete
-- [ ] Reaching protein target auto-marks "Hit protein target" complete
-- [ ] Dashboard Missions strip shows correct done/total count and ring percentage
+- [x] `generateDailyTasks` called twice for the same date produces the same rows (idempotent)
+- [x] Logging weight auto-marks the "Log weight" mission complete
+- [x] Reaching protein target auto-marks "Hit protein target" complete
+- [x] Dashboard Missions strip shows correct done/total count and ring percentage
 - [ ] Streak badge on dashboard increments after a full day with all missions complete
-- [ ] Completing all missions fills the ring and shows celebration state on dashboard
-- [ ] Tapping the Missions strip card navigates to `/app/missions`
+- [x] Completing all missions fills the ring and shows celebration state on dashboard
+- [x] Tapping the Missions strip card navigates to `/app/missions`
 - [ ] Browser notification fires at configured time (requires granted permission)
 - [ ] Reminder settings persist across page reloads
-- [ ] Agent can tell the user their mission progress via chat ("what are my tasks today?")
-- [ ] Agent can mark a mission complete via chat ("I drank 2L of water today")
+- [x] Agent can tell the user their mission progress via chat ("what are my tasks today?")
+- [x] Agent can mark a mission complete via chat ("I drank 2L of water today")
 
 ---
 
@@ -619,7 +619,7 @@ The `POST /agent/chat` SSE endpoint and "Chat to log" drawer UI are shared infra
 | Phase 2 | `log_weight`, `get_weight_trend` | ✅ done |
 | Phase 3 | `get_today_workout`, `log_workout_set`, `get_progression_target` | ✅ done |
 | Phase 4 | `get_daily_nutrition`, `save_meal`, `analyze_meal_photo` | ✅ done |
-| Phase 5 | `get_task_status`, `complete_task` | ⬜ pending |
+| Phase 5 | `get_task_status`, `complete_task` | ✅ done |
 | Phase 6 | `generate_daily_coaching`, `generate_weekly_review` | ⬜ pending |
 
 ### Pydantic AI Implementation Pattern

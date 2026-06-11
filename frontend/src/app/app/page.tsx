@@ -16,7 +16,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Dumbbell, Moon, Camera, Scale } from "lucide-react";
+import { Dumbbell, Moon, Camera, Scale, Flame, CheckCircle2, Circle, ChevronRight } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useRefresh } from "@/lib/refresh";
 
@@ -62,6 +62,23 @@ interface DailyNutrition {
   meals_count: number;
 }
 
+interface MissionTask {
+  id: string;
+  name: string;
+  description: string;
+  task_type: string;
+  completed: boolean;
+  completed_at: string | null;
+}
+
+interface DailyMissions {
+  date: string;
+  tasks: MissionTask[];
+  total: number;
+  completed: number;
+  percentage: number;
+}
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -75,6 +92,7 @@ export default function DashboardPage() {
   const [projectedDate, setProjectedDate] = useState<string | null>(null);
   const [todayWorkout, setTodayWorkout] = useState<TodayWorkout | null | "loading">("loading");
   const [nutrition, setNutrition] = useState<DailyNutrition | null>(null);
+  const [missions, setMissions] = useState<DailyMissions | null>(null);
   const [weightLoggedToday, setWeightLoggedToday] = useState(false);
 
   const fetchAll = useCallback(() => {
@@ -123,6 +141,10 @@ export default function DashboardPage() {
 
     apiFetch<DailyNutrition>("/meals/today")
       .then(setNutrition)
+      .catch(() => {});
+
+    apiFetch<DailyMissions>("/tasks/today")
+      .then(setMissions)
       .catch(() => {});
   }, [router]);
 
@@ -222,6 +244,9 @@ export default function DashboardPage() {
         )}
       </div>
 
+      {/* ── 2. Missions strip ── */}
+      <MissionsStrip missions={missions} />
+
       {/* ── 3. Quick Actions ── */}
       <div className="grid grid-cols-2 gap-2.5">
         <Link href="/app/meals?mode=camera">
@@ -256,6 +281,90 @@ export default function DashboardPage() {
       {/* ── 5. Today's workout ── */}
       <TodayWorkoutCard workout={todayWorkout} />
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Missions strip card
+// ---------------------------------------------------------------------------
+
+function MissionsStrip({ missions }: { missions: DailyMissions | null }) {
+  if (!missions) return null;
+
+  const allDone = missions.total > 0 && missions.completed === missions.total;
+  const preview = missions.tasks.slice(0, 3);
+  const remaining = missions.total - 3;
+
+  const r = 52 / 2 - 6 / 2;
+  const circ = 2 * Math.PI * r;
+  const pct = Math.min(1, Math.max(0, missions.total > 0 ? missions.completed / missions.total : 0));
+  const dash = pct * circ;
+  const gap = circ - dash;
+
+  return (
+    <Link href="/app/missions">
+      <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 cursor-pointer hover:bg-zinc-50 transition-colors">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <p className="font-mono text-[10.5px] font-semibold tracking-widest text-zinc-400 uppercase">
+              {allDone ? "All done 🎯" : "Today's Missions"}
+            </p>
+            <span className="inline-flex items-center gap-1 font-mono text-[10px] font-bold text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-full">
+              <Flame size={9} />
+              0d streak
+            </span>
+          </div>
+          <ChevronRight size={15} className="text-zinc-300" />
+        </div>
+
+        <div className="flex items-center gap-4">
+          {/* Ring */}
+          <div className="relative shrink-0" style={{ width: 52, height: 52 }}>
+            <svg width={52} height={52} viewBox="0 0 52 52">
+              <circle cx={26} cy={26} r={r} fill="none" stroke="#e4e3df" strokeWidth={6} />
+              <circle
+                cx={26}
+                cy={26}
+                r={r}
+                fill="none"
+                stroke={allDone ? "#16a34a" : "#1d1c1a"}
+                strokeWidth={6}
+                strokeDasharray={`${dash} ${gap}`}
+                strokeLinecap="round"
+                transform="rotate(-90 26 26)"
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="font-mono text-[11px] font-bold leading-none">
+                {missions.completed}/{missions.total}
+              </span>
+            </div>
+          </div>
+
+          {/* Task list */}
+          <div className="flex-1 flex flex-col gap-1.5">
+            {preview.map((task) => (
+              <div key={task.id} className="flex items-center gap-2">
+                {task.completed ? (
+                  <CheckCircle2 size={13} className="text-green-600 shrink-0" />
+                ) : (
+                  <Circle size={13} className="text-zinc-300 shrink-0" />
+                )}
+                <span
+                  className={`text-[12px] flex-1 ${task.completed ? "line-through text-zinc-400" : "text-zinc-700"}`}
+                >
+                  {task.name}
+                </span>
+              </div>
+            ))}
+            {remaining > 0 && (
+              <p className="font-mono text-[10px] text-zinc-400">+{remaining} more</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </Link>
   );
 }
 

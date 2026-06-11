@@ -30,6 +30,7 @@ from .logger import get_logger
 from .routers.agent import router as agent_router
 from .routers.meals import router as meals_router
 from .routers.settings import router as settings_router
+from .routers.tasks import router as tasks_router
 from .routers.weight import router as weight_router
 from .routers.workouts import router as workout_router
 from .sheets.auth_sheet import load_credentials, poll_credentials
@@ -50,7 +51,7 @@ REQUIRED_ENV_VARS = [
 # so we log a warning rather than blocking startup.
 AGENT_ENV_VARS = ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_DEPLOYMENT"]
 
-VERSION = "0.12.1"
+VERSION = "0.13.0"
 
 
 @asynccontextmanager
@@ -123,6 +124,7 @@ app.include_router(settings_router)
 app.include_router(weight_router)
 app.include_router(workout_router)
 app.include_router(meals_router)
+app.include_router(tasks_router)
 app.include_router(agent_router)
 
 

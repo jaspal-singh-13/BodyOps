@@ -19,6 +19,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, HTTPException
 
 from ..auth import get_current_user
+from ..services.task_service import auto_complete_task
 from ..models.workout import (
     AiWorkoutImportRequest,
     CompleteSessionRequest,
@@ -44,6 +45,14 @@ from ..services.workout_service import (
 )
 
 router = APIRouter(prefix="/workouts", tags=["workouts"])
+
+
+async def _bg_auto_complete(user_id: int, task_type: str, date: str) -> None:
+    """Fire-and-forget wrapper so task completion never delays the response."""
+    try:
+        await asyncio.to_thread(auto_complete_task, user_id, task_type, date)
+    except Exception:
+        pass
 
 
 @router.post("/import", response_model=WorkoutImportResponse)
@@ -90,6 +99,7 @@ async def complete_session_endpoint(
     user_id: int = Depends(get_current_user),
 ) -> None:
     await asyncio.to_thread(complete_session, user_id, body.date)
+    asyncio.create_task(_bg_auto_complete(user_id, "complete_workout", body.date))
 
 
 @router.get("/progression", response_model=ExerciseProgressionResponse)

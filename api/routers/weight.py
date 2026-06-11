@@ -16,9 +16,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from ..auth import get_current_user
 from ..models.weight import WeightEntryCreate, WeightEntryResponse, WeightHistoryItem, WeightTrendResponse
 from ..services.settings_service import get_settings
+from ..services.task_service import auto_complete_task
 from ..services.weight_service import get_history, get_trend, log_weight
 
 router = APIRouter(prefix="/weight", tags=["weight"])
+
+
+async def _bg_auto_complete(user_id: int, task_type: str, date: str) -> None:
+    """Fire-and-forget wrapper so task completion never delays the response."""
+    try:
+        await asyncio.to_thread(auto_complete_task, user_id, task_type, date)
+    except Exception:
+        pass
 
 
 @router.post("", response_model=WeightEntryResponse)
@@ -39,7 +48,9 @@ async def log_weight_endpoint(
     Returns:
         The saved ``WeightEntryResponse`` including ``logged_at`` timestamp.
     """
-    return await asyncio.to_thread(log_weight, user_id, body)
+    result = await asyncio.to_thread(log_weight, user_id, body)
+    asyncio.create_task(_bg_auto_complete(user_id, "log_weight", body.date))
+    return result
 
 
 @router.get("/history", response_model=list[WeightHistoryItem])

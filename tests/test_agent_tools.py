@@ -68,6 +68,8 @@ def _make_deps(
         nutrition_getter=MagicMock(return_value={"calories": 0, "meals_count": 0}),
         meal_saver=AsyncMock(return_value={"meal_id": "test-id"}),
         meal_analyzer=AsyncMock(return_value={"title": "Test", "detected": []}),
+        task_status_getter=MagicMock(return_value={"date": "2026-06-08", "tasks": [], "total": 0, "completed": 0, "percentage": 0.0}),
+        task_completer=MagicMock(return_value={"date": "2026-06-08", "tasks": [], "total": 0, "completed": 0, "percentage": 0.0}),
     )
 
 

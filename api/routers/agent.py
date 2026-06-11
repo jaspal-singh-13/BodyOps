@@ -53,6 +53,8 @@ from ..services.meal_service import get_meals_today as svc_get_meals_today
 from ..services.meal_service import save_meal as svc_save_meal
 from ..services.meal_vision import analyze_meal as svc_analyze_meal
 from ..models.meal import ConfirmMealRequest, DetectedItem
+from ..services.task_service import complete_task as svc_complete_task
+from ..services.task_service import get_today_tasks as svc_get_today_tasks
 from ..services.workout_service import ai_import_workout as svc_ai_import_workout
 from ..services.workout_service import get_progression as svc_get_progression
 from ..services.workout_service import get_today_workout as svc_get_today_workout
@@ -186,6 +188,22 @@ def _make_meal_saver(user_id: int):
     return meal_saver
 
 
+def _make_task_status_getter(user_id: int):
+    """Return a callable that fetches today's mission list for the given user."""
+    def task_status_getter() -> dict:
+        return svc_get_today_tasks(user_id, "UTC").model_dump()
+    return task_status_getter
+
+
+def _make_task_completer(user_id: int):
+    """Return a callable that marks a mission complete for the given user."""
+    from datetime import date as _date
+
+    def task_completer(task_id: str) -> dict:
+        return svc_complete_task(user_id, task_id, _date.today().isoformat()).model_dump()
+    return task_completer
+
+
 def _make_meal_analyzer(user_id: int):  # noqa: ARG001 — user_id reserved for future scoping
     """Return an async callable that runs vision analysis on a meal photo URL."""
     async def meal_analyzer(image_url: str) -> dict:
@@ -262,6 +280,8 @@ async def _sse_generator(message: str, session_id: str, user_id: int):
         nutrition_getter=_make_nutrition_getter(user_id),
         meal_saver=_make_meal_saver(user_id),
         meal_analyzer=_make_meal_analyzer(user_id),
+        task_status_getter=_make_task_status_getter(user_id),
+        task_completer=_make_task_completer(user_id),
     )
 
     # Run agent in background so this generator can yield events as they arrive
