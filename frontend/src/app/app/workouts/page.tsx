@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Dumbbell, Moon, Plus, Check } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { useRefresh } from "@/lib/refresh";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -93,6 +94,7 @@ type ActiveTab = "import" | "today" | "log" | "schedule" | "history";
 // ---------------------------------------------------------------------------
 
 export default function WorkoutsPage() {
+  const { triggerRefresh } = useRefresh();
   const [activeTab, setActiveTab] = useState<ActiveTab>("today");
   const [loading, setLoading] = useState(true);
 
@@ -169,6 +171,7 @@ export default function WorkoutsPage() {
       });
       setImportResult(result);
       await Promise.all([refreshToday(), refreshSchedule()]);
+      triggerRefresh();
     } catch (err) {
       setImportError(err instanceof Error ? err.message : "Import failed");
     } finally {
@@ -230,6 +233,7 @@ export default function WorkoutsPage() {
         return { ...prev, [exerciseName]: rows };
       });
       await refreshToday();
+      triggerRefresh();
     } catch {
       // Keep row editable on failure
     }
@@ -245,6 +249,7 @@ export default function WorkoutsPage() {
       });
       setSessionCompleted(true);
       await refreshHistory();
+      triggerRefresh();
     } catch {
       // no-op
     } finally {

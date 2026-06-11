@@ -18,6 +18,7 @@ import { useState } from "react";
 import { Home, Utensils, Dumbbell, TrendingUp, Scale, MessageCircle } from "lucide-react";
 import { clearToken } from "@/lib/api";
 import { ChatDrawer } from "@/components/ChatDrawer";
+import { RefreshProvider } from "@/lib/refresh";
 
 const navItems = [
   { href: "/app", label: "Home", icon: Home },
@@ -38,6 +39,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <RefreshProvider>
     <div className="flex h-screen bg-zinc-50">
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-52 bg-white border-r border-zinc-100 p-4 shrink-0">
@@ -116,5 +118,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Chat drawer — mounted here so it persists across page navigations */}
       <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} />
     </div>
+    </RefreshProvider>
   );
 }

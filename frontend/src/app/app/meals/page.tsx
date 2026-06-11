@@ -25,6 +25,7 @@ import {
   Zap,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { useRefresh } from "@/lib/refresh";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -102,6 +103,7 @@ export default function MealsPage() {
 }
 
 function MealsPageInner() {
+  const { triggerRefresh } = useRefresh();
   const searchParams = useSearchParams();
   const router = useRouter();
 
@@ -192,6 +194,7 @@ function MealsPageInner() {
       });
       fetchNutrition();
       fetchHistory();
+      triggerRefresh();
       setScreen("list");
     } catch {
       // stay on analysis screen; user can retry

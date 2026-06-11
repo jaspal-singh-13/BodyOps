@@ -27,6 +27,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Send, X } from "lucide-react";
 import { type ChatEvent, streamChat } from "@/lib/api";
+import { useRefresh } from "@/lib/refresh";
 
 interface ToolEvent {
   type: "tool_call" | "tool_result";
@@ -201,6 +202,7 @@ interface ChatDrawerProps {
 }
 
 export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
+  const { triggerRefresh } = useRefresh();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -223,6 +225,7 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
     setStreaming(true);
 
     const assistantId = crypto.randomUUID();
+    let usedTools = false;
 
     setMessages((prev) => [
       ...prev,
@@ -239,6 +242,7 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
         if (event.type === "text") {
           update((m) => ({ ...m, content: m.content + event.content }));
         } else if (event.type === "tool_call") {
+          usedTools = true;
           update((m) => ({
             ...m,
             toolEvents: [...m.toolEvents, { type: "tool_call", tool: event.tool, args: event.args }],
@@ -259,6 +263,8 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
           });
         } else if (event.type === "done") {
           update((m) => ({ ...m, isStreaming: false }));
+          // Refresh dashboard data if the agent used any tools (e.g. logged weight/meals/workout)
+          if (usedTools) triggerRefresh();
         } else if (event.type === "error") {
           update((m) => ({ ...m, content: `Error: ${event.message}`, isStreaming: false }));
         }

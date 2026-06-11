@@ -25,6 +25,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { apiFetch } from "@/lib/api";
+import { useRefresh } from "@/lib/refresh";
 
 interface HistoryItem {
   date: string;
@@ -62,6 +63,7 @@ function nowHHMM(): string {
 }
 
 export default function WeightPage() {
+  const { triggerRefresh } = useRefresh();
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [trend, setTrend] = useState<TrendData | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -105,6 +107,7 @@ export default function WeightPage() {
       ]);
       setHistory(h);
       setTrend(t);
+      triggerRefresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
     } finally {

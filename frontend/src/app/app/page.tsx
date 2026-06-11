@@ -13,11 +13,12 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Dumbbell, Moon, Camera, Scale } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { useRefresh } from "@/lib/refresh";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -67,6 +68,7 @@ interface DailyNutrition {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { refreshKey } = useRefresh();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [latestWeight, setLatestWeight] = useState<HistoryItem | null>(null);
@@ -75,8 +77,11 @@ export default function DashboardPage() {
   const [nutrition, setNutrition] = useState<DailyNutrition | null>(null);
   const [weightLoggedToday, setWeightLoggedToday] = useState(false);
 
-  useEffect(() => {
-    const today = new Date().toISOString().split("T")[0];
+  const fetchAll = useCallback(() => {
+    const today = (() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    })();
 
     apiFetch<Settings>("/settings")
       .then((data) => setSettings(data))
@@ -88,6 +93,9 @@ export default function DashboardPage() {
         if (h.length > 0) {
           setLatestWeight(h[0]);
           setWeightLoggedToday(h[0].date === today);
+        } else {
+          setLatestWeight(null);
+          setWeightLoggedToday(false);
         }
       })
       .catch(() => {});
@@ -104,6 +112,20 @@ export default function DashboardPage() {
       .then(setNutrition)
       .catch(() => {});
   }, [router]);
+
+  // Re-fetch when refreshKey increments (triggered by sub-pages or ChatDrawer after mutations)
+  useEffect(() => {
+    fetchAll();
+  }, [fetchAll, refreshKey]);
+
+  // Re-fetch when the tab regains visibility (user switches back from another tab)
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") fetchAll();
+    }
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, [fetchAll]);
 
   if (loading) {
     return (
