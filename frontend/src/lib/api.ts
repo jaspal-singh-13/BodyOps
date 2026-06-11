@@ -77,8 +77,10 @@ export async function apiFetch<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = getToken();
+  const isFormData = options.body instanceof FormData;
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    // Omit Content-Type for FormData so the browser sets the multipart boundary automatically.
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(options.headers as Record<string, string>),
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;

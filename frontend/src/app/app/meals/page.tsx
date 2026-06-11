@@ -164,7 +164,6 @@ function MealsPageInner() {
       const res = await apiFetch<AnalyzeResponse>("/meals/analyze", {
         method: "POST",
         body: formData,
-        headers: {},
       });
       setAnalysisResult(res);
       setEditedItems([...res.detected]);
