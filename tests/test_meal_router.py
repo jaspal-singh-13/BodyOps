@@ -162,19 +162,23 @@ class TestPostMealsAnalyze:
             )
         assert resp.status_code == 400
 
-    def test_analyze_drive_error_returns_500(self, client, auth_headers):
-        with patch(
-            "api.routers.meals.upload_meal_image",
-            new_callable=AsyncMock,
-            side_effect=Exception("Drive quota exceeded"),
+    def test_analyze_drive_error_still_returns_200(self, client, auth_headers):
+        """Drive upload failure is non-fatal — analysis proceeds with empty drive_url."""
+        with (
+            patch(
+                "api.routers.meals.upload_meal_image",
+                new_callable=AsyncMock,
+                side_effect=Exception("Drive quota exceeded"),
+            ),
+            patch("api.routers.meals.analyze_meal", new_callable=AsyncMock, return_value=ANALYZE_RESPONSE),
         ):
             resp = client.post(
                 "/meals/analyze",
                 files={"file": ("meal.jpg", io.BytesIO(b"JPEG"), "image/jpeg")},
                 headers=auth_headers,
             )
-        assert resp.status_code == 500
-        assert "Drive upload failed" in resp.json()["detail"]
+        assert resp.status_code == 200
+        assert resp.json()["title"] == "Chicken rice bowl"
 
     def test_analyze_vision_error_returns_500(self, client, auth_headers):
         with (
@@ -191,6 +195,7 @@ class TestPostMealsAnalyze:
                 headers=auth_headers,
             )
         assert resp.status_code == 500
+        assert "Vision analysis failed" in resp.json()["detail"]
 
     def test_analyze_value_error_returns_422(self, client, auth_headers):
         with (

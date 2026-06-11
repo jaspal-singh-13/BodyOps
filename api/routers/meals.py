@@ -20,8 +20,6 @@ from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile, statu
 
 from ..auth import get_current_user
 from ..logger import get_logger
-
-logger = get_logger("routers.meals")
 from ..models.meal import (
     AnalyzeMealResponse,
     ConfirmMealRequest,
@@ -40,6 +38,7 @@ from ..services.meal_service import (
 from ..services.meal_vision import analyze_meal
 
 router = APIRouter(prefix="/meals", tags=["meals"])
+logger = get_logger("routers.meals")
 
 
 async def _bg_check_nutrition(user_id: int, tz_str: str) -> None:

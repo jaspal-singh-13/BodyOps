@@ -7,10 +7,13 @@ Covers:
   - Structured output returns None → ValueError raised
   - Confidence mapping preserved per item
   - Totals are computed from items (not trusted from model)
+  - drive_url is optional and defaults to ""
+  - Base64 data URL is built from the raw bytes passed in
 """
 
+import base64
 import os
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, call, patch
 
 os.environ.setdefault("JWT_SECRET", "test-secret-key-for-tests")
 os.environ.setdefault("GOOGLE_SERVICE_ACCOUNT_JSON", '{"type":"service_account"}')
@@ -25,10 +28,12 @@ import pytest
 
 from api.models.meal import AnalyzeMealResponse, DetectedItem, MacroTotal
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+FAKE_JPEG = b"\xff\xd8\xff\xe0fake-jpeg-bytes"
+FAKE_PNG = b"\x89PNG\r\nfake-png-bytes"
 
 
 def _make_parse_result(title: str, confidence: str, items: list[dict]):
@@ -88,7 +93,7 @@ class TestAnalyzeMeal:
 
         with patch("api.services.meal_vision.get_async_client", return_value=_mock_client(completion)):
             from api.services.meal_vision import analyze_meal
-            result = await analyze_meal("https://drive.google.com/uc?id=abc", "https://drive.google.com/uc?id=abc")
+            result = await analyze_meal(FAKE_JPEG, "image/jpeg")
 
         assert isinstance(result, AnalyzeMealResponse)
         assert result.title == "Chicken rice bowl"
@@ -108,7 +113,7 @@ class TestAnalyzeMeal:
 
         with patch("api.services.meal_vision.get_async_client", return_value=_mock_client(completion)):
             from api.services.meal_vision import analyze_meal
-            result = await analyze_meal("https://example.com/img.jpg", "https://example.com/img.jpg")
+            result = await analyze_meal(FAKE_JPEG, "image/jpeg")
 
         assert result.total.calories == 300
         assert result.total.protein_g == pytest.approx(30.0, abs=0.1)
@@ -122,7 +127,7 @@ class TestAnalyzeMeal:
 
         with patch("api.services.meal_vision.get_async_client", return_value=_mock_client(completion)):
             from api.services.meal_vision import analyze_meal
-            result = await analyze_meal("https://example.com/bad.jpg", "https://example.com/bad.jpg")
+            result = await analyze_meal(FAKE_JPEG, "image/jpeg")
 
         assert result.detected == []
         assert result.total.calories == 0
@@ -145,11 +150,11 @@ class TestAnalyzeMeal:
         with patch("api.services.meal_vision.get_async_client", return_value=mock_client):
             from api.services.meal_vision import analyze_meal
             with pytest.raises(ValueError, match="no structured output"):
-                await analyze_meal("https://example.com/img.jpg", "https://example.com/img.jpg")
+                await analyze_meal(FAKE_JPEG, "image/jpeg")
 
     @pytest.mark.asyncio
     async def test_drive_url_preserved(self):
-        """drive_url is passed through unchanged to the response."""
+        """drive_url passed in is stored unchanged on the response."""
         completion = _make_parse_result("Salad", "med", [
             {"name": "Lettuce", "calories": 10, "protein_g": 1.0, "carbs_g": 2.0, "fat_g": 0.0},
         ])
@@ -157,23 +162,69 @@ class TestAnalyzeMeal:
 
         with patch("api.services.meal_vision.get_async_client", return_value=_mock_client(completion)):
             from api.services.meal_vision import analyze_meal
-            result = await analyze_meal(drive_url, drive_url)
+            result = await analyze_meal(FAKE_JPEG, "image/jpeg", drive_url)
 
         assert result.drive_url == drive_url
+
+    @pytest.mark.asyncio
+    async def test_drive_url_defaults_to_empty_string(self):
+        """drive_url defaults to '' when not supplied."""
+        completion = _make_parse_result("Snack", "med", [
+            {"name": "Apple", "calories": 80, "protein_g": 0.4, "carbs_g": 21.0, "fat_g": 0.2},
+        ])
+
+        with patch("api.services.meal_vision.get_async_client", return_value=_mock_client(completion)):
+            from api.services.meal_vision import analyze_meal
+            result = await analyze_meal(FAKE_JPEG, "image/jpeg")
+
+        assert result.drive_url == ""
 
     @pytest.mark.asyncio
     async def test_confidence_levels_mapped_per_item(self):
         """All three confidence levels are preserved per item."""
         items = [
             {"name": "Item high", "calories": 50, "protein_g": 5.0, "carbs_g": 0.0, "fat_g": 1.0, "confidence": "high"},
-            {"name": "Item med", "calories": 50, "protein_g": 5.0, "carbs_g": 0.0, "fat_g": 1.0, "confidence": "med"},
-            {"name": "Item low", "calories": 50, "protein_g": 5.0, "carbs_g": 0.0, "fat_g": 1.0, "confidence": "low"},
+            {"name": "Item med",  "calories": 50, "protein_g": 5.0, "carbs_g": 0.0, "fat_g": 1.0, "confidence": "med"},
+            {"name": "Item low",  "calories": 50, "protein_g": 5.0, "carbs_g": 0.0, "fat_g": 1.0, "confidence": "low"},
         ]
         completion = _make_parse_result("Mixed confidence", "med", items)
 
         with patch("api.services.meal_vision.get_async_client", return_value=_mock_client(completion)):
             from api.services.meal_vision import analyze_meal
-            result = await analyze_meal("https://example.com/img.jpg", "https://example.com/img.jpg")
+            result = await analyze_meal(FAKE_JPEG, "image/jpeg")
 
         levels = [it.confidence for it in result.detected]
         assert levels == ["high", "med", "low"]
+
+    @pytest.mark.asyncio
+    async def test_base64_data_url_sent_to_openai(self):
+        """OpenAI receives a base64 data URL built from the raw bytes."""
+        completion = _make_parse_result("Test", "med", [])
+        mock_client = _mock_client(completion)
+
+        with patch("api.services.meal_vision.get_async_client", return_value=mock_client):
+            from api.services.meal_vision import analyze_meal
+            await analyze_meal(FAKE_JPEG, "image/jpeg")
+
+        call_kwargs = mock_client.beta.chat.completions.parse.call_args
+        messages = call_kwargs.kwargs.get("messages") or call_kwargs.args[0] if call_kwargs.args else call_kwargs.kwargs["messages"]
+        user_content = next(m["content"] for m in messages if m["role"] == "user")
+        img_block = next(b for b in user_content if b["type"] == "image_url")
+        expected_b64 = base64.b64encode(FAKE_JPEG).decode()
+        assert img_block["image_url"]["url"] == f"data:image/jpeg;base64,{expected_b64}"
+
+    @pytest.mark.asyncio
+    async def test_png_mime_type_used_in_data_url(self):
+        """PNG bytes produce a data:image/png;base64,… URL."""
+        completion = _make_parse_result("Test", "med", [])
+        mock_client = _mock_client(completion)
+
+        with patch("api.services.meal_vision.get_async_client", return_value=mock_client):
+            from api.services.meal_vision import analyze_meal
+            await analyze_meal(FAKE_PNG, "image/png")
+
+        call_kwargs = mock_client.beta.chat.completions.parse.call_args
+        messages = call_kwargs.kwargs.get("messages") or call_kwargs.kwargs["messages"]
+        user_content = next(m["content"] for m in messages if m["role"] == "user")
+        img_block = next(b for b in user_content if b["type"] == "image_url")
+        assert img_block["image_url"]["url"].startswith("data:image/png;base64,")

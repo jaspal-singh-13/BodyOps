@@ -149,16 +149,16 @@ async def analyze_meal(
                 ],
             },
         ],
-        max_tokens=1024,
+        max_completion_tokens=1024,
     )
 
     elapsed_ms = (time.perf_counter() - t0) * 1000
     parsed = completion.choices[0].message.parsed
     if parsed is None:
         logger.warning(
-            "Vision model returned no structured output deployment=%s url=%s (%.0f ms)",
+            "Vision model returned no structured output deployment=%s mime=%s (%.0f ms)",
             deployment,
-            image_url,
+            mime_type,
             elapsed_ms,
         )
         raise ValueError(
