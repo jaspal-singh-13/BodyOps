@@ -101,7 +101,20 @@ export default function DashboardPage() {
       .catch(() => {});
 
     apiFetch<TrendData>("/weight/trend")
-      .then((t) => setProjectedDate(t.projected_goal_date))
+      .then((t) => {
+        const raw = t.projected_goal_date;
+        if (raw) {
+          const d = new Date(raw + "T00:00:00");
+          const formatted = d.toLocaleDateString("en-GB", {
+            day: "numeric",
+            month: "short",
+            year: "2-digit",
+          });
+          setProjectedDate(formatted);
+        } else {
+          setProjectedDate(null);
+        }
+      })
       .catch(() => {});
 
     apiFetch<TodayWorkout>("/workouts/today")
