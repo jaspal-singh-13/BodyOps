@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { CheckCircle2, Circle, Flame } from "lucide-react";
+import { CheckCircle2, Circle, Flame, Bell, ChevronDown, ChevronUp } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useRefresh } from "@/lib/refresh";
 
@@ -24,6 +24,71 @@ interface DailyMissions {
   total: number;
   completed: number;
   percentage: number;
+  streak: number;
+}
+
+interface ReminderConfig {
+  enabled: boolean;
+  time: string; // HH:MM 24-hour
+}
+
+interface Reminders {
+  weigh_in?: ReminderConfig;
+  meal_log?: ReminderConfig;
+  workout?: ReminderConfig;
+  check_in?: ReminderConfig;
+}
+
+const REMINDER_LABELS: Record<keyof Reminders, string> = {
+  weigh_in: "Morning weigh-in",
+  meal_log: "Meal logging",
+  workout: "Workout reminder",
+  check_in: "End-of-day check-in",
+};
+
+const DEFAULT_TIMES: Record<keyof Reminders, string> = {
+  weigh_in: "07:00",
+  meal_log: "12:00",
+  workout: "17:00",
+  check_in: "20:00",
+};
+
+// ---------------------------------------------------------------------------
+// Notification helpers
+// ---------------------------------------------------------------------------
+
+function getNotifPermission(): NotificationPermission | "unsupported" {
+  if (typeof window === "undefined" || !("Notification" in window)) return "unsupported";
+  return Notification.permission;
+}
+
+async function requestNotifPermission(): Promise<NotificationPermission | "unsupported"> {
+  if (typeof window === "undefined" || !("Notification" in window)) return "unsupported";
+  if (Notification.permission === "granted") return "granted";
+  return await Notification.requestPermission();
+}
+
+function scheduleNotification(label: string, timeStr: string) {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+
+  const [h, m] = timeStr.split(":").map(Number);
+  const now = new Date();
+  const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0);
+  const delay = target.getTime() - now.getTime();
+  if (delay <= 0) return; // Already passed today
+
+  setTimeout(() => {
+    new Notification("BodyOps", { body: `Time for: ${label}`, icon: "/icon-192.png" });
+  }, delay);
+}
+
+function scheduleAllReminders(reminders: Reminders) {
+  for (const [key, cfg] of Object.entries(reminders) as [keyof Reminders, ReminderConfig][]) {
+    if (cfg?.enabled) {
+      scheduleNotification(REMINDER_LABELS[key], cfg.time);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -31,10 +96,15 @@ interface DailyMissions {
 // ---------------------------------------------------------------------------
 
 export default function MissionsPage() {
-  const { notifyRefresh } = useRefresh();
+  const { triggerRefresh } = useRefresh();
   const [missions, setMissions] = useState<DailyMissions | null>(null);
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState<string | null>(null);
+
+  const [reminders, setReminders] = useState<Reminders>({});
+  const [remindersOpen, setRemindersOpen] = useState(false);
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission | "unsupported">("default");
+  const [savingReminders, setSavingReminders] = useState(false);
 
   const fetchMissions = useCallback(async () => {
     try {
@@ -47,9 +117,21 @@ export default function MissionsPage() {
     }
   }, []);
 
+  const fetchReminders = useCallback(async () => {
+    try {
+      const data = await apiFetch<Reminders>("/settings/reminders");
+      setReminders(data ?? {});
+      scheduleAllReminders(data ?? {});
+    } catch {
+      // silent
+    }
+  }, []);
+
   useEffect(() => {
     fetchMissions();
-  }, [fetchMissions]);
+    fetchReminders();
+    setNotifPermission(getNotifPermission());
+  }, [fetchMissions, fetchReminders]);
 
   async function handleComplete(taskId: string, date: string) {
     if (completing) return;
@@ -60,13 +142,55 @@ export default function MissionsPage() {
         body: JSON.stringify({ task_id: taskId, date }),
       });
       setMissions(updated);
-      notifyRefresh();
+      triggerRefresh();
     } catch {
       // silent
     } finally {
       setCompleting(null);
     }
   }
+
+  async function handleEnableNotifications() {
+    const perm = await requestNotifPermission();
+    setNotifPermission(perm);
+    if (perm === "granted") scheduleAllReminders(reminders);
+  }
+
+  function toggleReminder(key: keyof Reminders) {
+    setReminders((prev) => ({
+      ...prev,
+      [key]: {
+        enabled: !prev[key]?.enabled,
+        time: prev[key]?.time ?? DEFAULT_TIMES[key],
+      },
+    }));
+  }
+
+  function setTime(key: keyof Reminders, time: string) {
+    setReminders((prev) => ({
+      ...prev,
+      [key]: { enabled: prev[key]?.enabled ?? false, time },
+    }));
+  }
+
+  async function saveReminders() {
+    setSavingReminders(true);
+    try {
+      await apiFetch("/settings/reminders", {
+        method: "POST",
+        body: JSON.stringify(reminders),
+      });
+      if (notifPermission === "granted") scheduleAllReminders(reminders);
+    } catch {
+      // silent
+    } finally {
+      setSavingReminders(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
 
   if (loading) {
     return (
@@ -83,6 +207,7 @@ export default function MissionsPage() {
   });
 
   const allDone = missions ? missions.total > 0 && missions.completed === missions.total : false;
+  const streak = missions?.streak ?? 0;
 
   return (
     <div className="p-4 max-w-lg mx-auto flex flex-col gap-4">
@@ -103,8 +228,6 @@ export default function MissionsPage() {
               </p>
               <p className="text-zinc-500 text-sm">missions complete</p>
             </div>
-
-            {/* Progress ring */}
             <ProgressRing pct={missions.percentage} allDone={allDone} />
           </div>
 
@@ -122,8 +245,14 @@ export default function MissionsPage() {
           <Flame size={18} className="text-orange-500" />
         </div>
         <div>
-          <p className="text-[13.5px] font-bold text-zinc-900">0-day streak</p>
-          <p className="font-mono text-[10.5px] text-zinc-400">Complete all missions to build your streak</p>
+          <p className="text-[13.5px] font-bold text-zinc-900">
+            {streak === 0 ? "No streak yet" : `${streak}-day streak`}
+          </p>
+          <p className="font-mono text-[10.5px] text-zinc-400">
+            {streak === 0
+              ? "Complete all missions to start your streak"
+              : `${streak} consecutive day${streak === 1 ? "" : "s"} fully complete`}
+          </p>
         </div>
       </div>
 
@@ -176,6 +305,106 @@ export default function MissionsPage() {
           ))}
         </div>
       )}
+
+      {/* Reminders section */}
+      <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
+        {/* Collapsible header */}
+        <button
+          onClick={() => setRemindersOpen((o) => !o)}
+          className="w-full flex items-center justify-between p-4 hover:bg-zinc-50 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Bell size={15} className="text-zinc-500" />
+            <span className="text-[13.5px] font-semibold text-zinc-900">Reminders</span>
+            <span
+              className={`font-mono text-[10px] px-1.5 py-0.5 rounded-full ${
+                notifPermission === "granted"
+                  ? "bg-green-50 text-green-600"
+                  : notifPermission === "denied"
+                  ? "bg-red-50 text-red-500"
+                  : "bg-zinc-100 text-zinc-400"
+              }`}
+            >
+              {notifPermission === "granted"
+                ? "On"
+                : notifPermission === "denied"
+                ? "Blocked"
+                : notifPermission === "unsupported"
+                ? "Unsupported"
+                : "Off"}
+            </span>
+          </div>
+          {remindersOpen ? (
+            <ChevronUp size={15} className="text-zinc-400" />
+          ) : (
+            <ChevronDown size={15} className="text-zinc-400" />
+          )}
+        </button>
+
+        {remindersOpen && (
+          <div className="border-t border-zinc-100 p-4 flex flex-col gap-4">
+            {/* Permission button */}
+            {notifPermission !== "granted" && notifPermission !== "unsupported" && (
+              <button
+                onClick={handleEnableNotifications}
+                disabled={notifPermission === "denied"}
+                className="flex items-center gap-2 text-sm font-semibold text-white bg-zinc-900 rounded-xl px-4 py-2.5 hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Bell size={14} />
+                {notifPermission === "denied" ? "Notifications blocked in browser" : "Enable Notifications"}
+              </button>
+            )}
+            {notifPermission === "denied" && (
+              <p className="font-mono text-[10.5px] text-red-500">
+                Notifications are blocked. Enable them in your browser settings to use reminders.
+              </p>
+            )}
+
+            {/* Reminder toggles */}
+            <div className="flex flex-col gap-3">
+              {(Object.keys(REMINDER_LABELS) as (keyof Reminders)[]).map((key) => {
+                const cfg = reminders[key];
+                const enabled = cfg?.enabled ?? false;
+                const time = cfg?.time ?? DEFAULT_TIMES[key];
+                return (
+                  <div key={key} className="flex items-center gap-3">
+                    <button
+                      onClick={() => toggleReminder(key)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${
+                        enabled ? "bg-zinc-900" : "bg-zinc-200"
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 mt-0.5 rounded-full bg-white shadow transition-transform ${
+                          enabled ? "translate-x-4" : "translate-x-0.5"
+                        }`}
+                      />
+                    </button>
+                    <span className="flex-1 text-[13px] font-medium text-zinc-800">
+                      {REMINDER_LABELS[key]}
+                    </span>
+                    <input
+                      type="time"
+                      value={time}
+                      disabled={!enabled}
+                      onChange={(e) => setTime(key, e.target.value)}
+                      className="font-mono text-[12px] text-zinc-600 bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 disabled:opacity-40"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={saveReminders}
+              disabled={savingReminders}
+              className="btn-primary text-sm py-2.5 disabled:opacity-60"
+            >
+              {savingReminders ? "Saving…" : "Save reminders"}
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

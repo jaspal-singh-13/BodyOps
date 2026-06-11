@@ -91,7 +91,7 @@ def get_today_tasks(user_id: int, tz_str: str = "UTC") -> DailyStatusResponse:
     task_rows = _get_task_definitions(user_id)
     _ensure_daily_status(user_id, today, task_rows)
     status_rows = _read_daily_status(user_id, today)
-    return _build_response(today, task_rows, status_rows)
+    return _build_response(today, task_rows, status_rows, user_id)
 
 
 def complete_task(user_id: int, task_id: str, date: str) -> DailyStatusResponse:
@@ -136,7 +136,7 @@ def complete_task(user_id: int, task_id: str, date: str) -> DailyStatusResponse:
             break
 
     updated_status = _read_daily_status(user_id, date)
-    return _build_response(date, task_rows, updated_status)
+    return _build_response(date, task_rows, updated_status, user_id)
 
 
 def auto_complete_task(user_id: int, task_type: str, date: str) -> None:
@@ -354,10 +354,62 @@ def _read_daily_status(user_id: int, date: str) -> list[dict]:
     ]
 
 
+def _compute_streak(user_id: int, today: str) -> int:
+    """
+    Count consecutive fully-complete days ending on or before ``today``.
+
+    Scans all ``DailyTaskStatus`` rows for the user. A day counts toward the
+    streak only if every task scheduled for that day was completed. Days with
+    zero tasks are not counted. The streak walks backwards from yesterday (or
+    today if today is already fully complete) until a gap is found.
+
+    Args:
+        user_id: Authenticated user's integer ID.
+        today: Today's date string (``YYYY-MM-DD``), used as the end bound.
+
+    Returns:
+        Integer streak count, 0 if no consecutive complete days exist.
+    """
+    try:
+        rows = read_rows(DAILY_STATUS_TAB)
+    except gspread.exceptions.WorksheetNotFound:
+        return 0
+
+    user_rows = [r for r in rows if int(r.get("user_id", -1)) == user_id]
+    if not user_rows:
+        return 0
+
+    # Group by date: {date -> {total, completed}}
+    by_date: dict[str, dict] = {}
+    for r in user_rows:
+        d = r.get("date", "")
+        if not d:
+            continue
+        entry = by_date.setdefault(d, {"total": 0, "completed": 0})
+        entry["total"] += 1
+        if r.get("completed") == "TRUE":
+            entry["completed"] += 1
+
+    # Walk backwards from today, counting consecutive complete days
+    from datetime import timedelta
+    streak = 0
+    check = date_type.fromisoformat(today)
+    while True:
+        key = check.isoformat()
+        day = by_date.get(key)
+        if day is None or day["total"] == 0 or day["completed"] < day["total"]:
+            break
+        streak += 1
+        check -= timedelta(days=1)
+
+    return streak
+
+
 def _build_response(
     date: str,
     task_rows: list[dict],
     status_rows: list[dict],
+    user_id: int | None = None,
 ) -> DailyStatusResponse:
     """Combine task definitions with daily status rows into a response object."""
     status_by_task_id = {r["task_id"]: r for r in status_rows if r.get("task_id")}
@@ -385,6 +437,7 @@ def _build_response(
     total = len(tasks)
     completed_count = sum(1 for t in tasks if t.completed)
     percentage = round((completed_count / total * 100) if total > 0 else 0.0, 1)
+    streak = _compute_streak(user_id, date) if user_id is not None else 0
 
     return DailyStatusResponse(
         date=date,
@@ -392,6 +445,7 @@ def _build_response(
         total=total,
         completed=completed_count,
         percentage=percentage,
+        streak=streak,
     )
 
 

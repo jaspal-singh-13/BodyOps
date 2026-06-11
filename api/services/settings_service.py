@@ -141,3 +141,64 @@ def save_settings(user_id: int, data: SettingsCreate) -> SettingsResponse:
 
     _cache_invalidate(user_id)
     return SettingsResponse(**row_dict)
+
+
+def get_reminders(user_id: int) -> dict:
+    """
+    Return the user's reminder configuration as a parsed dict.
+
+    Reads ``reminders_json`` from the Settings row. Returns an empty dict
+    if the field is missing, empty, or unparseable.
+
+    Args:
+        user_id: Authenticated user's integer ID.
+
+    Returns:
+        Dict parsed from ``reminders_json``, e.g.
+        ``{"weigh_in": {"enabled": true, "time": "07:00"}}``.
+    """
+    import json as _json
+    settings = get_settings(user_id)
+    if settings is None:
+        return {}
+    try:
+        return _json.loads(settings.reminders_json or "{}")
+    except Exception:
+        return {}
+
+
+def save_reminders(user_id: int, reminders: dict) -> dict:
+    """
+    Persist the user's reminder configuration to the ``reminders_json`` field.
+
+    Reads the existing settings row, updates only ``reminders_json``, and
+    writes back via ``update_row``. Does not touch other settings fields.
+    Invalidates the settings cache after writing.
+
+    Args:
+        user_id: Authenticated user's integer ID.
+        reminders: Dict to serialise and store (e.g. reminder toggles + times).
+
+    Returns:
+        The saved reminders dict (same as input).
+
+    Raises:
+        ValueError: If no settings row exists for the user.
+    """
+    import json as _json
+
+    try:
+        result = find_row(SETTINGS_TAB, "user_id", str(user_id))
+    except gspread.exceptions.WorksheetNotFound:
+        raise ValueError("Settings not found — complete onboarding first")
+
+    if result is None:
+        raise ValueError("Settings not found — complete onboarding first")
+
+    row_index, existing_row = result
+    existing_row["reminders_json"] = _json.dumps(reminders)
+    existing_row["updated_at"] = datetime.now(timezone.utc).isoformat()
+    update_row(SETTINGS_TAB, row_index, existing_row)
+    _cache_invalidate(user_id)
+    logger.info("Saved reminders for user_id=%s", user_id)
+    return reminders

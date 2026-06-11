@@ -48,6 +48,7 @@ class DailyStatusResponse(BaseModel):
         total: Total number of tasks for the day.
         completed: Number of completed tasks.
         percentage: Completion percentage (0–100, rounded to 1 decimal).
+        streak: Number of consecutive fully-complete days ending today (or yesterday).
     """
 
     date: str
@@ -55,6 +56,7 @@ class DailyStatusResponse(BaseModel):
     total: int
     completed: int
     percentage: float
+    streak: int = 0
 
 
 class CompleteTaskRequest(BaseModel):

@@ -77,6 +77,7 @@ interface DailyMissions {
   total: number;
   completed: number;
   percentage: number;
+  streak: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -312,7 +313,7 @@ function MissionsStrip({ missions }: { missions: DailyMissions | null }) {
             </p>
             <span className="inline-flex items-center gap-1 font-mono text-[10px] font-bold text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded-full">
               <Flame size={9} />
-              0d streak
+              {missions.streak}d streak
             </span>
           </div>
           <ChevronRight size={15} className="text-zinc-300" />
