@@ -13,6 +13,10 @@ Limitations:
 
 from pydantic_ai.messages import ModelMessage
 
+from ..logger import get_logger
+
+logger = get_logger("agent.history")
+
 _sessions: dict[str, list[ModelMessage]] = {}
 
 
@@ -27,7 +31,9 @@ def get_session(session_id: str) -> list[ModelMessage]:
         List of ``ModelMessage`` objects for the session, or an empty list if
         the session has not been seen before.
     """
-    return _sessions.get(session_id, [])
+    history = _sessions.get(session_id, [])
+    logger.debug("Session get session_id=%s messages=%d", session_id, len(history))
+    return history
 
 
 def update_session(session_id: str, new_messages: list[ModelMessage]) -> None:
@@ -44,6 +50,12 @@ def update_session(session_id: str, new_messages: list[ModelMessage]) -> None:
     """
     existing = _sessions.setdefault(session_id, [])
     existing.extend(new_messages)
+    logger.debug(
+        "Session update session_id=%s added=%d total=%d",
+        session_id,
+        len(new_messages),
+        len(existing),
+    )
 
 
 def clear_all_sessions() -> None:
@@ -53,4 +65,6 @@ def clear_all_sessions() -> None:
     Called by ``DELETE /agent/history``. Does not flush to the Chat History
     Sheet — that is handled separately by the API router.
     """
+    session_count = len(_sessions)
     _sessions.clear()
+    logger.info("Session store cleared sessions=%d", session_count)

@@ -21,6 +21,10 @@ import os
 import gspread
 from google.oauth2.service_account import Credentials
 
+from ..logger import get_logger
+
+logger = get_logger("sheets_client")
+
 # Module-level singletons
 _client: gspread.Client | None = None
 _spreadsheet: gspread.Spreadsheet | None = None
@@ -52,6 +56,7 @@ def get_client() -> gspread.Client:
         creds_dict = json.loads(creds_json)
         creds = Credentials.from_service_account_info(creds_dict, scopes=SCOPES)
         _client = gspread.authorize(creds)
+        logger.info("Sheets client: authorized (service_account=%s)", creds_dict.get("client_email", "?"))
     return _client
 
 
@@ -59,7 +64,9 @@ def _get_spreadsheet() -> gspread.Spreadsheet:
     """Return the cached main Spreadsheet, opening it once on first access."""
     global _spreadsheet
     if _spreadsheet is None:
-        _spreadsheet = get_client().open_by_key(os.environ["GOOGLE_SPREADSHEET_ID"])
+        sheet_id = os.environ["GOOGLE_SPREADSHEET_ID"]
+        _spreadsheet = get_client().open_by_key(sheet_id)
+        logger.info("Sheets: opened main spreadsheet id=%s title=%r", sheet_id, _spreadsheet.title)
     return _spreadsheet
 
 
@@ -100,7 +107,9 @@ def get_worksheet(name: str) -> gspread.Worksheet:
         gspread.exceptions.WorksheetNotFound: If no tab with that name exists.
     """
     if name not in _worksheet_cache:
+        logger.debug("Sheets: worksheet cache miss — opening tab=%r", name)
         _worksheet_cache[name] = _get_spreadsheet().worksheet(name)
+        logger.info("Sheets: worksheet tab=%r opened and cached", name)
     return _worksheet_cache[name]
 
 

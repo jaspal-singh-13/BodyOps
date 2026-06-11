@@ -17,12 +17,16 @@ Required env vars (inherited from llm.py):
 from __future__ import annotations
 
 import os
+import time
 from typing import Literal
 
 from pydantic import BaseModel
 
 from ..agent.llm import get_async_client
+from ..logger import get_logger
 from ..models.meal import AnalyzeMealResponse, DetectedItem, MacroTotal
+
+logger = get_logger("services.meal_vision")
 
 
 # ---------------------------------------------------------------------------
@@ -109,6 +113,10 @@ async def analyze_meal(image_url: str, drive_url: str) -> AnalyzeMealResponse:
         ValueError: If the model returns an empty or unparseable response.
         openai.APIError: On OpenAI / Azure API failure.
     """
+    deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "?")
+    logger.info("Vision analysis start deployment=%s url=%s", deployment, image_url)
+    t0 = time.perf_counter()
+
     client = get_async_client()
 
     completion = await client.beta.chat.completions.parse(
@@ -133,8 +141,15 @@ async def analyze_meal(image_url: str, drive_url: str) -> AnalyzeMealResponse:
         max_tokens=1024,
     )
 
+    elapsed_ms = (time.perf_counter() - t0) * 1000
     parsed = completion.choices[0].message.parsed
     if parsed is None:
+        logger.warning(
+            "Vision model returned no structured output deployment=%s url=%s (%.0f ms)",
+            deployment,
+            image_url,
+            elapsed_ms,
+        )
         raise ValueError(
             "Vision model returned no structured output — image may be unprocessable."
         )
@@ -157,6 +172,15 @@ async def analyze_meal(image_url: str, drive_url: str) -> AnalyzeMealResponse:
         protein_g=round(sum(it.protein_g for it in detected), 1),
         carbs_g=round(sum(it.carbs_g for it in detected), 1),
         fat_g=round(sum(it.fat_g for it in detected), 1),
+    )
+
+    logger.info(
+        "Vision analysis done deployment=%s items=%d confidence=%s total_cal=%d (%.0f ms)",
+        deployment,
+        len(detected),
+        parsed.overall_confidence,
+        total.calories,
+        elapsed_ms,
     )
 
     return AnalyzeMealResponse(

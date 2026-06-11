@@ -15,10 +15,15 @@ The actual work is delegated to injected callables on ``AgentDeps`` so this
 module has zero imports from ``api.*``.
 """
 
+import time
+
 from pydantic_ai import RunContext
 
+from ..logger import get_logger
 from .agent import agent
 from .deps import AgentDeps
+
+logger = get_logger("agent.tools")
 
 
 @agent.tool
@@ -35,12 +40,15 @@ async def log_weight(ctx: RunContext[AgentDeps], date: str, weight_kg: float) ->
         Serialised ``WeightEntryResponse`` dict with ``date``, ``weight_kg``,
         ``user_id``, and ``logged_at`` fields.
     """
+    logger.debug("tool=log_weight date=%s weight_kg=%s", date, weight_kg)
     await ctx.deps.event_queue.put({
         "type": "tool_call",
         "tool": "log_weight",
         "args": {"date": date, "weight_kg": weight_kg},
     })
+    t0 = time.perf_counter()
     result = ctx.deps.weight_logger(date, weight_kg)
+    logger.debug("tool=log_weight done (%.0f ms)", (time.perf_counter() - t0) * 1000)
     await ctx.deps.event_queue.put({
         "type": "tool_result",
         "tool": "log_weight",
@@ -65,8 +73,11 @@ async def get_weight_trend(ctx: RunContext[AgentDeps]) -> dict:
         ``{date, weight_kg, ma_7}`` points), ``total_loss_kg``, and
         ``projected_goal_date`` (ISO string or ``null``).
     """
+    logger.debug("tool=get_weight_trend")
     await ctx.deps.event_queue.put({"type": "tool_call", "tool": "get_weight_trend", "args": {}})
+    t0 = time.perf_counter()
     result = ctx.deps.trend_getter()
+    logger.debug("tool=get_weight_trend done (%.0f ms)", (time.perf_counter() - t0) * 1000)
     await ctx.deps.event_queue.put({
         "type": "tool_result",
         "tool": "get_weight_trend",
@@ -92,8 +103,11 @@ async def get_today_workout(ctx: RunContext[AgentDeps]) -> dict:
         Serialised ``TodayWorkoutResponse`` dict including ``day_name``,
         ``is_rest_day``, and ``exercises`` with per-exercise suggestions.
     """
+    logger.debug("tool=get_today_workout")
     await ctx.deps.event_queue.put({"type": "tool_call", "tool": "get_today_workout", "args": {}})
+    t0 = time.perf_counter()
     result = ctx.deps.today_workout_getter()
+    logger.debug("tool=get_today_workout done (%.0f ms)", (time.perf_counter() - t0) * 1000)
     await ctx.deps.event_queue.put({"type": "tool_result", "tool": "get_today_workout", "result": result})
     return result
 
@@ -118,12 +132,15 @@ async def log_workout_set(
         Serialised ``LogSetResponse`` dict with ``set_number``, ``logged_at``,
         and ``suggestion`` for the next set/session.
     """
+    logger.debug("tool=log_workout_set exercise=%s weight_kg=%s reps=%s", exercise_name, weight_kg, reps)
     await ctx.deps.event_queue.put({
         "type": "tool_call",
         "tool": "log_workout_set",
         "args": {"exercise_name": exercise_name, "weight_kg": weight_kg, "reps": reps},
     })
+    t0 = time.perf_counter()
     result = ctx.deps.set_logger(exercise_name, weight_kg, reps)
+    logger.debug("tool=log_workout_set done (%.0f ms)", (time.perf_counter() - t0) * 1000)
     await ctx.deps.event_queue.put({"type": "tool_result", "tool": "log_workout_set", "result": result})
     return result
 
@@ -141,12 +158,15 @@ async def get_progression_target(ctx: RunContext[AgentDeps], exercise_name: str)
         Serialised ``ExerciseProgressionResponse`` dict with ``last_5_sessions``
         history and a ``suggestion`` (weight_kg, reps, note).
     """
+    logger.debug("tool=get_progression_target exercise=%s", exercise_name)
     await ctx.deps.event_queue.put({
         "type": "tool_call",
         "tool": "get_progression_target",
         "args": {"exercise_name": exercise_name},
     })
+    t0 = time.perf_counter()
     result = ctx.deps.progression_getter(exercise_name)
+    logger.debug("tool=get_progression_target done (%.0f ms)", (time.perf_counter() - t0) * 1000)
     await ctx.deps.event_queue.put({"type": "tool_result", "tool": "get_progression_target", "result": result})
     return result
 
@@ -168,8 +188,11 @@ async def get_daily_nutrition(ctx: RunContext[AgentDeps]) -> dict:
         Serialised ``DailyNutrition`` dict with consumed calories, protein,
         carbs, fat and their corresponding daily targets from Settings.
     """
+    logger.debug("tool=get_daily_nutrition")
     await ctx.deps.event_queue.put({"type": "tool_call", "tool": "get_daily_nutrition", "args": {}})
+    t0 = time.perf_counter()
     result = ctx.deps.nutrition_getter()
+    logger.debug("tool=get_daily_nutrition done (%.0f ms)", (time.perf_counter() - t0) * 1000)
     await ctx.deps.event_queue.put({"type": "tool_result", "tool": "get_daily_nutrition", "result": result})
     return result
 
@@ -197,12 +220,15 @@ async def save_meal(
         Serialised ``SavedMealResponse`` with the meal ID and updated
         ``daily_nutrition`` totals.
     """
+    logger.debug("tool=save_meal meal_type=%s items=%d", meal_type, len(items))
     await ctx.deps.event_queue.put({
         "type": "tool_call",
         "tool": "save_meal",
         "args": {"meal_type": meal_type, "items": items},
     })
+    t0 = time.perf_counter()
     result = await ctx.deps.meal_saver(meal_type, items)
+    logger.debug("tool=save_meal done (%.0f ms)", (time.perf_counter() - t0) * 1000)
     await ctx.deps.event_queue.put({"type": "tool_result", "tool": "save_meal", "result": result})
     return result
 
@@ -223,12 +249,15 @@ async def analyze_meal_photo(ctx: RunContext[AgentDeps], image_url: str) -> dict
     Returns:
         Serialised ``AnalyzeMealResponse`` with ``detected`` items and totals.
     """
+    logger.debug("tool=analyze_meal_photo url=%s", image_url)
     await ctx.deps.event_queue.put({
         "type": "tool_call",
         "tool": "analyze_meal_photo",
         "args": {"image_url": image_url},
     })
+    t0 = time.perf_counter()
     result = await ctx.deps.meal_analyzer(image_url)
+    logger.debug("tool=analyze_meal_photo done (%.0f ms)", (time.perf_counter() - t0) * 1000)
     await ctx.deps.event_queue.put({"type": "tool_result", "tool": "analyze_meal_photo", "result": result})
     return result
 
@@ -251,8 +280,11 @@ async def get_task_status(ctx: RunContext[AgentDeps]) -> dict:
         (each with ``name``, ``completed``, ``completed_at``), ``total``,
         ``completed`` count, and ``percentage``.
     """
+    logger.debug("tool=get_task_status")
     await ctx.deps.event_queue.put({"type": "tool_call", "tool": "get_task_status", "args": {}})
+    t0 = time.perf_counter()
     result = ctx.deps.task_status_getter()
+    logger.debug("tool=get_task_status done (%.0f ms)", (time.perf_counter() - t0) * 1000)
     await ctx.deps.event_queue.put({"type": "tool_result", "tool": "get_task_status", "result": result})
     return result
 
@@ -272,12 +304,15 @@ async def complete_task(ctx: RunContext[AgentDeps], task_id: str) -> dict:
     Returns:
         Updated ``DailyStatusResponse`` dict after marking the task complete.
     """
+    logger.debug("tool=complete_task task_id=%s", task_id)
     await ctx.deps.event_queue.put({
         "type": "tool_call",
         "tool": "complete_task",
         "args": {"task_id": task_id},
     })
+    t0 = time.perf_counter()
     result = ctx.deps.task_completer(task_id)
+    logger.debug("tool=complete_task done (%.0f ms)", (time.perf_counter() - t0) * 1000)
     await ctx.deps.event_queue.put({"type": "tool_result", "tool": "complete_task", "result": result})
     return result
 
@@ -305,12 +340,15 @@ async def import_workout_from_text(
         Serialised ``WorkoutImportResponse`` dict with program/rest day counts
         and the list of imported days.
     """
+    logger.debug("tool=import_workout_from_text program=%r text_len=%d", program_name, len(raw_text))
     await ctx.deps.event_queue.put({
         "type": "tool_call",
         "tool": "import_workout_from_text",
         "args": {"program_name": program_name, "raw_text": raw_text},
     })
+    t0 = time.perf_counter()
     result = await ctx.deps.workout_importer(raw_text, program_name)
+    logger.debug("tool=import_workout_from_text done (%.0f ms)", (time.perf_counter() - t0) * 1000)
     await ctx.deps.event_queue.put({
         "type": "tool_result",
         "tool": "import_workout_from_text",
@@ -335,8 +373,11 @@ async def list_workout_plans(ctx: RunContext[AgentDeps]) -> dict:
         Dict with a ``plans`` list, each item having ``plan_name``,
         ``is_active``, ``day_count``, and ``exercise_count``.
     """
+    logger.debug("tool=list_workout_plans")
     await ctx.deps.event_queue.put({"type": "tool_call", "tool": "list_workout_plans", "args": {}})
+    t0 = time.perf_counter()
     result = ctx.deps.plans_lister()
+    logger.debug("tool=list_workout_plans done (%.0f ms)", (time.perf_counter() - t0) * 1000)
     await ctx.deps.event_queue.put({"type": "tool_result", "tool": "list_workout_plans", "result": result})
     return result
 
@@ -362,11 +403,14 @@ async def switch_workout_plan(ctx: RunContext[AgentDeps], plan_name: str) -> dic
         ``{"activated": True, "plan_name": "..."}`` on success, or
         ``{"error": "...", "available_plans": [...]}`` if not found.
     """
+    logger.debug("tool=switch_workout_plan plan_name=%r", plan_name)
     await ctx.deps.event_queue.put({
         "type": "tool_call",
         "tool": "switch_workout_plan",
         "args": {"plan_name": plan_name},
     })
+    t0 = time.perf_counter()
     result = ctx.deps.plan_switcher(plan_name)
+    logger.debug("tool=switch_workout_plan done (%.0f ms)", (time.perf_counter() - t0) * 1000)
     await ctx.deps.event_queue.put({"type": "tool_result", "tool": "switch_workout_plan", "result": result})
     return result

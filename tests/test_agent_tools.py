@@ -39,6 +39,8 @@ def _make_deps(
     set_logger=None,
     progression_getter=None,
     workout_importer=None,
+    plans_lister=None,
+    plan_switcher=None,
 ) -> AgentDeps:
     """
     Build an ``AgentDeps`` instance with mock service callables.
@@ -52,6 +54,8 @@ def _make_deps(
         set_logger: Optional mock for workout set logging.
         progression_getter: Optional mock for progression data.
         workout_importer: Optional async mock for AI workout import.
+        plans_lister: Optional mock for listing workout plans.
+        plan_switcher: Optional mock for switching workout plans.
 
     Returns:
         ``AgentDeps`` ready to be passed to a tool via a mock ``RunContext``.
@@ -65,6 +69,8 @@ def _make_deps(
         set_logger=set_logger or MagicMock(return_value={"session_id": "1-2026-06-08", "set_number": 1}),
         progression_getter=progression_getter or MagicMock(return_value={"exercise_name": "Bench Press", "last_5_sessions": [], "suggestion": {"weight_kg": None, "reps": None, "note": "first session"}}),
         workout_importer=workout_importer or AsyncMock(return_value={}),
+        plans_lister=plans_lister or MagicMock(return_value={"plans": []}),
+        plan_switcher=plan_switcher or MagicMock(return_value={"activated": True, "plan_name": "Test"}),
         nutrition_getter=MagicMock(return_value={"calories": 0, "meals_count": 0}),
         meal_saver=AsyncMock(return_value={"meal_id": "test-id"}),
         meal_analyzer=AsyncMock(return_value={"title": "Test", "detected": []}),

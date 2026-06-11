@@ -14,11 +14,15 @@ Functions:
     _col_letter      — convert a 1-based column number to a spreadsheet letter.
 """
 
+import time
 from typing import Any
 
 import gspread
 
+from ..logger import get_logger
 from .sheets_client import get_worksheet
+
+logger = get_logger("sheets_repo")
 
 # Per-tab header cache: populated on the first write to each tab and reused
 # for all subsequent append_row / update_row calls, saving one row_values(1)
@@ -29,7 +33,9 @@ _header_cache: dict[str, list[str]] = {}
 def _get_headers(ws: gspread.Worksheet, tab: str) -> list[str]:
     """Return cached header row for the given tab, fetching once if needed."""
     if tab not in _header_cache:
+        logger.debug("Sheets: header cache miss — fetching tab=%r", tab)
         _header_cache[tab] = ws.row_values(1)
+        logger.debug("Sheets: headers cached tab=%r cols=%d", tab, len(_header_cache[tab]))
     return _header_cache[tab]
 
 
@@ -49,7 +55,11 @@ def read_rows(tab: str) -> list[dict[str, Any]]:
     Raises:
         gspread.exceptions.WorksheetNotFound: If the tab does not exist.
     """
-    return get_worksheet(tab).get_all_records()
+    t0 = time.perf_counter()
+    rows = get_worksheet(tab).get_all_records()
+    elapsed_ms = (time.perf_counter() - t0) * 1000
+    logger.debug("Sheets read tab=%r rows=%d (%.0f ms)", tab, len(rows), elapsed_ms)
+    return rows
 
 
 def append_row(tab: str, row: dict[str, Any]) -> None:
@@ -75,7 +85,10 @@ def append_row(tab: str, row: dict[str, Any]) -> None:
         ws.append_row(headers, value_input_option="USER_ENTERED")
         _header_cache[tab] = headers
     values = [row.get(h, "") for h in headers]
+    t0 = time.perf_counter()
     ws.append_row(values, value_input_option="RAW")
+    elapsed_ms = (time.perf_counter() - t0) * 1000
+    logger.debug("Sheets append tab=%r (%.0f ms)", tab, elapsed_ms)
 
 
 def append_rows_batch(tab: str, rows: list[dict[str, Any]]) -> None:
@@ -100,7 +113,10 @@ def append_rows_batch(tab: str, rows: list[dict[str, Any]]) -> None:
         ws.append_row(headers, value_input_option="USER_ENTERED")
         _header_cache[tab] = headers
     values = [[row.get(h, "") for h in headers] for row in rows]
+    t0 = time.perf_counter()
     ws.append_rows(values, value_input_option="RAW")
+    elapsed_ms = (time.perf_counter() - t0) * 1000
+    logger.debug("Sheets batch-append tab=%r rows=%d (%.0f ms)", tab, len(rows), elapsed_ms)
 
 
 def update_row(tab: str, row_index: int, row: dict[str, Any]) -> None:
@@ -119,7 +135,10 @@ def update_row(tab: str, row_index: int, row: dict[str, Any]) -> None:
     ws = get_worksheet(tab)
     headers = _get_headers(ws, tab)
     values = [row.get(h, "") for h in headers]
+    t0 = time.perf_counter()
     ws.update(f"A{row_index}:{_col_letter(len(headers))}{row_index}", [values], value_input_option="RAW")
+    elapsed_ms = (time.perf_counter() - t0) * 1000
+    logger.debug("Sheets update tab=%r row=%d (%.0f ms)", tab, row_index, elapsed_ms)
 
 
 def find_row(tab: str, column: str, value: str) -> tuple[int, dict[str, Any]] | None:
@@ -138,11 +157,16 @@ def find_row(tab: str, column: str, value: str) -> tuple[int, dict[str, Any]] | 
         ``(row_index, record)`` tuple where ``row_index`` is 1-based, or
         ``None`` if no matching row is found.
     """
+    t0 = time.perf_counter()
     ws = get_worksheet(tab)
     records = ws.get_all_records()
     for i, record in enumerate(records):
         if str(record.get(column, "")) == str(value):
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            logger.debug("Sheets find tab=%r col=%r -> row %d (%.0f ms)", tab, column, i + 2, elapsed_ms)
             return i + 2, record  # +2: skip header row and convert to 1-based
+    elapsed_ms = (time.perf_counter() - t0) * 1000
+    logger.debug("Sheets find tab=%r col=%r -> not found (%.0f ms)", tab, column, elapsed_ms)
     return None
 
 

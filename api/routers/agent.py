@@ -32,10 +32,15 @@ package remains free of any ``api.*`` imports.
 
 import asyncio
 import json
+import time
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+
+from ..logger import get_logger
+
+logger = get_logger("routers.agent")
 
 # noqa: F401 — importing tools triggers @agent.tool decorator registration
 from ..agent import tools  # noqa: F401
@@ -250,16 +255,27 @@ async def _run_agent_to_queue(
         deps: Injected ``AgentDeps`` containing the queue and service callables.
         session_id: Session ID used to persist new messages to history store.
     """
+    t0 = time.perf_counter()
     try:
         async with agent.run_stream(message, message_history=history, deps=deps) as result:
             async for chunk in result.stream_text(delta=True):
                 await deps.event_queue.put({"type": "text", "content": chunk})
-            # Persist the full exchange so future turns have context
-            update_session(session_id, result.new_messages())
+            new_msgs = result.new_messages()
+            update_session(session_id, new_msgs)
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            logger.info(
+                "Agent run complete session_id=%s new_messages=%d (%.0f ms)",
+                session_id,
+                len(new_msgs),
+                elapsed_ms,
+            )
     except Exception as e:
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        logger.exception(
+            "Agent run failed session_id=%s (%.0f ms): %s", session_id, elapsed_ms, e
+        )
         await deps.event_queue.put({"type": "error", "message": str(e)})
     finally:
-        # Sentinel: tells _sse_generator the stream is finished
         await deps.event_queue.put(None)
 
 
@@ -284,6 +300,13 @@ async def _sse_generator(message: str, session_id: str, user_id: int):
     """
     queue: asyncio.Queue = asyncio.Queue()
     history = get_session(session_id)
+    logger.info(
+        "SSE stream start user_id=%s session_id=%s msg_len=%d history=%d",
+        user_id,
+        session_id,
+        len(message),
+        len(history),
+    )
     deps = AgentDeps(
         user_id=user_id,
         event_queue=queue,
@@ -304,16 +327,25 @@ async def _sse_generator(message: str, session_id: str, user_id: int):
 
     # Run agent in background so this generator can yield events as they arrive
     task = asyncio.create_task(_run_agent_to_queue(message, history, deps, session_id))
+    t0 = time.perf_counter()
+    event_count = 0
 
     while True:
         event = await queue.get()
         if event is None:
-            # Sentinel received — stream is complete
+            elapsed_ms = (time.perf_counter() - t0) * 1000
+            logger.info(
+                "SSE stream done user_id=%s session_id=%s events=%d (%.0f ms)",
+                user_id,
+                session_id,
+                event_count,
+                elapsed_ms,
+            )
             yield f"data: {json.dumps({'type': 'done'})}\n\n"
             break
+        event_count += 1
         yield f"data: {json.dumps(event)}\n\n"
 
-    # Ensure background task is fully cleaned up before the response closes
     await task
 
 
@@ -356,4 +388,5 @@ async def clear_history_endpoint(user_id: int = Depends(get_current_user)):
     Returns:
         HTTP 204 No Content on success.
     """
+    logger.info("Agent history cleared by user_id=%s", user_id)
     clear_all_sessions()

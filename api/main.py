@@ -15,18 +15,20 @@ Routers mounted:
 
 import asyncio
 import os
+import time
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
+from uuid import uuid4
 
 from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from .auth import LoginRequest, TokenResponse, login
-from .logger import get_logger
+from .logger import get_logger, request_id_var
 from .routers.agent import router as agent_router
 from .routers.meals import router as meals_router
 from .routers.settings import router as settings_router
@@ -51,7 +53,7 @@ REQUIRED_ENV_VARS = [
 # so we log a warning rather than blocking startup.
 AGENT_ENV_VARS = ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_DEPLOYMENT"]
 
-VERSION = "0.16.1"
+VERSION = "0.17.0"
 
 
 @asynccontextmanager
@@ -84,8 +86,8 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         get_main_sheet()
         sheets_ok = True
-    except Exception as e:
-        logger.error("Google Sheets: FAILED — %s", e)
+    except Exception:
+        logger.exception("Google Sheets: FAILED")
 
     logger.info(
         "Health: { ok: %s, sheets: %s, drive: %s }",
@@ -97,8 +99,8 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         await asyncio.to_thread(load_credentials)
         logger.info("Credentials cache: warmed")
-    except Exception as e:
-        logger.warning("Could not pre-warm credentials cache: %s", e)
+    except Exception:
+        logger.exception("Could not pre-warm credentials cache")
 
     asyncio.create_task(poll_credentials(interval=60))
     logger.info("Credentials poller: started (interval=60s)")
@@ -119,6 +121,50 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ---------------------------------------------------------------------------
+# Request logging middleware
+# ---------------------------------------------------------------------------
+
+_SKIP_LOG_PATHS = {"/health", "/"}
+
+_SLOW_REQUEST_THRESHOLD_S = 2.0
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """
+    Log every HTTP request with method, path, status, and elapsed time.
+
+    Each request is stamped with an 8-character request ID that propagates
+    through all downstream log calls via ``request_id_var``.  Probe paths
+    (``/health``, ``/``) are skipped to avoid log spam.  Responses slower
+    than 2 s are logged at WARNING; 5xx responses are logged at ERROR.
+    """
+    path = request.url.path
+    if path in _SKIP_LOG_PATHS:
+        return await call_next(request)
+
+    req_id = uuid4().hex[:8]
+    request_id_var.set(req_id)
+
+    start = time.perf_counter()
+    response = await call_next(request)
+    elapsed_s = time.perf_counter() - start
+    elapsed_ms = elapsed_s * 1000
+
+    status = response.status_code
+    msg = "%s %s -> %d (%.1f ms)", request.method, path, status, elapsed_ms
+
+    if status >= 500:
+        logger.error(*msg)
+    elif elapsed_s >= _SLOW_REQUEST_THRESHOLD_S:
+        logger.warning("SLOW " + msg[0], *msg[1:])
+    else:
+        logger.info(*msg)
+
+    return response
+
 
 app.include_router(settings_router)
 app.include_router(weight_router)
