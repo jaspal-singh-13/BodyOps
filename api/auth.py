@@ -3,8 +3,8 @@ JWT creation/verification and login endpoint.
 
 Auth flow:
     1. Client POSTs ``{email, password}`` to ``/auth/login``.
-    2. ``login()`` reads the single credential row from the Auth Sheet.
-    3. Credentials are compared in plain text (owner-managed sheet, single user).
+    2. ``login()`` looks up the credential row matching the email in the Auth Sheet.
+    3. Credentials are compared in plain text (owner-managed sheet).
     4. On success, a signed JWT containing ``user_id`` is returned.
     5. Every protected route extracts ``user_id`` via the ``get_current_user``
        FastAPI dependency, which calls ``verify_jwt`` on the bearer token.
@@ -22,7 +22,7 @@ from jose import JWTError, jwt
 from pydantic import BaseModel
 
 from .logger import get_logger
-from .sheets.auth_sheet import get_credentials  # pure in-memory after startup
+from .sheets.auth_sheet import find_user  # pure in-memory after startup
 
 logger = get_logger("auth")
 
@@ -128,8 +128,8 @@ async def login(body: LoginRequest) -> TokenResponse:
     """
     Validate credentials against the Auth Sheet and return a JWT on success.
 
-    Reads the single credential row from the Google Sheets Auth Sheet via
-    ``get_credentials()``. Compares email and password in plain text.
+    Looks up the credential row matching the email (case-insensitive) via
+    ``find_user()``. Compares the password in plain text.
 
     Args:
         body: ``LoginRequest`` containing ``email`` and ``password``.
@@ -143,14 +143,14 @@ async def login(body: LoginRequest) -> TokenResponse:
     """
     logger.info("Login attempt: %s", body.email)
     try:
-        stored = get_credentials()
+        user = find_user(body.email)
     except Exception as e:
         logger.error("Auth Sheet read failed: %s", e)
         raise HTTPException(status_code=500, detail=f"Auth Sheet error: {e}")
 
-    if body.email != stored.get("email") or body.password != stored.get("password"):
+    if user is None or body.password != user["password"]:
         logger.warning("Login failed (bad credentials): %s", body.email)
         raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    logger.info("Login successful: %s (user_id=%s)", body.email, stored["user_id"])
-    return TokenResponse(access_token=create_jwt(body.email, stored["user_id"]))
+    logger.info("Login successful: %s (user_id=%s)", user["email"], user["user_id"])
+    return TokenResponse(access_token=create_jwt(user["email"], user["user_id"]))

@@ -2,9 +2,10 @@
 Credentials cache backed by the Auth Sheet.
 
 On startup ``load_credentials()`` is called once to populate the module-level
-cache.  A background asyncio task (started from ``main.py`` lifespan) calls
-``poll_credentials()`` every 60 seconds, compares the fetched row to the
-cached copy, and re-syncs only when something has actually changed.
+cache with all credential rows.  A background asyncio task (started from
+``main.py`` lifespan) calls ``poll_credentials()`` every 60 seconds, compares
+the fetched rows to the cached copy, and re-syncs only when something has
+actually changed.
 
 All login calls read from ``get_credentials()`` — a pure in-memory lookup
 with no I/O.
@@ -18,7 +19,7 @@ from .sheets_client import get_client
 
 logger = get_logger("auth_sheet")
 
-_credentials: dict | None = None
+_credentials: list[dict] | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -26,25 +27,35 @@ _credentials: dict | None = None
 # ---------------------------------------------------------------------------
 
 
-def _fetch_from_sheet() -> dict:
-    """Fetch the first credential row from the Auth Sheet (synchronous)."""
+def _fetch_from_sheet() -> list[dict]:
+    """Fetch all credential rows from the Auth Sheet (synchronous)."""
     sheet_id = os.environ["GOOGLE_AUTH_SHEET_ID"]
     spreadsheet = get_client().open_by_key(sheet_id)
     ws = spreadsheet.sheet1
     rows = ws.get_all_records()
     if not rows:
         raise ValueError("Auth Sheet has no data rows")
-    row = rows[0]
-    if "email" not in row or "password" not in row:
-        raise ValueError("Auth Sheet must have 'email' and 'password' columns")
-    return {
-        "user_id": int(row["user_id"]) if row.get("user_id") else 1,
-        "email": str(row["email"]),
-        "password": str(row["password"]),
-    }
+    users = []
+    for i, row in enumerate(rows):
+        if "email" not in row or "password" not in row:
+            raise ValueError("Auth Sheet must have 'email' and 'password' columns")
+        if not str(row["email"]).strip():
+            continue  # skip blank rows
+        users.append(
+            {
+                # Fall back to row position (1-based) so legacy single-row
+                # sheets without a user_id column keep user_id=1.
+                "user_id": int(row["user_id"]) if row.get("user_id") else i + 1,
+                "email": str(row["email"]).strip(),
+                "password": str(row["password"]),
+            }
+        )
+    if not users:
+        raise ValueError("Auth Sheet has no valid credential rows")
+    return users
 
 
-def _set_credentials(data: dict) -> None:
+def _set_credentials(data: list[dict]) -> None:
     global _credentials
     _credentials = data
 
@@ -62,12 +73,12 @@ def load_credentials() -> None:
     """
     data = _fetch_from_sheet()
     _set_credentials(data)
-    logger.info("Credentials cache: loaded (user_id=%s)", data.get("user_id"))
+    logger.info("Credentials cache: loaded (%d user(s))", len(data))
 
 
-def get_credentials() -> dict:
+def get_credentials() -> list[dict]:
     """
-    Return cached credentials — pure in-memory lookup, no I/O.
+    Return all cached credential rows — pure in-memory lookup, no I/O.
 
     Raises:
         RuntimeError: If called before ``load_credentials()`` has completed.
@@ -75,6 +86,19 @@ def get_credentials() -> dict:
     if _credentials is None:
         raise RuntimeError("Credentials not yet loaded — call load_credentials() at startup")
     return _credentials
+
+
+def find_user(email: str) -> dict | None:
+    """
+    Return the credential row matching ``email`` (case-insensitive), or None.
+
+    Raises:
+        RuntimeError: If called before ``load_credentials()`` has completed.
+    """
+    for user in get_credentials():
+        if user["email"].lower() == email.strip().lower():
+            return user
+    return None
 
 
 async def poll_credentials(interval: int = 60) -> None:
@@ -95,8 +119,8 @@ async def poll_credentials(interval: int = 60) -> None:
             if fresh != _credentials:
                 _set_credentials(fresh)
                 logger.warning(
-                    "Credentials changed in Auth Sheet — cache re-synced (user_id=%s)",
-                    fresh.get("user_id"),
+                    "Credentials changed in Auth Sheet — cache re-synced (%d user(s))",
+                    len(fresh),
                 )
             else:
                 logger.debug("Credential poll: no change detected")

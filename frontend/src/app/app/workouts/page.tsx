@@ -35,6 +35,7 @@ interface TodayWorkout {
   estimated_duration_min: number;
   session_id: string | null;
   is_completed: boolean;
+  plan_name: string | null;
 }
 
 interface ScheduleExercise {
@@ -56,6 +57,15 @@ interface ScheduleDay {
 interface WorkoutSchedule {
   program_name: string | null;
   days: ScheduleDay[];
+}
+
+interface WorkoutPlanSummary {
+  plan_id: string;
+  plan_name: string;
+  is_active: boolean;
+  day_count: number;
+  exercise_count: number;
+  created_at: string;
 }
 
 interface WorkoutDaySummary {
@@ -119,16 +129,24 @@ export default function WorkoutsPage() {
   // Schedule tab state
   const [schedule, setSchedule] = useState<WorkoutSchedule | null>(null);
 
+  // Plans library state
+  const [plans, setPlans] = useState<WorkoutPlanSummary[]>([]);
+  const [plansLoading, setPlansLoading] = useState(false);
+  const [planActionLoading, setPlanActionLoading] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
   useEffect(() => {
     Promise.all([
       apiFetch<TodayWorkout>("/workouts/today").catch(() => null),
       apiFetch<{ sessions: SessionHistoryItem[] }>("/workouts/history").catch(() => ({ sessions: [] })),
       apiFetch<WorkoutSchedule>("/workouts/schedule").catch(() => null),
+      apiFetch<{ plans: WorkoutPlanSummary[] }>("/workouts/plans").catch(() => ({ plans: [] })),
     ])
-      .then(([tw, hist, sched]) => {
+      .then(([tw, hist, sched, planData]) => {
         setTodayWorkout(tw);
         setHistory(hist?.sessions ?? []);
         setSchedule(sched);
+        setPlans(planData?.plans ?? []);
       })
       .catch(() => {})
       .finally(() => {
@@ -152,6 +170,38 @@ export default function WorkoutsPage() {
     setSchedule(sched);
   }
 
+  async function refreshPlans() {
+    setPlansLoading(true);
+    try {
+      const data = await apiFetch<{ plans: WorkoutPlanSummary[] }>("/workouts/plans").catch(() => ({ plans: [] }));
+      setPlans(data?.plans ?? []);
+    } finally {
+      setPlansLoading(false);
+    }
+  }
+
+  async function handleActivatePlan(planId: string) {
+    setPlanActionLoading(planId);
+    try {
+      await apiFetch(`/workouts/plans/${planId}/activate`, { method: "POST" });
+      await Promise.all([refreshPlans(), refreshSchedule(), refreshToday()]);
+      triggerRefresh();
+    } finally {
+      setPlanActionLoading(null);
+    }
+  }
+
+  async function handleDeletePlan(planId: string) {
+    setConfirmDeleteId(null);
+    setPlanActionLoading(planId);
+    try {
+      await apiFetch(`/workouts/plans/${planId}`, { method: "DELETE" });
+      await refreshPlans();
+    } finally {
+      setPlanActionLoading(null);
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Import tab handlers
   // ---------------------------------------------------------------------------
@@ -170,7 +220,7 @@ export default function WorkoutsPage() {
         }),
       });
       setImportResult(result);
-      await Promise.all([refreshToday(), refreshSchedule()]);
+      await Promise.all([refreshToday(), refreshSchedule(), refreshPlans()]);
       triggerRefresh();
     } catch (err) {
       setImportError(err instanceof Error ? err.message : "Import failed");
@@ -316,6 +366,7 @@ export default function WorkoutsPage() {
           workout={todayWorkout}
           onStartLogging={handleStartLogging}
           onGoToImport={() => setActiveTab("import")}
+          onGoToSchedule={() => setActiveTab("schedule")}
         />
       )}
 
@@ -335,6 +386,13 @@ export default function WorkoutsPage() {
       {activeTab === "schedule" && (
         <ScheduleTab
           schedule={schedule}
+          plans={plans}
+          plansLoading={plansLoading}
+          planActionLoading={planActionLoading}
+          confirmDeleteId={confirmDeleteId}
+          onConfirmDelete={setConfirmDeleteId}
+          onActivatePlan={handleActivatePlan}
+          onDeletePlan={handleDeletePlan}
           onGoToImport={() => setActiveTab("import")}
         />
       )}
@@ -372,7 +430,7 @@ function ImportTab({
       <section className="bg-white rounded-xl border border-zinc-100 p-4">
         <h2 className="text-sm font-semibold text-zinc-700 mb-1">Import workout plan</h2>
         <p className="text-xs text-zinc-400 mb-4">
-          Paste your workout in any format — the AI will convert it automatically.
+          Paste your workout in any format — the AI will convert it automatically. It will be saved as a new plan in your library and made active. Your current plan is kept.
         </p>
         <form onSubmit={onSubmit} className="flex flex-col gap-3">
           <div>
@@ -449,10 +507,12 @@ function TodayTab({
   workout,
   onStartLogging,
   onGoToImport,
+  onGoToSchedule,
 }: {
   workout: TodayWorkout | null;
   onStartLogging: () => void;
   onGoToImport: () => void;
+  onGoToSchedule: () => void;
 }) {
   if (!workout || (!workout.is_rest_day && workout.exercises.length === 0)) {
     return (
@@ -472,6 +532,9 @@ function TodayTab({
         <Moon className="text-zinc-300" size={40} />
         <p className="text-lg font-semibold text-zinc-900">Rest Day</p>
         <p className="text-sm text-zinc-500">Recovery is part of the program</p>
+        {workout.plan_name && (
+          <p className="text-xs text-zinc-400">{workout.plan_name}</p>
+        )}
       </div>
     );
   }
@@ -480,12 +543,24 @@ function TodayTab({
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-xs text-zinc-500 uppercase tracking-wide">Today</p>
+          <p className="text-xs text-zinc-500 uppercase tracking-wide">
+            Today{workout.plan_name ? ` · ${workout.plan_name}` : ""}
+          </p>
           <p className="text-xl font-bold text-zinc-900">{workout.day_name} Day</p>
         </div>
-        <p className="text-xs text-zinc-400 font-mono">
-          {workout.exercises.length} exercises · ~{workout.estimated_duration_min} min
-        </p>
+        <div className="text-right">
+          <p className="text-xs text-zinc-400 font-mono">
+            {workout.exercises.length} exercises · ~{workout.estimated_duration_min} min
+          </p>
+          {workout.plan_name && (
+            <button
+              onClick={onGoToSchedule}
+              className="text-xs text-zinc-400 hover:text-zinc-600 underline underline-offset-2 mt-0.5"
+            >
+              View all plans
+            </button>
+          )}
+        </div>
       </div>
 
       {workout.exercises.map((ex) => (
@@ -657,98 +732,213 @@ function LogTab({
 
 function ScheduleTab({
   schedule,
+  plans,
+  plansLoading,
+  planActionLoading,
+  confirmDeleteId,
+  onConfirmDelete,
+  onActivatePlan,
+  onDeletePlan,
   onGoToImport,
 }: {
   schedule: WorkoutSchedule | null;
+  plans: WorkoutPlanSummary[];
+  plansLoading: boolean;
+  planActionLoading: string | null;
+  confirmDeleteId: string | null;
+  onConfirmDelete: (id: string | null) => void;
+  onActivatePlan: (planId: string) => Promise<void>;
+  onDeletePlan: (planId: string) => Promise<void>;
   onGoToImport: () => void;
 }) {
   const todayWeekday = new Date().getDay(); // 0=Sun in JS
   // Convert JS Sunday-first (0=Sun) to Python Monday-first (0=Mon)
   const todayIndex = todayWeekday === 0 ? 6 : todayWeekday - 1;
 
-  if (!schedule || schedule.days.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 text-center gap-4">
-        <Dumbbell className="text-zinc-300" size={40} />
-        <p className="text-zinc-500 text-sm">No schedule imported yet</p>
-        <button onClick={onGoToImport} className="btn-primary">
-          Import plan
-        </button>
-      </div>
-    );
-  }
+  const hasSchedule = schedule && schedule.days.length > 0;
 
   return (
-    <div className="flex flex-col gap-3">
-      {schedule.program_name && (
-        <p className="text-xs text-zinc-400 uppercase tracking-wide font-medium mb-1">
-          {schedule.program_name}
-        </p>
-      )}
+    <div className="flex flex-col gap-6">
+      {/* Plans library */}
+      <section className="bg-white rounded-xl border border-zinc-100 p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-zinc-700">My Plans</h2>
+          <button onClick={onGoToImport} className="text-xs text-zinc-500 hover:text-zinc-700 underline underline-offset-2">
+            + Import new
+          </button>
+        </div>
 
-      {schedule.days.map((day) => {
-        const isToday = day.weekday === todayIndex;
+        {plansLoading && (
+          <p className="text-xs text-zinc-400">Loading…</p>
+        )}
 
-        return (
-          <div
-            key={day.weekday}
-            className={`rounded-xl border p-4 transition-colors ${
-              isToday
-                ? "bg-zinc-900 border-zinc-900 text-white"
-                : "bg-white border-zinc-100"
-            }`}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <span className={`text-sm font-semibold ${isToday ? "text-white" : "text-zinc-900"}`}>
-                  {day.weekday_name}
-                </span>
-                {isToday && (
-                  <span className="text-xs font-medium bg-white text-zinc-900 px-2 py-0.5 rounded-full">
-                    Today
-                  </span>
-                )}
-              </div>
-              <span
-                className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                  day.is_rest
-                    ? isToday
-                      ? "bg-zinc-700 text-zinc-300"
-                      : "bg-zinc-50 text-zinc-400"
-                    : isToday
-                    ? "bg-zinc-700 text-zinc-100"
-                    : "bg-zinc-50 text-zinc-700"
+        {!plansLoading && plans.length === 0 && (
+          <div className="flex flex-col items-center py-6 gap-3 text-center">
+            <Dumbbell className="text-zinc-300" size={32} />
+            <p className="text-sm text-zinc-500">No plans yet</p>
+            <button onClick={onGoToImport} className="btn-primary text-sm">
+              Import plan
+            </button>
+          </div>
+        )}
+
+        {!plansLoading && plans.length > 0 && (
+          <div className="flex flex-col gap-2">
+            {plans.map((plan) => {
+              const isActive = plan.is_active;
+              const isActing = planActionLoading === plan.plan_id;
+              const isConfirmingDelete = confirmDeleteId === plan.plan_id;
+
+              return (
+                <div
+                  key={plan.plan_id}
+                  className={`rounded-lg border p-3 transition-colors ${
+                    isActive
+                      ? "border-zinc-900 bg-zinc-900"
+                      : "border-zinc-100 bg-zinc-50"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className={`text-sm font-semibold ${isActive ? "text-white" : "text-zinc-900"}`}>
+                          {plan.plan_name}
+                        </p>
+                        {isActive && (
+                          <span className="text-xs font-medium bg-white text-zinc-900 px-1.5 py-0.5 rounded-full">
+                            Active
+                          </span>
+                        )}
+                      </div>
+                      <p className={`text-xs mt-0.5 ${isActive ? "text-zinc-400" : "text-zinc-500"}`}>
+                        {plan.day_count} day{plan.day_count !== 1 ? "s" : ""} · {plan.exercise_count} exercises
+                      </p>
+                    </div>
+
+                    {!isActive && (
+                      <div className="flex items-center gap-2">
+                        {isConfirmingDelete ? (
+                          <>
+                            <button
+                              onClick={() => onDeletePlan(plan.plan_id)}
+                              disabled={isActing}
+                              className="text-xs text-red-600 font-medium hover:text-red-700"
+                            >
+                              Delete
+                            </button>
+                            <button
+                              onClick={() => onConfirmDelete(null)}
+                              className="text-xs text-zinc-400 hover:text-zinc-600"
+                            >
+                              Cancel
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => onActivatePlan(plan.plan_id)}
+                              disabled={isActing}
+                              className="text-xs font-medium text-zinc-700 bg-white border border-zinc-200 px-2.5 py-1 rounded-lg hover:bg-zinc-50 disabled:opacity-50"
+                            >
+                              {isActing ? "Switching…" : "Set active"}
+                            </button>
+                            <button
+                              onClick={() => onConfirmDelete(plan.plan_id)}
+                              disabled={isActing}
+                              className="text-xs text-zinc-400 hover:text-red-500 disabled:opacity-50"
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* Weekly schedule */}
+      {!hasSchedule ? (
+        <div className="flex flex-col items-center justify-center py-8 text-center gap-4">
+          <p className="text-zinc-500 text-sm">No schedule yet — import a plan to see the weekly view</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {schedule.program_name && (
+            <p className="text-xs text-zinc-400 uppercase tracking-wide font-medium -mb-1">
+              {schedule.program_name} · this week
+            </p>
+          )}
+
+          {schedule.days.map((day) => {
+            const isToday = day.weekday === todayIndex;
+
+            return (
+              <div
+                key={day.weekday}
+                className={`rounded-xl border p-4 transition-colors ${
+                  isToday
+                    ? "bg-zinc-900 border-zinc-900 text-white"
+                    : "bg-white border-zinc-100"
                 }`}
               >
-                {day.day_name}
-              </span>
-            </div>
-
-            {day.is_rest ? (
-              <div className={`flex items-center gap-1.5 ${isToday ? "text-zinc-400" : "text-zinc-400"}`}>
-                <Moon size={13} />
-                <span className="text-xs">Rest day</span>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-1 mt-1">
-                {day.exercises.map((ex) => (
-                  <div
-                    key={ex.exercise_name}
-                    className={`flex items-center justify-between text-xs ${
-                      isToday ? "text-zinc-300" : "text-zinc-600"
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-semibold ${isToday ? "text-white" : "text-zinc-900"}`}>
+                      {day.weekday_name}
+                    </span>
+                    {isToday && (
+                      <span className="text-xs font-medium bg-white text-zinc-900 px-2 py-0.5 rounded-full">
+                        Today
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                      day.is_rest
+                        ? isToday
+                          ? "bg-zinc-700 text-zinc-300"
+                          : "bg-zinc-50 text-zinc-400"
+                        : isToday
+                        ? "bg-zinc-700 text-zinc-100"
+                        : "bg-zinc-50 text-zinc-700"
                     }`}
                   >
-                    <span>{ex.exercise_name}</span>
-                    <span className={`font-mono ${isToday ? "text-zinc-400" : "text-zinc-400"}`}>
-                      {ex.sets}×{ex.rep_min === ex.rep_max ? ex.rep_min : `${ex.rep_min}–${ex.rep_max}`}
-                    </span>
+                    {day.day_name}
+                  </span>
+                </div>
+
+                {day.is_rest ? (
+                  <div className="flex items-center gap-1.5 text-zinc-400">
+                    <Moon size={13} />
+                    <span className="text-xs">Rest day</span>
                   </div>
-                ))}
+                ) : (
+                  <div className="flex flex-col gap-1 mt-1">
+                    {day.exercises.map((ex) => (
+                      <div
+                        key={ex.exercise_name}
+                        className={`flex items-center justify-between text-xs ${
+                          isToday ? "text-zinc-300" : "text-zinc-600"
+                        }`}
+                      >
+                        <span>{ex.exercise_name}</span>
+                        <span className="font-mono text-zinc-400">
+                          {ex.sets}×{ex.rep_min === ex.rep_max ? ex.rep_min : `${ex.rep_min}–${ex.rep_max}`}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        );
-      })}
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

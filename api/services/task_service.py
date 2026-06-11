@@ -452,12 +452,25 @@ def _build_response(
 def _is_rest_day(user_id: int, date_str: str) -> bool:
     """
     Return True if the given date has no workout scheduled (rest day or no schedule).
+
+    Filters WorkoutSchedules by the user's active plan so that switching plans
+    immediately reflects on which days show the "complete workout" mission.
+    Falls back gracefully if WorkoutPlans tab does not exist yet (legacy mode).
     """
     try:
+        from .workout_service import get_active_plan_id
+
         weekday = date_type.fromisoformat(date_str).weekday()  # 0=Mon
         rows = read_rows(SCHEDULES_TAB)
+        active_plan_id = get_active_plan_id(user_id)
+
         for r in rows:
-            if int(r.get("user_id", -1)) == user_id and int(r.get("weekday", -1)) == weekday:
+            if int(r.get("user_id", -1)) != user_id:
+                continue
+            # If we have an active plan, filter to its rows; skip rows from other plans
+            if active_plan_id is not None and str(r.get("plan_id", "")) != active_plan_id:
+                continue
+            if int(r.get("weekday", -1)) == weekday:
                 day_name = str(r.get("day_name", ""))
                 return day_name == "Rest" or not day_name
         # No schedule row found → treat as rest day

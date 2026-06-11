@@ -292,12 +292,14 @@ async def import_workout_from_text(
     Import a workout plan from free-form text in any format.
 
     Uses AI to convert the text into the structured format, then saves it as
-    the user's active workout program. Replaces any previously imported plan.
+    a new plan in the user's plan library and makes it active. Previous plans
+    are kept in the library and can be switched back to at any time.
 
     Args:
         ctx: Pydantic AI run context carrying ``AgentDeps``.
         raw_text: The workout plan in any free-form format.
-        program_name: A name for the program (e.g. "PPL v2").
+        program_name: A name for the new plan (e.g. "PPL v2", "Cut 3-day").
+            If the user hasn't specified a name, derive one from the content.
 
     Returns:
         Serialised ``WorkoutImportResponse`` dict with program/rest day counts
@@ -314,4 +316,57 @@ async def import_workout_from_text(
         "tool": "import_workout_from_text",
         "result": result,
     })
+    return result
+
+
+@agent.tool
+async def list_workout_plans(ctx: RunContext[AgentDeps]) -> dict:
+    """
+    Return all saved workout plans in the user's plan library.
+
+    Use this before switching plans so you know the exact plan names available.
+    Each plan includes its name, whether it is currently active, and the number
+    of workout days and exercises.
+
+    Args:
+        ctx: Pydantic AI run context carrying ``AgentDeps``.
+
+    Returns:
+        Dict with a ``plans`` list, each item having ``plan_name``,
+        ``is_active``, ``day_count``, and ``exercise_count``.
+    """
+    await ctx.deps.event_queue.put({"type": "tool_call", "tool": "list_workout_plans", "args": {}})
+    result = ctx.deps.plans_lister()
+    await ctx.deps.event_queue.put({"type": "tool_result", "tool": "list_workout_plans", "result": result})
+    return result
+
+
+@agent.tool
+async def switch_workout_plan(ctx: RunContext[AgentDeps], plan_name: str) -> dict:
+    """
+    Switch the user's active workout plan by name.
+
+    Resolves the name case-insensitively. The new plan takes effect immediately
+    for today's workout and all future sessions. Any session already started
+    today is not affected.
+
+    Call ``list_workout_plans`` first if you are unsure of the exact plan name.
+    On a name mismatch the tool returns an error dict with ``available_plans``
+    so you can correct the name and retry.
+
+    Args:
+        ctx: Pydantic AI run context carrying ``AgentDeps``.
+        plan_name: The name of the plan to activate (e.g. "PPL v2", "Cut 3-day").
+
+    Returns:
+        ``{"activated": True, "plan_name": "..."}`` on success, or
+        ``{"error": "...", "available_plans": [...]}`` if not found.
+    """
+    await ctx.deps.event_queue.put({
+        "type": "tool_call",
+        "tool": "switch_workout_plan",
+        "args": {"plan_name": plan_name},
+    })
+    result = ctx.deps.plan_switcher(plan_name)
+    await ctx.deps.event_queue.put({"type": "tool_result", "tool": "switch_workout_plan", "result": result})
     return result

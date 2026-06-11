@@ -31,6 +31,8 @@ from api.models.workout import (
     TodayWorkoutResponse,
     WorkoutHistoryResponse,
     WorkoutImportResponse,
+    WorkoutPlanSummary,
+    WorkoutPlansResponse,
     WorkoutScheduleResponse,
     WorkoutDaySummary,
 )
@@ -60,6 +62,7 @@ TODAY_RESPONSE = TodayWorkoutResponse(
     estimated_duration_min=11,
     session_id="1-2026-06-08",
     is_completed=False,
+    plan_name="PPL v1",
 )
 
 REST_DAY_RESPONSE = TodayWorkoutResponse(
@@ -70,6 +73,28 @@ REST_DAY_RESPONSE = TodayWorkoutResponse(
     estimated_duration_min=0,
     session_id=None,
     is_completed=False,
+    plan_name=None,
+)
+
+PLANS_RESPONSE = WorkoutPlansResponse(
+    plans=[
+        WorkoutPlanSummary(
+            plan_id="1-100",
+            plan_name="PPL v1",
+            is_active=True,
+            day_count=3,
+            exercise_count=6,
+            created_at="2026-06-01T00:00:00Z",
+        ),
+        WorkoutPlanSummary(
+            plan_id="1-200",
+            plan_name="Cut 3-day",
+            is_active=False,
+            day_count=3,
+            exercise_count=9,
+            created_at="2026-06-05T00:00:00Z",
+        ),
+    ]
 )
 
 SCHEDULE_RESPONSE = WorkoutScheduleResponse(
@@ -420,6 +445,8 @@ def _make_workout_deps(queue: asyncio.Queue) -> "AgentDeps":
             return_value={"exercise_name": "Bench Press", "last_5_sessions": [], "suggestion": {"note": "first session"}}
         ),
         workout_importer=AsyncMock(return_value=IMPORT_RESPONSE.model_dump()),
+        plans_lister=MagicMock(return_value=PLANS_RESPONSE.model_dump()),
+        plan_switcher=MagicMock(return_value={"activated": True, "plan_name": "PPL v1"}),
         nutrition_getter=MagicMock(return_value={"calories": 0, "meals_count": 0}),
         meal_saver=AsyncMock(return_value={"meal_id": "test-id"}),
         meal_analyzer=AsyncMock(return_value={"title": "Test", "detected": []}),
@@ -553,3 +580,140 @@ class TestImportWorkoutFromTextTool:
         await api.agent.tools.import_workout_from_text(ctx, "raw plan text", "My PPL")
 
         deps.workout_importer.assert_awaited_once_with("raw plan text", "My PPL")
+
+
+# ---------------------------------------------------------------------------
+# GET /workouts/plans
+# ---------------------------------------------------------------------------
+
+
+class TestGetWorkoutsPlans:
+    def test_list_plans_returns_plans(self, client, auth_headers):
+        with patch("api.routers.workouts.list_plans", return_value=PLANS_RESPONSE):
+            resp = client.get("/workouts/plans", headers=auth_headers)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["plans"]) == 2
+        active = next(p for p in data["plans"] if p["is_active"])
+        assert active["plan_name"] == "PPL v1"
+
+    def test_list_plans_no_auth_returns_401(self, client):
+        resp = client.get("/workouts/plans")
+        assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# POST /workouts/plans/{plan_id}/activate
+# ---------------------------------------------------------------------------
+
+
+class TestPostActivatePlan:
+    def test_activate_plan_success_returns_204(self, client, auth_headers):
+        with patch("api.routers.workouts.activate_plan", return_value=None):
+            resp = client.post("/workouts/plans/1-200/activate", headers=auth_headers)
+        assert resp.status_code == 204
+
+    def test_activate_plan_not_found_returns_404(self, client, auth_headers):
+        with patch("api.routers.workouts.activate_plan", side_effect=ValueError("Plan 'x' not found")):
+            resp = client.post("/workouts/plans/x/activate", headers=auth_headers)
+        assert resp.status_code == 404
+
+    def test_activate_plan_no_auth_returns_401(self, client):
+        resp = client.post("/workouts/plans/1-200/activate")
+        assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# DELETE /workouts/plans/{plan_id}
+# ---------------------------------------------------------------------------
+
+
+class TestDeletePlanEndpoint:
+    def test_delete_plan_success_returns_204(self, client, auth_headers):
+        with patch("api.routers.workouts.delete_plan", return_value=None):
+            resp = client.delete("/workouts/plans/1-200", headers=auth_headers)
+        assert resp.status_code == 204
+
+    def test_delete_active_plan_returns_409(self, client, auth_headers):
+        with patch("api.routers.workouts.delete_plan",
+                   side_effect=ValueError("Cannot delete the active plan")):
+            resp = client.delete("/workouts/plans/1-100", headers=auth_headers)
+        assert resp.status_code == 409
+
+    def test_delete_plan_not_found_returns_404(self, client, auth_headers):
+        with patch("api.routers.workouts.delete_plan",
+                   side_effect=ValueError("Plan 'x' not found")):
+            resp = client.delete("/workouts/plans/x", headers=auth_headers)
+        assert resp.status_code == 404
+
+    def test_delete_plan_no_auth_returns_401(self, client):
+        resp = client.delete("/workouts/plans/1-200")
+        assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Agent tools — plan library
+# ---------------------------------------------------------------------------
+
+
+class TestListWorkoutPlansTool:
+    @pytest.mark.asyncio
+    async def test_emits_tool_call_then_tool_result(self):
+        import api.agent.tools  # noqa: F401
+
+        queue: asyncio.Queue = asyncio.Queue()
+        deps = _make_workout_deps(queue)
+        ctx = _make_ctx(deps)
+
+        await api.agent.tools.list_workout_plans(ctx)
+
+        assert queue.qsize() == 2
+        call_evt = await queue.get()
+        result_evt = await queue.get()
+        assert call_evt["type"] == "tool_call"
+        assert call_evt["tool"] == "list_workout_plans"
+        assert result_evt["type"] == "tool_result"
+
+    @pytest.mark.asyncio
+    async def test_delegates_to_plans_lister(self):
+        import api.agent.tools  # noqa: F401
+
+        queue: asyncio.Queue = asyncio.Queue()
+        deps = _make_workout_deps(queue)
+        ctx = _make_ctx(deps)
+
+        await api.agent.tools.list_workout_plans(ctx)
+
+        deps.plans_lister.assert_called_once_with()
+
+
+class TestSwitchWorkoutPlanTool:
+    @pytest.mark.asyncio
+    async def test_emits_tool_call_then_tool_result(self):
+        import api.agent.tools  # noqa: F401
+
+        queue: asyncio.Queue = asyncio.Queue()
+        deps = _make_workout_deps(queue)
+        ctx = _make_ctx(deps)
+
+        await api.agent.tools.switch_workout_plan(ctx, "PPL v1")
+
+        assert queue.qsize() == 2
+        call_evt = await queue.get()
+        result_evt = await queue.get()
+        assert call_evt["type"] == "tool_call"
+        assert call_evt["tool"] == "switch_workout_plan"
+        assert call_evt["args"] == {"plan_name": "PPL v1"}
+        assert result_evt["type"] == "tool_result"
+
+    @pytest.mark.asyncio
+    async def test_delegates_to_plan_switcher(self):
+        import api.agent.tools  # noqa: F401
+
+        queue: asyncio.Queue = asyncio.Queue()
+        deps = _make_workout_deps(queue)
+        ctx = _make_ctx(deps)
+
+        await api.agent.tools.switch_workout_plan(ctx, "Cut 3-day")
+
+        deps.plan_switcher.assert_called_once_with("Cut 3-day")

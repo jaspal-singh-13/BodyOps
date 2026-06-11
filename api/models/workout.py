@@ -97,6 +97,7 @@ class TodayWorkoutResponse(BaseModel):
     estimated_duration_min: int  # sum(e.sets) * 2 + 5; 0 on rest day
     session_id: str | None  # None if no session started yet today
     is_completed: bool  # True once complete_session has been called
+    plan_name: str | None = None
 
 
 class LogSetResponse(BaseModel):
@@ -130,3 +131,16 @@ class ScheduleDay(BaseModel):
 class WorkoutScheduleResponse(BaseModel):
     program_name: str | None
     days: list[ScheduleDay]  # always 7, Mon–Sun order
+
+
+class WorkoutPlanSummary(BaseModel):
+    plan_id: str
+    plan_name: str
+    is_active: bool
+    day_count: int
+    exercise_count: int
+    created_at: str
+
+
+class WorkoutPlansResponse(BaseModel):
+    plans: list[WorkoutPlanSummary]

@@ -58,7 +58,9 @@ from ..services.task_service import get_today_tasks as svc_get_today_tasks
 from ..services.workout_service import ai_import_workout as svc_ai_import_workout
 from ..services.workout_service import get_progression as svc_get_progression
 from ..services.workout_service import get_today_workout as svc_get_today_workout
+from ..services.workout_service import list_plans as svc_list_plans
 from ..services.workout_service import log_set as svc_log_set
+from ..services.workout_service import switch_plan_by_name as svc_switch_plan_by_name
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -151,6 +153,20 @@ def _make_workout_importer(user_id: int):
     async def workout_importer(raw_text: str, program_name: str) -> dict:
         return (await svc_ai_import_workout(user_id, program_name, raw_text)).model_dump()
     return workout_importer
+
+
+def _make_plans_lister(user_id: int):
+    """Return a callable that lists all saved workout plans for the user."""
+    def plans_lister() -> dict:
+        return svc_list_plans(user_id).model_dump()
+    return plans_lister
+
+
+def _make_plan_switcher(user_id: int):
+    """Return a callable that activates a plan by name for the user."""
+    def plan_switcher(plan_name: str) -> dict:
+        return svc_switch_plan_by_name(user_id, plan_name)
+    return plan_switcher
 
 
 def _make_nutrition_getter(user_id: int):
@@ -277,6 +293,8 @@ async def _sse_generator(message: str, session_id: str, user_id: int):
         set_logger=_make_set_logger(user_id),
         progression_getter=_make_progression_getter(user_id),
         workout_importer=_make_workout_importer(user_id),
+        plans_lister=_make_plans_lister(user_id),
+        plan_switcher=_make_plan_switcher(user_id),
         nutrition_getter=_make_nutrition_getter(user_id),
         meal_saver=_make_meal_saver(user_id),
         meal_analyzer=_make_meal_analyzer(user_id),

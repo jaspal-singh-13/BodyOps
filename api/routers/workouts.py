@@ -2,13 +2,17 @@
 Workout system API routes.
 
 Endpoints:
-    POST   /workouts/import      — parse + import workout plan
-    POST   /workouts/ai-import   — AI-parse free-form workout text and import
-    GET    /workouts/today       — today's workout with progression suggestions
-    POST   /workouts/log         — log a single set
-    POST   /workouts/complete    — mark today's session complete
-    GET    /workouts/progression — last 5 sessions for an exercise
-    GET    /workouts/history     — all past sessions
+    POST   /workouts/import               — parse + import workout plan (new plan, non-destructive)
+    POST   /workouts/ai-import            — AI-parse free-form workout text and import
+    GET    /workouts/today                — today's workout with progression suggestions
+    POST   /workouts/log                  — log a single set
+    POST   /workouts/complete             — mark today's session complete
+    GET    /workouts/progression          — last 5 sessions for an exercise
+    GET    /workouts/history              — all past sessions
+    GET    /workouts/schedule             — full Mon–Sun schedule with exercises
+    GET    /workouts/plans                — list all saved plans
+    POST   /workouts/plans/{plan_id}/activate — switch active plan
+    DELETE /workouts/plans/{plan_id}      — delete a non-active plan
 """
 
 from __future__ import annotations
@@ -30,17 +34,21 @@ from ..models.workout import (
     WorkoutHistoryResponse,
     WorkoutImportRequest,
     WorkoutImportResponse,
+    WorkoutPlansResponse,
     WorkoutScheduleResponse,
 )
 from ..services.workout_parser import WorkoutParseError, parse_workout_import
 from ..services.workout_service import (
+    activate_plan,
     ai_import_workout,
     complete_session,
+    delete_plan,
     get_history,
     get_progression,
     get_schedule,
     get_today_workout,
     import_workout,
+    list_plans,
     log_set,
 )
 
@@ -122,3 +130,33 @@ async def get_history_endpoint(
     user_id: int = Depends(get_current_user),
 ) -> WorkoutHistoryResponse:
     return await asyncio.to_thread(get_history, user_id)
+
+
+@router.get("/plans", response_model=WorkoutPlansResponse)
+async def list_plans_endpoint(
+    user_id: int = Depends(get_current_user),
+) -> WorkoutPlansResponse:
+    return await asyncio.to_thread(list_plans, user_id)
+
+
+@router.post("/plans/{plan_id}/activate", status_code=204)
+async def activate_plan_endpoint(
+    plan_id: str,
+    user_id: int = Depends(get_current_user),
+) -> None:
+    try:
+        await asyncio.to_thread(activate_plan, user_id, plan_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.delete("/plans/{plan_id}", status_code=204)
+async def delete_plan_endpoint(
+    plan_id: str,
+    user_id: int = Depends(get_current_user),
+) -> None:
+    try:
+        await asyncio.to_thread(delete_plan, user_id, plan_id)
+    except ValueError as e:
+        status = 409 if "active plan" in str(e).lower() else 404
+        raise HTTPException(status_code=status, detail=str(e))

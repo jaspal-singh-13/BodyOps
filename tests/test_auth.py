@@ -5,12 +5,22 @@ import pytest
 from fastapi import HTTPException
 
 
-STORED_CREDS = {"user_id": 1, "email": "owner@example.com", "password": "secret"}
+STORED_CREDS = [
+    {"user_id": 1, "email": "owner@example.com", "password": "secret"},
+    {"user_id": 2, "email": "friend@example.com", "password": "hunter2"},
+]
+
+
+def _find_user(email: str):
+    for user in STORED_CREDS:
+        if user["email"].lower() == email.strip().lower():
+            return user
+    return None
 
 
 class TestLoginEndpoint:
     def test_login_success(self, client):
-        with patch("api.auth.get_credentials", return_value=STORED_CREDS):
+        with patch("api.auth.find_user", side_effect=_find_user):
             resp = client.post("/auth/login", json={"email": "owner@example.com", "password": "secret"})
         assert resp.status_code == 200
         data = resp.json()
@@ -19,24 +29,36 @@ class TestLoginEndpoint:
 
     def test_login_success_token_contains_user_id(self, client):
         from api.auth import verify_jwt
-        with patch("api.auth.get_credentials", return_value=STORED_CREDS):
+        with patch("api.auth.find_user", side_effect=_find_user):
             resp = client.post("/auth/login", json={"email": "owner@example.com", "password": "secret"})
         token = resp.json()["access_token"]
         user_id = verify_jwt(token)
         assert user_id == 1
 
+    def test_login_second_user(self, client):
+        from api.auth import verify_jwt
+        with patch("api.auth.find_user", side_effect=_find_user):
+            resp = client.post("/auth/login", json={"email": "friend@example.com", "password": "hunter2"})
+        assert resp.status_code == 200
+        assert verify_jwt(resp.json()["access_token"]) == 2
+
+    def test_login_email_case_insensitive(self, client):
+        with patch("api.auth.find_user", side_effect=_find_user):
+            resp = client.post("/auth/login", json={"email": "OWNER@Example.COM", "password": "secret"})
+        assert resp.status_code == 200
+
     def test_login_wrong_password(self, client):
-        with patch("api.auth.get_credentials", return_value=STORED_CREDS):
+        with patch("api.auth.find_user", side_effect=_find_user):
             resp = client.post("/auth/login", json={"email": "owner@example.com", "password": "wrong"})
         assert resp.status_code == 401
 
     def test_login_wrong_email(self, client):
-        with patch("api.auth.get_credentials", return_value=STORED_CREDS):
+        with patch("api.auth.find_user", side_effect=_find_user):
             resp = client.post("/auth/login", json={"email": "other@example.com", "password": "secret"})
         assert resp.status_code == 401
 
     def test_login_sheet_error(self, client):
-        with patch("api.auth.get_credentials", side_effect=Exception("Sheets unavailable")):
+        with patch("api.auth.find_user", side_effect=Exception("Sheets unavailable")):
             resp = client.post("/auth/login", json={"email": "owner@example.com", "password": "secret"})
         assert resp.status_code == 500
 
