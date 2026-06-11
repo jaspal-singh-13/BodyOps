@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Dumbbell, Moon, Plus, Check } from "lucide-react";
+import { ChevronDown, ChevronUp, Check, Dumbbell, Moon, Pencil, Plus, Trash2, X } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useRefresh } from "@/lib/refresh";
 
@@ -196,10 +196,37 @@ export default function WorkoutsPage() {
     setPlanActionLoading(planId);
     try {
       await apiFetch(`/workouts/plans/${planId}`, { method: "DELETE" });
-      await refreshPlans();
+      await Promise.all([refreshPlans(), refreshSchedule(), refreshToday()]);
+      triggerRefresh();
     } finally {
       setPlanActionLoading(null);
     }
+  }
+
+  async function handleRenamePlan(planId: string, newName: string) {
+    await apiFetch(`/workouts/plans/${planId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ plan_name: newName }),
+    });
+    await refreshPlans();
+  }
+
+  async function handleUpdateDay(planId: string, dayName: string, exercises: ScheduleExercise[]) {
+    await apiFetch(`/workouts/plans/${planId}/days/${encodeURIComponent(dayName)}`, {
+      method: "PUT",
+      body: JSON.stringify({ exercises }),
+    });
+    await Promise.all([refreshSchedule(), refreshToday()]);
+    triggerRefresh();
+  }
+
+  async function handleUpdateScheduleWeekday(planId: string, weekday: number, dayName: string) {
+    await apiFetch(`/workouts/plans/${planId}/schedule/${weekday}`, {
+      method: "PATCH",
+      body: JSON.stringify({ day_name: dayName }),
+    });
+    await Promise.all([refreshSchedule(), refreshToday()]);
+    triggerRefresh();
   }
 
   // ---------------------------------------------------------------------------
@@ -393,6 +420,9 @@ export default function WorkoutsPage() {
           onConfirmDelete={setConfirmDeleteId}
           onActivatePlan={handleActivatePlan}
           onDeletePlan={handleDeletePlan}
+          onRenamePlan={handleRenamePlan}
+          onUpdateDay={handleUpdateDay}
+          onUpdateScheduleWeekday={handleUpdateScheduleWeekday}
           onGoToImport={() => setActiveTab("import")}
         />
       )}
@@ -739,6 +769,9 @@ function ScheduleTab({
   onConfirmDelete,
   onActivatePlan,
   onDeletePlan,
+  onRenamePlan,
+  onUpdateDay,
+  onUpdateScheduleWeekday,
   onGoToImport,
 }: {
   schedule: WorkoutSchedule | null;
@@ -749,13 +782,52 @@ function ScheduleTab({
   onConfirmDelete: (id: string | null) => void;
   onActivatePlan: (planId: string) => Promise<void>;
   onDeletePlan: (planId: string) => Promise<void>;
+  onRenamePlan: (planId: string, newName: string) => Promise<void>;
+  onUpdateDay: (planId: string, dayName: string, exercises: ScheduleExercise[]) => Promise<void>;
+  onUpdateScheduleWeekday: (planId: string, weekday: number, dayName: string) => Promise<void>;
   onGoToImport: () => void;
 }) {
-  const todayWeekday = new Date().getDay(); // 0=Sun in JS
-  // Convert JS Sunday-first (0=Sun) to Python Monday-first (0=Mon)
+  const todayWeekday = new Date().getDay();
   const todayIndex = todayWeekday === 0 ? 6 : todayWeekday - 1;
 
+  // Inline rename state (local — no API call needed for open/close)
+  const [renamingPlanId, setRenamingPlanId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameLoading, setRenameLoading] = useState(false);
+
+  // Day edit modal state
+  const [editDay, setEditDay] = useState<ScheduleDay | null>(null);
+
+  // Weekday remap loading
+  const [remappingWeekday, setRemappingWeekday] = useState<number | null>(null);
+
+  const activePlanId = plans.find((p) => p.is_active)?.plan_id ?? null;
+  const availableDayNames = schedule
+    ? [...new Set(schedule.days.map((d) => d.day_name))]
+    : [];
+
   const hasSchedule = schedule && schedule.days.length > 0;
+
+  async function saveRename(planId: string) {
+    if (!renameValue.trim()) return;
+    setRenameLoading(true);
+    try {
+      await onRenamePlan(planId, renameValue.trim());
+      setRenamingPlanId(null);
+    } finally {
+      setRenameLoading(false);
+    }
+  }
+
+  async function handleWeekdayRemap(weekday: number, newDayName: string) {
+    if (!activePlanId) return;
+    setRemappingWeekday(weekday);
+    try {
+      await onUpdateScheduleWeekday(activePlanId, weekday, newDayName);
+    } finally {
+      setRemappingWeekday(null);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -763,14 +835,15 @@ function ScheduleTab({
       <section className="bg-white rounded-xl border border-zinc-100 p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-zinc-700">My Plans</h2>
-          <button onClick={onGoToImport} className="text-xs text-zinc-500 hover:text-zinc-700 underline underline-offset-2">
+          <button
+            onClick={onGoToImport}
+            className="text-xs text-zinc-500 hover:text-zinc-700 underline underline-offset-2"
+          >
             + Import new
           </button>
         </div>
 
-        {plansLoading && (
-          <p className="text-xs text-zinc-400">Loading…</p>
-        )}
+        {plansLoading && <p className="text-xs text-zinc-400">Loading…</p>}
 
         {!plansLoading && plans.length === 0 && (
           <div className="flex flex-col items-center py-6 gap-3 text-center">
@@ -788,66 +861,138 @@ function ScheduleTab({
               const isActive = plan.is_active;
               const isActing = planActionLoading === plan.plan_id;
               const isConfirmingDelete = confirmDeleteId === plan.plan_id;
+              const isRenaming = renamingPlanId === plan.plan_id;
 
               return (
                 <div
                   key={plan.plan_id}
                   className={`rounded-lg border p-3 transition-colors ${
-                    isActive
-                      ? "border-zinc-900 bg-zinc-900"
-                      : "border-zinc-100 bg-zinc-50"
+                    isActive ? "border-zinc-900 bg-zinc-900" : "border-zinc-100 bg-zinc-50"
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className={`text-sm font-semibold ${isActive ? "text-white" : "text-zinc-900"}`}>
-                          {plan.plan_name}
-                        </p>
-                        {isActive && (
-                          <span className="text-xs font-medium bg-white text-zinc-900 px-1.5 py-0.5 rounded-full">
-                            Active
-                          </span>
-                        )}
-                      </div>
-                      <p className={`text-xs mt-0.5 ${isActive ? "text-zinc-400" : "text-zinc-500"}`}>
-                        {plan.day_count} day{plan.day_count !== 1 ? "s" : ""} · {plan.exercise_count} exercises
+                  {/* Name row */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      {isRenaming ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            autoFocus
+                            value={renameValue}
+                            onChange={(e) => setRenameValue(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") saveRename(plan.plan_id);
+                              if (e.key === "Escape") setRenamingPlanId(null);
+                            }}
+                            className="input text-sm py-0.5 flex-1"
+                            disabled={renameLoading}
+                          />
+                          <button
+                            onClick={() => saveRename(plan.plan_id)}
+                            disabled={renameLoading || !renameValue.trim()}
+                            className="text-xs font-medium text-green-600 hover:text-green-700 disabled:opacity-40"
+                          >
+                            {renameLoading ? "…" : "Save"}
+                          </button>
+                          <button
+                            onClick={() => setRenamingPlanId(null)}
+                            disabled={renameLoading}
+                            className="text-zinc-400 hover:text-zinc-600"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5">
+                          <p
+                            className={`text-sm font-semibold truncate ${
+                              isActive ? "text-white" : "text-zinc-900"
+                            }`}
+                          >
+                            {plan.plan_name}
+                          </p>
+                          {isActive && (
+                            <span className="shrink-0 text-xs font-medium bg-white text-zinc-900 px-1.5 py-0.5 rounded-full">
+                              Active
+                            </span>
+                          )}
+                          <button
+                            onClick={() => {
+                              setRenamingPlanId(plan.plan_id);
+                              setRenameValue(plan.plan_name);
+                              onConfirmDelete(null);
+                            }}
+                            className={`shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ${
+                              isActive
+                                ? "text-zinc-500 hover:text-zinc-300"
+                                : "text-zinc-400 hover:text-zinc-600"
+                            }`}
+                            title="Rename"
+                          >
+                            <Pencil size={12} />
+                          </button>
+                        </div>
+                      )}
+                      <p
+                        className={`text-xs mt-0.5 ${
+                          isActive ? "text-zinc-400" : "text-zinc-500"
+                        }`}
+                      >
+                        {plan.day_count} day{plan.day_count !== 1 ? "s" : ""} ·{" "}
+                        {plan.exercise_count} exercises
                       </p>
                     </div>
 
-                    {!isActive && (
-                      <div className="flex items-center gap-2">
+                    {/* Action buttons */}
+                    {!isRenaming && (
+                      <div className="flex items-center gap-2 shrink-0">
                         {isConfirmingDelete ? (
                           <>
+                            <span
+                              className={`text-xs ${
+                                isActive ? "text-red-400" : "text-red-500"
+                              }`}
+                            >
+                              {isActive ? "Delete active plan?" : "Delete?"}
+                            </span>
                             <button
                               onClick={() => onDeletePlan(plan.plan_id)}
                               disabled={isActing}
-                              className="text-xs text-red-600 font-medium hover:text-red-700"
+                              className="text-xs text-red-600 font-medium hover:text-red-700 disabled:opacity-50"
                             >
-                              Delete
+                              {isActing ? "…" : "Yes"}
                             </button>
                             <button
                               onClick={() => onConfirmDelete(null)}
-                              className="text-xs text-zinc-400 hover:text-zinc-600"
+                              className="text-zinc-400 hover:text-zinc-600"
                             >
-                              Cancel
+                              <X size={14} />
                             </button>
                           </>
                         ) : (
                           <>
+                            {!isActive && (
+                              <button
+                                onClick={() => onActivatePlan(plan.plan_id)}
+                                disabled={isActing}
+                                className="text-xs font-medium text-zinc-700 bg-white border border-zinc-200 px-2.5 py-1 rounded-lg hover:bg-zinc-50 disabled:opacity-50"
+                              >
+                                {isActing ? "Switching…" : "Set active"}
+                              </button>
+                            )}
                             <button
-                              onClick={() => onActivatePlan(plan.plan_id)}
+                              onClick={() => {
+                                setRenamingPlanId(null);
+                                onConfirmDelete(plan.plan_id);
+                              }}
                               disabled={isActing}
-                              className="text-xs font-medium text-zinc-700 bg-white border border-zinc-200 px-2.5 py-1 rounded-lg hover:bg-zinc-50 disabled:opacity-50"
+                              className={`disabled:opacity-50 ${
+                                isActive
+                                  ? "text-zinc-500 hover:text-red-400"
+                                  : "text-zinc-400 hover:text-red-500"
+                              }`}
+                              title="Delete plan"
                             >
-                              {isActing ? "Switching…" : "Set active"}
-                            </button>
-                            <button
-                              onClick={() => onConfirmDelete(plan.plan_id)}
-                              disabled={isActing}
-                              className="text-xs text-zinc-400 hover:text-red-500 disabled:opacity-50"
-                            >
-                              Delete
+                              <Trash2 size={14} />
                             </button>
                           </>
                         )}
@@ -864,7 +1009,9 @@ function ScheduleTab({
       {/* Weekly schedule */}
       {!hasSchedule ? (
         <div className="flex flex-col items-center justify-center py-8 text-center gap-4">
-          <p className="text-zinc-500 text-sm">No schedule yet — import a plan to see the weekly view</p>
+          <p className="text-zinc-500 text-sm">
+            No schedule yet — import a plan to see the weekly view
+          </p>
         </div>
       ) : (
         <div className="flex flex-col gap-3">
@@ -876,19 +1023,23 @@ function ScheduleTab({
 
           {schedule.days.map((day) => {
             const isToday = day.weekday === todayIndex;
+            const isRemapping = remappingWeekday === day.weekday;
 
             return (
               <div
                 key={day.weekday}
                 className={`rounded-xl border p-4 transition-colors ${
-                  isToday
-                    ? "bg-zinc-900 border-zinc-900 text-white"
-                    : "bg-white border-zinc-100"
+                  isToday ? "bg-zinc-900 border-zinc-900 text-white" : "bg-white border-zinc-100"
                 }`}
               >
+                {/* Day header */}
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    <span className={`text-sm font-semibold ${isToday ? "text-white" : "text-zinc-900"}`}>
+                    <span
+                      className={`text-sm font-semibold ${
+                        isToday ? "text-white" : "text-zinc-900"
+                      }`}
+                    >
                       {day.weekday_name}
                     </span>
                     {isToday && (
@@ -897,21 +1048,66 @@ function ScheduleTab({
                       </span>
                     )}
                   </div>
-                  <span
-                    className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                      day.is_rest
-                        ? isToday
-                          ? "bg-zinc-700 text-zinc-300"
-                          : "bg-zinc-50 text-zinc-400"
-                        : isToday
-                        ? "bg-zinc-700 text-zinc-100"
-                        : "bg-zinc-50 text-zinc-700"
-                    }`}
-                  >
-                    {day.day_name}
-                  </span>
+
+                  <div className="flex items-center gap-2">
+                    {/* Day type selector */}
+                    {activePlanId && availableDayNames.length > 1 ? (
+                      <select
+                        value={day.day_name}
+                        onChange={(e) => handleWeekdayRemap(day.weekday, e.target.value)}
+                        disabled={isRemapping}
+                        className={`text-xs font-medium px-2 py-0.5 rounded-full border-0 outline-none cursor-pointer appearance-none pr-5 ${
+                          day.is_rest
+                            ? isToday
+                              ? "bg-zinc-700 text-zinc-300"
+                              : "bg-zinc-50 text-zinc-400"
+                            : isToday
+                            ? "bg-zinc-700 text-zinc-100"
+                            : "bg-zinc-50 text-zinc-700"
+                        } disabled:opacity-60`}
+                        style={{ backgroundImage: "none" }}
+                        title="Change day type"
+                      >
+                        {availableDayNames.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span
+                        className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                          day.is_rest
+                            ? isToday
+                              ? "bg-zinc-700 text-zinc-300"
+                              : "bg-zinc-50 text-zinc-400"
+                            : isToday
+                            ? "bg-zinc-700 text-zinc-100"
+                            : "bg-zinc-50 text-zinc-700"
+                        }`}
+                      >
+                        {day.day_name}
+                      </span>
+                    )}
+
+                    {/* Edit exercises button (non-rest days only) */}
+                    {!day.is_rest && activePlanId && (
+                      <button
+                        onClick={() => setEditDay(day)}
+                        className={`transition-colors ${
+                          isToday
+                            ? "text-zinc-500 hover:text-zinc-300"
+                            : "text-zinc-400 hover:text-zinc-600"
+                        }`}
+                        title="Edit exercises"
+                      >
+                        <Pencil size={13} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
+                {/* Day body */}
                 {day.is_rest ? (
                   <div className="flex items-center gap-1.5 text-zinc-400">
                     <Moon size={13} />
@@ -919,19 +1115,32 @@ function ScheduleTab({
                   </div>
                 ) : (
                   <div className="flex flex-col gap-1 mt-1">
-                    {day.exercises.map((ex) => (
-                      <div
-                        key={ex.exercise_name}
-                        className={`flex items-center justify-between text-xs ${
-                          isToday ? "text-zinc-300" : "text-zinc-600"
+                    {day.exercises.length === 0 ? (
+                      <p
+                        className={`text-xs italic ${
+                          isToday ? "text-zinc-500" : "text-zinc-400"
                         }`}
                       >
-                        <span>{ex.exercise_name}</span>
-                        <span className="font-mono text-zinc-400">
-                          {ex.sets}×{ex.rep_min === ex.rep_max ? ex.rep_min : `${ex.rep_min}–${ex.rep_max}`}
-                        </span>
-                      </div>
-                    ))}
+                        No exercises — tap edit to add some
+                      </p>
+                    ) : (
+                      day.exercises.map((ex) => (
+                        <div
+                          key={ex.exercise_name}
+                          className={`flex items-center justify-between text-xs ${
+                            isToday ? "text-zinc-300" : "text-zinc-600"
+                          }`}
+                        >
+                          <span>{ex.exercise_name}</span>
+                          <span className="font-mono text-zinc-400">
+                            {ex.sets}×
+                            {ex.rep_min === ex.rep_max
+                              ? ex.rep_min
+                              : `${ex.rep_min}–${ex.rep_max}`}
+                          </span>
+                        </div>
+                      ))
+                    )}
                   </div>
                 )}
               </div>
@@ -939,6 +1148,242 @@ function ScheduleTab({
           })}
         </div>
       )}
+
+      {/* Edit day modal */}
+      {editDay && activePlanId && (
+        <EditDayModal
+          day={editDay}
+          onSave={async (exercises) => {
+            await onUpdateDay(activePlanId, editDay.day_name, exercises);
+            setEditDay(null);
+          }}
+          onClose={() => setEditDay(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Edit day modal
+// ---------------------------------------------------------------------------
+
+type EditableExercise = {
+  _key: string;
+  exercise_name: string;
+  sets: number;
+  rep_min: number;
+  rep_max: number;
+};
+
+function EditDayModal({
+  day,
+  onSave,
+  onClose,
+}: {
+  day: ScheduleDay;
+  onSave: (exercises: ScheduleExercise[]) => Promise<void>;
+  onClose: () => void;
+}) {
+  const [exercises, setExercises] = useState<EditableExercise[]>(() =>
+    day.exercises.map((ex, i) => ({ ...ex, _key: String(i) }))
+  );
+  const [newName, setNewName] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  function updateExercise(key: string, field: keyof Omit<EditableExercise, "_key">, value: string) {
+    setExercises((prev) =>
+      prev.map((ex) =>
+        ex._key === key
+          ? {
+              ...ex,
+              [field]: field === "exercise_name" ? value : Math.max(1, parseInt(value) || 1),
+            }
+          : ex
+      )
+    );
+  }
+
+  function removeExercise(key: string) {
+    setExercises((prev) => prev.filter((ex) => ex._key !== key));
+  }
+
+  function moveExercise(key: string, dir: -1 | 1) {
+    setExercises((prev) => {
+      const idx = prev.findIndex((ex) => ex._key === key);
+      if (idx === -1) return prev;
+      const newIdx = idx + dir;
+      if (newIdx < 0 || newIdx >= prev.length) return prev;
+      const next = [...prev];
+      [next[idx], next[newIdx]] = [next[newIdx], next[idx]];
+      return next;
+    });
+  }
+
+  function addExercise() {
+    const name = newName.trim();
+    if (!name) return;
+    setExercises((prev) => [
+      ...prev,
+      {
+        _key: `new-${Date.now()}`,
+        exercise_name: name,
+        sets: 3,
+        rep_min: 8,
+        rep_max: 12,
+      },
+    ]);
+    setNewName("");
+  }
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      await onSave(
+        exercises.map((ex, i) => ({
+          exercise_name: ex.exercise_name,
+          sets: ex.sets,
+          rep_min: ex.rep_min,
+          rep_max: ex.rep_max,
+          order: i + 1,
+        }))
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center p-0">
+      <div className="bg-white rounded-t-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-zinc-100">
+          <div>
+            <p className="text-xs text-zinc-400 uppercase tracking-wide">Edit exercises</p>
+            <p className="text-base font-bold text-zinc-900">{day.day_name} Day</p>
+          </div>
+          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Exercise list */}
+        <div className="flex-1 overflow-y-auto px-5 py-3 flex flex-col gap-2">
+          {exercises.length === 0 && (
+            <p className="text-sm text-zinc-400 text-center py-4">
+              No exercises yet — add one below
+            </p>
+          )}
+
+          {exercises.map((ex, idx) => (
+            <div
+              key={ex._key}
+              className="flex items-center gap-2 bg-zinc-50 rounded-lg px-3 py-2"
+            >
+              {/* Reorder */}
+              <div className="flex flex-col gap-0.5 shrink-0">
+                <button
+                  onClick={() => moveExercise(ex._key, -1)}
+                  disabled={idx === 0}
+                  className="text-zinc-400 hover:text-zinc-700 disabled:opacity-20"
+                >
+                  <ChevronUp size={14} />
+                </button>
+                <button
+                  onClick={() => moveExercise(ex._key, 1)}
+                  disabled={idx === exercises.length - 1}
+                  className="text-zinc-400 hover:text-zinc-700 disabled:opacity-20"
+                >
+                  <ChevronDown size={14} />
+                </button>
+              </div>
+
+              {/* Name */}
+              <input
+                value={ex.exercise_name}
+                onChange={(e) => updateExercise(ex._key, "exercise_name", e.target.value)}
+                className="input text-sm flex-1 min-w-0"
+                placeholder="Exercise name"
+              />
+
+              {/* Sets */}
+              <div className="flex items-center gap-1 shrink-0">
+                <span className="text-xs text-zinc-400">sets</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={ex.sets}
+                  onChange={(e) => updateExercise(ex._key, "sets", e.target.value)}
+                  className="input w-12 text-sm text-center"
+                />
+              </div>
+
+              {/* Rep range */}
+              <div className="flex items-center gap-1 shrink-0">
+                <input
+                  type="number"
+                  min={1}
+                  value={ex.rep_min}
+                  onChange={(e) => updateExercise(ex._key, "rep_min", e.target.value)}
+                  className="input w-12 text-sm text-center"
+                />
+                <span className="text-xs text-zinc-400">–</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={ex.rep_max}
+                  onChange={(e) => updateExercise(ex._key, "rep_max", e.target.value)}
+                  className="input w-12 text-sm text-center"
+                />
+              </div>
+
+              {/* Remove */}
+              <button
+                onClick={() => removeExercise(ex._key)}
+                className="text-zinc-300 hover:text-red-500 shrink-0"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+
+          {/* Add exercise row */}
+          <div className="flex items-center gap-2 mt-1">
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && addExercise()}
+              placeholder="New exercise name…"
+              className="input text-sm flex-1"
+            />
+            <button
+              onClick={addExercise}
+              disabled={!newName.trim()}
+              className="flex items-center gap-1 text-xs font-medium text-zinc-600 bg-zinc-100 hover:bg-zinc-200 px-3 py-1.5 rounded-lg disabled:opacity-40"
+            >
+              <Plus size={13} />
+              Add
+            </button>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-3 px-5 py-4 border-t border-zinc-100">
+          <button
+            onClick={onClose}
+            className="flex-1 btn-outline"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex-1 btn-primary"
+          >
+            {saving ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

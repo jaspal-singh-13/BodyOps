@@ -11,8 +11,11 @@ Endpoints:
     GET    /workouts/history              — all past sessions
     GET    /workouts/schedule             — full Mon–Sun schedule with exercises
     GET    /workouts/plans                — list all saved plans
-    POST   /workouts/plans/{plan_id}/activate — switch active plan
-    DELETE /workouts/plans/{plan_id}      — delete a non-active plan
+    POST   /workouts/plans/{plan_id}/activate         — switch active plan
+    DELETE /workouts/plans/{plan_id}                  — delete a plan (active or not)
+    PATCH  /workouts/plans/{plan_id}                  — rename a plan
+    PUT    /workouts/plans/{plan_id}/days/{day_name}  — replace exercises for a day
+    PATCH  /workouts/plans/{plan_id}/schedule/{weekday} — remap a weekday to a day type
 """
 
 from __future__ import annotations
@@ -30,7 +33,10 @@ from ..models.workout import (
     ExerciseProgressionResponse,
     LogSetRequest,
     LogSetResponse,
+    RenamePlanRequest,
     TodayWorkoutResponse,
+    UpdateDayRequest,
+    UpdateScheduleWeekdayRequest,
     WorkoutHistoryResponse,
     WorkoutImportRequest,
     WorkoutImportResponse,
@@ -50,6 +56,9 @@ from ..services.workout_service import (
     import_workout,
     list_plans,
     log_set,
+    rename_plan,
+    update_day_exercises,
+    update_schedule_weekday,
 )
 
 router = APIRouter(prefix="/workouts", tags=["workouts"])
@@ -158,5 +167,42 @@ async def delete_plan_endpoint(
     try:
         await asyncio.to_thread(delete_plan, user_id, plan_id)
     except ValueError as e:
-        status = 409 if "active plan" in str(e).lower() else 404
-        raise HTTPException(status_code=status, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.patch("/plans/{plan_id}", status_code=204)
+async def rename_plan_endpoint(
+    plan_id: str,
+    body: RenamePlanRequest,
+    user_id: int = Depends(get_current_user),
+) -> None:
+    try:
+        await asyncio.to_thread(rename_plan, user_id, plan_id, body.plan_name)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.put("/plans/{plan_id}/days/{day_name}", status_code=204)
+async def update_day_exercises_endpoint(
+    plan_id: str,
+    day_name: str,
+    body: UpdateDayRequest,
+    user_id: int = Depends(get_current_user),
+) -> None:
+    try:
+        await asyncio.to_thread(update_day_exercises, user_id, plan_id, day_name, body.exercises)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.patch("/plans/{plan_id}/schedule/{weekday}", status_code=204)
+async def update_schedule_weekday_endpoint(
+    plan_id: str,
+    weekday: int,
+    body: UpdateScheduleWeekdayRequest,
+    user_id: int = Depends(get_current_user),
+) -> None:
+    try:
+        await asyncio.to_thread(update_schedule_weekday, user_id, plan_id, weekday, body.day_name)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))

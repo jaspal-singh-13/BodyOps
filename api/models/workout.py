@@ -144,3 +144,20 @@ class WorkoutPlanSummary(BaseModel):
 
 class WorkoutPlansResponse(BaseModel):
     plans: list[WorkoutPlanSummary]
+
+
+# ---------------------------------------------------------------------------
+# Schedule management request models
+# ---------------------------------------------------------------------------
+
+
+class RenamePlanRequest(BaseModel):
+    plan_name: str
+
+
+class UpdateDayRequest(BaseModel):
+    exercises: list[ExerciseInfo]
+
+
+class UpdateScheduleWeekdayRequest(BaseModel):
+    day_name: str

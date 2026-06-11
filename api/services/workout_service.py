@@ -165,6 +165,26 @@ def _delete_plan_rows(tab: str, user_id: int, plan_id: str) -> None:
         ws.delete_rows(start, end)
 
 
+def _delete_day_rows(tab: str, user_id: int, plan_id: str, day_name: str) -> None:
+    """Delete all rows matching (user_id, plan_id, day_name) in the given tab."""
+    try:
+        ws = get_worksheet(tab)
+    except gspread.exceptions.WorksheetNotFound:
+        return
+    records = ws.get_all_records()
+    indices = sorted(
+        i + 2
+        for i, r in enumerate(records)
+        if int(r.get("user_id", -1)) == user_id
+        and str(r.get("plan_id", "")) == plan_id
+        and str(r.get("day_name", "")) == day_name
+    )
+    if not indices:
+        return
+    for start, end in reversed(_group_contiguous(indices)):
+        ws.delete_rows(start, end)
+
+
 def _filter_by_plan(
     rows: list[dict[str, Any]],
     user_id: int,
@@ -337,21 +357,23 @@ def delete_plan(user_id: int, plan_id: str) -> None:
     """
     Delete a saved plan and all its programs/schedules.
 
-    Raises ValueError if the plan is currently active (switch first) or not found.
+    If the plan is currently active it is deactivated before deletion so the
+    user does not need to switch plans first. Raises ValueError if not found.
     """
-    active_plan_id = get_active_plan_id(user_id)
-    if active_plan_id == plan_id:
-        raise ValueError("Cannot delete the active plan — switch to another plan first")
-
     plan_rows = _safe_read_rows(PLANS_TAB)
     plan_row_idx: int | None = None
+    is_active_plan = False
     for i, r in enumerate(plan_rows):
         if int(r.get("user_id", -1)) == user_id and str(r.get("plan_id", "")) == plan_id:
             plan_row_idx = i + 2
+            is_active_plan = str(r.get("is_active", "")).upper() == "TRUE"
             break
 
     if plan_row_idx is None:
         raise ValueError(f"Plan '{plan_id}' not found for user {user_id}")
+
+    if is_active_plan:
+        _deactivate_current_plan(user_id)
 
     _delete_plan_rows(PROGRAMS_TAB, user_id, plan_id)
     _delete_plan_rows(SCHEDULES_TAB, user_id, plan_id)
@@ -396,6 +418,104 @@ def switch_plan_by_name(user_id: int, plan_name: str) -> dict:
         "plan_id": target_plan_id,
         "plan_name": str(target.get("plan_name", "")),
     }
+
+
+def rename_plan(user_id: int, plan_id: str, new_name: str) -> None:
+    """Rename a saved plan. Raises ValueError if the plan is not found."""
+    plan_rows = _safe_read_rows(PLANS_TAB)
+    for i, r in enumerate(plan_rows):
+        if int(r.get("user_id", -1)) == user_id and str(r.get("plan_id", "")) == plan_id:
+            row = dict(r)
+            row["plan_name"] = new_name
+            update_row(PLANS_TAB, i + 2, row)
+            logger.info("Renamed plan %s to '%s' for user_id=%s", plan_id, new_name, user_id)
+            return
+    raise ValueError(f"Plan '{plan_id}' not found for user {user_id}")
+
+
+def update_day_exercises(
+    user_id: int,
+    plan_id: str,
+    day_name: str,
+    exercises: list[ExerciseInfo],
+) -> None:
+    """
+    Replace all exercises for a day within a plan.
+
+    Existing WorkoutPrograms rows for (user_id, plan_id, day_name) are deleted
+    and re-inserted with updated data. Raises ValueError if plan not found.
+    """
+    plan_rows = _safe_read_rows(PLANS_TAB)
+    if not any(
+        int(r.get("user_id", -1)) == user_id and str(r.get("plan_id", "")) == plan_id
+        for r in plan_rows
+    ):
+        raise ValueError(f"Plan '{plan_id}' not found for user {user_id}")
+
+    # Preserve program_name for legacy column
+    program_rows_existing = _safe_read_rows(PROGRAMS_TAB)
+    program_name = ""
+    for r in program_rows_existing:
+        if int(r.get("user_id", -1)) == user_id and str(r.get("plan_id", "")) == plan_id:
+            program_name = str(r.get("program_name", ""))
+            break
+
+    _delete_day_rows(PROGRAMS_TAB, user_id, plan_id, day_name)
+
+    now = _now_utc()
+    new_rows = [
+        {
+            "user_id": user_id,
+            "plan_id": plan_id,
+            "program_name": program_name,
+            "day_name": day_name,
+            "exercise_name": ex.exercise_name,
+            "sets": ex.sets,
+            "rep_min": ex.rep_min,
+            "rep_max": ex.rep_max,
+            "order": idx + 1,
+            "created_at": now,
+        }
+        for idx, ex in enumerate(exercises)
+    ]
+    if new_rows:
+        append_rows_batch(PROGRAMS_TAB, new_rows)
+
+    logger.info(
+        "Updated day '%s' for plan %s user_id=%s: %s exercises",
+        day_name, plan_id, user_id, len(exercises),
+    )
+
+
+def update_schedule_weekday(
+    user_id: int,
+    plan_id: str,
+    weekday: int,
+    day_name: str,
+) -> None:
+    """
+    Reassign a weekday to a different day_name within a plan.
+
+    Raises ValueError if the weekday row is not found for this plan.
+    """
+    schedule_rows = _safe_read_rows(SCHEDULES_TAB)
+    for i, r in enumerate(schedule_rows):
+        if (
+            int(r.get("user_id", -1)) == user_id
+            and str(r.get("plan_id", "")) == plan_id
+            and int(r.get("weekday", -1)) == weekday
+        ):
+            row = dict(r)
+            row["day_name"] = day_name
+            update_row(SCHEDULES_TAB, i + 2, row)
+            logger.info(
+                "Updated schedule weekday=%s to day_name='%s' for plan %s user_id=%s",
+                weekday, day_name, plan_id, user_id,
+            )
+            return
+    raise ValueError(
+        f"Schedule weekday {weekday} not found for plan '{plan_id}' user {user_id}"
+    )
 
 
 def _deactivate_current_plan(user_id: int) -> None:
