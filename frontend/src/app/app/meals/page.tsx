@@ -530,7 +530,11 @@ function CameraScreen({
   const showError = permissionDenied || cameraUnavailable;
 
   return (
-    <div className="flex flex-col min-h-screen" style={{ background: "#1a1917" }}>
+    /* fixed inset-0 = covers full viewport, escaping the layout's main/sidebar */
+    <div
+      className="fixed inset-0 z-50 flex flex-col overflow-hidden"
+      style={{ background: "#1a1917" }}
+    >
       {/* Hidden gallery upload input — no capture attribute so it opens files/photos */}
       <input
         ref={uploadInputRef}
@@ -543,7 +547,7 @@ function CameraScreen({
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Top bar */}
-      <div className="flex items-center justify-between px-4 pt-4 pb-2 relative z-10">
+      <div className="flex items-center justify-between px-4 pt-safe pt-4 pb-2 relative z-10 shrink-0">
         <button
           onClick={onClose}
           className="w-[38px] h-[38px] rounded-full flex items-center justify-center"
@@ -565,11 +569,10 @@ function CameraScreen({
         </div>
       </div>
 
-      {/* Viewfinder */}
-      <div className="flex-1 relative flex items-center justify-center mx-4 overflow-hidden rounded-2xl">
+      {/* Viewfinder — full-width, flex-1 to fill remaining height */}
+      <div className="flex-1 relative overflow-hidden">
         {showError ? (
-          /* Permission denied / camera unavailable state */
-          <div className="flex flex-col items-center justify-center gap-4 px-8 text-center">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-8 text-center">
             <div
               className="w-16 h-16 rounded-2xl flex items-center justify-center"
               style={{ background: "rgba(255,255,255,0.08)" }}
@@ -587,19 +590,22 @@ function CameraScreen({
           </div>
         ) : (
           <>
-            {/* Live video feed */}
+            {/* Live video — cover entire viewfinder area */}
             <video
               ref={videoRef}
               autoPlay
               playsInline
               muted
+              onLoadedMetadata={() => setCameraReady(true)}
               onCanPlay={() => setCameraReady(true)}
               className="absolute inset-0 w-full h-full object-cover"
             />
-            {/* Loading overlay while camera initialises */}
+            {/* Loading overlay while stream initialises */}
             {!cameraReady && (
-              <div className="absolute inset-0 flex items-center justify-center"
-                style={{ background: "#26241f" }}>
+              <div
+                className="absolute inset-0 flex items-center justify-center"
+                style={{ background: "#26241f" }}
+              >
                 <span
                   className="font-mono text-[11px] uppercase tracking-wider px-2.5 py-1.5 rounded"
                   style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.18)", color: "rgba(255,255,255,0.7)" }}
@@ -615,8 +621,8 @@ function CameraScreen({
                 style={{
                   position: "absolute",
                   width: 26, height: 26,
-                  ...(pos[0] === "t" ? { top: 10 } : { bottom: 10 }),
-                  ...(pos[1] === "l" ? { left: 10 } : { right: 10 }),
+                  ...(pos[0] === "t" ? { top: 14 } : { bottom: 14 }),
+                  ...(pos[1] === "l" ? { left: 14 } : { right: 14 }),
                   borderColor: "rgba(255,255,255,0.85)",
                   borderStyle: "solid",
                   borderWidth: 0,
@@ -639,11 +645,14 @@ function CameraScreen({
 
       {/* Analysis error feedback */}
       {error && (
-        <p className="text-red-400 text-xs font-mono text-center px-4 pt-2">{error}</p>
+        <p className="text-red-400 text-xs font-mono text-center px-4 pt-2 shrink-0">{error}</p>
       )}
 
-      {/* Controls */}
-      <div className="px-4 pt-5 pb-8 flex items-center justify-between">
+      {/* Controls — safe-area padding so it clears home indicators on iOS/Android */}
+      <div
+        className="px-4 pt-5 flex items-center justify-between shrink-0"
+        style={{ paddingBottom: "max(2rem, env(safe-area-inset-bottom, 2rem))" }}
+      >
         {/* Upload from gallery */}
         <button
           onClick={() => uploadInputRef.current?.click()}
@@ -657,22 +666,32 @@ function CameraScreen({
           </span>
         </button>
 
-        {/* Shutter — disabled until camera is live */}
+        {/* Shutter — always visible; pulses while camera warms up */}
         <button
           onClick={handleShutter}
           disabled={!cameraReady}
-          className="w-[74px] h-[74px] rounded-full flex items-center justify-center transition-opacity"
+          className="w-[74px] h-[74px] rounded-full flex items-center justify-center"
           style={{
             background: "transparent",
             border: "4px solid rgba(255,255,255,0.9)",
-            opacity: cameraReady ? 1 : 0.35,
           }}
           aria-label="Take photo"
         >
-          <div className="w-[58px] h-[58px] rounded-full bg-white" />
+          {cameraReady ? (
+            <div className="w-[58px] h-[58px] rounded-full bg-white" />
+          ) : (
+            <div
+              className="w-[58px] h-[58px] rounded-full"
+              style={{
+                background: "rgba(255,255,255,0.25)",
+                animation: "boPulse 1.2s ease-in-out infinite",
+              }}
+            />
+          )}
         </button>
+        <style>{`@keyframes boPulse { 0%,100%{opacity:.25} 50%{opacity:.6} }`}</style>
 
-        {/* Manual entry */}
+        {/* Manual / upload alias */}
         <button
           onClick={() => uploadInputRef.current?.click()}
           className="w-14 h-14 rounded-xl flex flex-col items-center justify-center gap-0.5"
