@@ -15,6 +15,8 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Camera,
+  CameraOff,
+  ImageUp,
   X,
   ChevronLeft,
   Check,
@@ -127,8 +129,6 @@ function MealsPageInner() {
   const [mealType, setMealType] = useState<MealType>("Lunch");
   const [confirming, setConfirming] = useState(false);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   useEffect(() => {
     fetchNutrition();
     fetchHistory();
@@ -150,9 +150,7 @@ function MealsPageInner() {
 
   // ---------- Camera / capture ----------
 
-  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  function handleFileCapture(file: File) {
     setCapturedFile(file);
     setCapturedPreviewUrl(URL.createObjectURL(file));
     setAnalyzeError(null);
@@ -208,10 +206,8 @@ function MealsPageInner() {
   if (screen === "camera") {
     return <CameraScreen
       onClose={() => setScreen("list")}
-      onCapture={() => fileInputRef.current?.click()}
+      onFileCapture={handleFileCapture}
       error={analyzeError}
-      fileInputRef={fileInputRef}
-      onFileSelect={handleFileSelect}
     />;
   }
 
@@ -451,36 +447,100 @@ function PlaceholderMealCard({
 }
 
 // ---------------------------------------------------------------------------
-// Camera screen
+// Camera screen — real getUserMedia live preview
 // ---------------------------------------------------------------------------
 
 function CameraScreen({
   onClose,
-  onCapture,
+  onFileCapture,
   error,
-  fileInputRef,
-  onFileSelect,
 }: {
   onClose: () => void;
-  onCapture: () => void;
+  onFileCapture: (file: File) => void;
   error: string | null;
-  fileInputRef: React.RefObject<HTMLInputElement | null>;
-  onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [permissionDenied, setPermissionDenied] = useState(false);
+  const [cameraUnavailable, setCameraUnavailable] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function startCamera() {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setCameraUnavailable(true);
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } },
+        });
+        if (!active) { stream.getTracks().forEach((t) => t.stop()); return; }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (err) {
+        if (!active) return;
+        if (err instanceof DOMException && err.name === "NotAllowedError") {
+          setPermissionDenied(true);
+        } else {
+          setCameraUnavailable(true);
+        }
+      }
+    }
+
+    startCamera();
+
+    return () => {
+      active = false;
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    };
+  }, []);
+
+  function handleShutter() {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || !cameraReady) return;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext("2d")?.drawImage(video, 0, 0);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return;
+        const file = new File([blob], `meal-${Date.now()}.jpg`, { type: "image/jpeg" });
+        onFileCapture(file);
+      },
+      "image/jpeg",
+      0.92
+    );
+  }
+
+  function handleUploadChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    onFileCapture(file);
+  }
+
+  const showError = permissionDenied || cameraUnavailable;
+
   return (
-    <div
-      className="flex flex-col min-h-screen"
-      style={{ background: "#1a1917" }}
-    >
-      {/* Hidden file input */}
+    <div className="flex flex-col min-h-screen" style={{ background: "#1a1917" }}>
+      {/* Hidden gallery upload input — no capture attribute so it opens files/photos */}
       <input
-        ref={fileInputRef}
+        ref={uploadInputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         className="hidden"
-        onChange={onFileSelect}
+        onChange={handleUploadChange}
       />
+      {/* Off-screen canvas used for frame capture */}
+      <canvas ref={canvasRef} className="hidden" />
 
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2 relative z-10">
@@ -491,88 +551,138 @@ function CameraScreen({
         >
           <X size={18} color="#fff" />
         </button>
-        <span className="font-mono text-[11.5px] font-semibold tracking-widest"
-          style={{ color: "rgba(255,255,255,0.7)" }}>
+        <span
+          className="font-mono text-[11.5px] font-semibold tracking-widest"
+          style={{ color: "rgba(255,255,255,0.7)" }}
+        >
           SNAP YOUR MEAL
         </span>
-        <div className="w-[38px] h-[38px] rounded-full flex items-center justify-center"
-          style={{ background: "rgba(255,255,255,0.12)" }}>
+        <div
+          className="w-[38px] h-[38px] rounded-full flex items-center justify-center"
+          style={{ background: "rgba(255,255,255,0.12)" }}
+        >
           <Zap size={18} color="rgba(255,255,255,0.7)" />
         </div>
       </div>
 
       {/* Viewfinder */}
-      <div className="flex-1 relative flex items-center justify-center mx-4">
-        <div
-          className="absolute inset-0 rounded-2xl flex items-center justify-center"
-          style={{
-            background: "#26241f",
-            backgroundImage: "repeating-linear-gradient(-45deg, transparent, transparent 6px, rgba(255,255,255,0.04) 6px, rgba(255,255,255,0.04) 7px)",
-            border: "1px dashed rgba(255,255,255,0.18)",
-          }}
-        >
-          <span className="font-mono text-[10px] uppercase tracking-wider px-2.5 py-1.5 rounded"
-            style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.18)", color: "rgba(255,255,255,0.7)" }}>
-            CAMERA · LIVE PREVIEW
-          </span>
-        </div>
-        {/* Corner guides */}
-        {(["tl", "tr", "bl", "br"] as const).map((pos) => (
-          <div key={pos} style={{
-            position: "absolute",
-            width: 26, height: 26,
-            ...(pos[0] === "t" ? { top: 10 } : { bottom: 10 }),
-            ...(pos[1] === "l" ? { left: 10 } : { right: 10 }),
-            borderColor: "rgba(255,255,255,0.85)",
-            borderStyle: "solid",
-            borderWidth: 0,
-            ...(pos[0] === "t" ? { borderTopWidth: 3 } : { borderBottomWidth: 3 }),
-            ...(pos[1] === "l" ? { borderLeftWidth: 3 } : { borderRightWidth: 3 }),
-            borderRadius: pos === "tl" ? "10px 0 0 0" : pos === "tr" ? "0 10px 0 0" : pos === "bl" ? "0 0 0 10px" : "0 0 10px 0",
-          }} />
-        ))}
-        <p className="absolute bottom-8 left-0 right-0 text-center font-mono text-[11px]"
-          style={{ color: "rgba(255,255,255,0.55)" }}>
-          Center your plate in the frame
-        </p>
+      <div className="flex-1 relative flex items-center justify-center mx-4 overflow-hidden rounded-2xl">
+        {showError ? (
+          /* Permission denied / camera unavailable state */
+          <div className="flex flex-col items-center justify-center gap-4 px-8 text-center">
+            <div
+              className="w-16 h-16 rounded-2xl flex items-center justify-center"
+              style={{ background: "rgba(255,255,255,0.08)" }}
+            >
+              <CameraOff size={30} color="rgba(255,255,255,0.6)" />
+            </div>
+            <p className="font-mono text-[13px] font-semibold" style={{ color: "rgba(255,255,255,0.85)" }}>
+              {permissionDenied ? "Camera access denied" : "Camera not available"}
+            </p>
+            <p className="font-mono text-[11px] leading-relaxed" style={{ color: "rgba(255,255,255,0.45)" }}>
+              {permissionDenied
+                ? "Allow camera access in your browser or OS settings, then refresh. You can still upload a photo below."
+                : "Your device or browser doesn't support live camera. Use the upload button below to pick a photo."}
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Live video feed */}
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              onCanPlay={() => setCameraReady(true)}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            {/* Loading overlay while camera initialises */}
+            {!cameraReady && (
+              <div className="absolute inset-0 flex items-center justify-center"
+                style={{ background: "#26241f" }}>
+                <span
+                  className="font-mono text-[11px] uppercase tracking-wider px-2.5 py-1.5 rounded"
+                  style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.18)", color: "rgba(255,255,255,0.7)" }}
+                >
+                  Starting camera…
+                </span>
+              </div>
+            )}
+            {/* Corner guides */}
+            {(["tl", "tr", "bl", "br"] as const).map((pos) => (
+              <div
+                key={pos}
+                style={{
+                  position: "absolute",
+                  width: 26, height: 26,
+                  ...(pos[0] === "t" ? { top: 10 } : { bottom: 10 }),
+                  ...(pos[1] === "l" ? { left: 10 } : { right: 10 }),
+                  borderColor: "rgba(255,255,255,0.85)",
+                  borderStyle: "solid",
+                  borderWidth: 0,
+                  ...(pos[0] === "t" ? { borderTopWidth: 3 } : { borderBottomWidth: 3 }),
+                  ...(pos[1] === "l" ? { borderLeftWidth: 3 } : { borderRightWidth: 3 }),
+                  borderRadius: pos === "tl" ? "10px 0 0 0" : pos === "tr" ? "0 10px 0 0" : pos === "bl" ? "0 0 0 10px" : "0 0 10px 0",
+                  zIndex: 10,
+                }}
+              />
+            ))}
+            <p
+              className="absolute bottom-4 left-0 right-0 text-center font-mono text-[11px] z-10"
+              style={{ color: "rgba(255,255,255,0.55)" }}
+            >
+              Center your plate in the frame
+            </p>
+          </>
+        )}
       </div>
 
-      {/* Error message */}
+      {/* Analysis error feedback */}
       {error && (
-        <p className="text-red-400 text-xs font-mono text-center px-4 mb-2">{error}</p>
+        <p className="text-red-400 text-xs font-mono text-center px-4 pt-2">{error}</p>
       )}
 
       {/* Controls */}
       <div className="px-4 pt-5 pb-8 flex items-center justify-between">
-        {/* Gallery */}
+        {/* Upload from gallery */}
         <button
-          onClick={onCapture}
-          className="w-12 h-12 rounded-xl flex items-center justify-center"
+          onClick={() => uploadInputRef.current?.click()}
+          className="w-14 h-14 rounded-xl flex flex-col items-center justify-center gap-1"
           style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.16)" }}
+          aria-label="Upload photo from gallery"
         >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M4 8.5A1.5 1.5 0 0 1 5.5 7H8l1.2-2h5.6L16 7h2.5A1.5 1.5 0 0 1 20 8.5v9A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5zM12 16.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" />
-          </svg>
+          <ImageUp size={20} color="rgba(255,255,255,0.85)" />
+          <span className="font-mono text-[7px] font-bold" style={{ color: "rgba(255,255,255,0.6)" }}>
+            UPLOAD
+          </span>
         </button>
 
-        {/* Shutter */}
+        {/* Shutter — disabled until camera is live */}
         <button
-          onClick={onCapture}
-          className="w-[74px] h-[74px] rounded-full flex items-center justify-center"
-          style={{ background: "transparent", border: "4px solid rgba(255,255,255,0.9)" }}
+          onClick={handleShutter}
+          disabled={!cameraReady}
+          className="w-[74px] h-[74px] rounded-full flex items-center justify-center transition-opacity"
+          style={{
+            background: "transparent",
+            border: "4px solid rgba(255,255,255,0.9)",
+            opacity: cameraReady ? 1 : 0.35,
+          }}
+          aria-label="Take photo"
         >
           <div className="w-[58px] h-[58px] rounded-full bg-white" />
         </button>
 
-        {/* Manual */}
+        {/* Manual entry */}
         <button
-          onClick={onCapture}
-          className="w-12 h-12 rounded-xl flex flex-col items-center justify-center gap-0.5"
+          onClick={() => uploadInputRef.current?.click()}
+          className="w-14 h-14 rounded-xl flex flex-col items-center justify-center gap-0.5"
           style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.16)" }}
+          aria-label="Manual entry"
         >
           <Edit size={17} color="rgba(255,255,255,0.85)" />
-          <span className="font-mono text-[7.5px] font-bold"
-            style={{ color: "rgba(255,255,255,0.7)" }}>MANUAL</span>
+          <span className="font-mono text-[7.5px] font-bold" style={{ color: "rgba(255,255,255,0.7)" }}>
+            MANUAL
+          </span>
         </button>
       </div>
     </div>

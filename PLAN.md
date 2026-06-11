@@ -374,59 +374,59 @@ User can photograph a meal, get AI-estimated calories and macros, confirm, and s
 ### TODOs
 
 **Meal Vision Service (`lib/meal-vision.ts`)**
-- [ ] Accept base64 image or URL
-- [ ] Call `gpt-4o` vision with structured prompt requesting JSON: `{ items: [{ name, quantity, unit, calories, protein_g, carbs_g, fat_g }], total: { calories, protein_g, carbs_g, fat_g } }`
-- [ ] Validate response shape with Zod
-- [ ] Return parsed result or throw structured error
+- [x] Accept base64 image or URL
+- [x] Call `gpt-4o` vision with structured prompt requesting JSON: `{ items: [{ name, quantity, unit, calories, protein_g, carbs_g, fat_g }], total: { calories, protein_g, carbs_g, fat_g } }`
+- [x] Validate response shape with Zod
+- [x] Return parsed result or throw structured error
 
 **Drive Upload (`lib/drive.ts`)**
-- [ ] `uploadMealImage(base64, mimeType)` — upload to Drive folder, return public URL
-- [ ] Set file permission to public read so URL works without auth
+- [x] `uploadMealImage(base64, mimeType)` — upload to Drive folder, return public URL
+- [x] Set file permission to public read so URL works without auth
 
 **API**
-- [ ] `POST /api/meals/analyze` — accept multipart form with image, upload to Drive, call vision, return analysis + drive URL (do NOT save yet — wait for confirm)
-- [ ] `POST /api/meals` — accept confirmed meal payload, save to `Meals` + `MealItems` sheets
-- [ ] `GET /api/meals/today` — return all meals for today with totals
-- [ ] `GET /api/meals/history` — return meal list for last 30 days
+- [x] `POST /api/meals/analyze` — accept multipart form with image, upload to Drive, call vision, return analysis + drive URL (do NOT save yet — wait for confirm)
+- [x] `POST /api/meals` — accept confirmed meal payload, save to `Meals` + `MealItems` sheets
+- [x] `GET /api/meals/today` — return all meals for today with totals
+- [x] `GET /api/meals/history` — return meal list for last 30 days
 
 **Agent Tools (`agent/tools.py`)**
-- [ ] `get_daily_nutrition()` — returns today's consumed calories + macros vs targets from settings
-- [ ] `save_meal(meal_type, items)` — saves a confirmed meal to Meals + MealItems sheets, returns daily totals
-- [ ] `analyze_meal_photo(image_url)` — runs vision analysis on a Drive-hosted image, returns macro breakdown (future: triggered after user shares image)
+- [x] `get_daily_nutrition()` — returns today's consumed calories + macros vs targets from settings
+- [x] `save_meal(meal_type, items)` — saves a confirmed meal to Meals + MealItems sheets, returns daily totals
+- [x] `analyze_meal_photo(image_url)` — runs vision analysis on a Drive-hosted image, returns macro breakdown (future: triggered after user shares image)
 
 **UI — Meals Page (`/app/meals`)**
-- [ ] Camera button: triggers file input (accept image/*, capture=camera on mobile)
-- [ ] After capture: show preview + spinner while analyzing
-- [ ] Analysis result: food item list with editable calories/macros per item
-- [ ] Confirm / Edit / Retake actions
-- [ ] Meal type selector: Breakfast, Lunch, Dinner, Snack
-- [ ] Today's meals list: meal cards with photo thumbnail, type, total cals/protein
-- [ ] Daily summary bar: consumed / target for calories and protein
-- [ ] Empty state: "Tap the camera to log your first meal"
+- [x] Camera button: triggers file input (accept image/*, capture=camera on mobile)
+- [x] After capture: show preview + spinner while analyzing
+- [x] Analysis result: food item list with editable calories/macros per item
+- [x] Confirm / Edit / Retake actions
+- [x] Meal type selector: Breakfast, Lunch, Dinner, Snack
+- [x] Today's meals list: meal cards with photo thumbnail, type, total cals/protein
+- [x] Daily summary bar: consumed / target for calories and protein
+- [x] Empty state: "Tap the camera to log your first meal"
 
 **Dashboard integration**
 - Add two **Quick Action** cards in a 2-column grid (inserted above the Nutrition card):
-  - **Log meal**: camera icon in a dark-bg square (38×38 px), "Log meal" bold title, "Snap a photo" mono caption; taps to `/app/meals` and triggers the camera/upload flow
-  - **Weigh in**: scale icon in a `--paper-2` bg square; title shows "Weigh in"; caption shows "Logged ✓" in mono if today's weight is already recorded, otherwise "Not logged yet"; taps to `/app/weight`
+  - [x] **Log meal**: camera icon in a dark-bg square (38×38 px), "Log meal" bold title, "Snap a photo" mono caption; taps to `/app/meals` and triggers the camera/upload flow
+  - [x] **Weigh in**: scale icon in a `--paper-2` bg square; title shows "Weigh in"; caption shows "Logged ✓" in mono if today's weight is already recorded, otherwise "Not logged yet"; taps to `/app/weight`
 - Add **"Today · Nutrition"** card:
-  - Header row: "TODAY · NUTRITION" eyebrow + "{N} meals logged" mono count (right-aligned)
-  - Left: `DonutStat` ring (104 px diameter, stroke 10): calories consumed / target with "kcal" label inside
-  - Right: stacked macro progress lines for **Protein**, **Carbs**, **Fat** — each line shows label, "**X** / Yg" value, and a filled `Bar` (h=6)
-  - **Empty state**: shows ring at 0%, all macro bars at 0, "Log your first meal to start tracking" caption
+  - [x] Header row: "TODAY · NUTRITION" eyebrow + "{N} meals logged" mono count (right-aligned)
+  - [x] Left: `DonutStat` ring (104 px diameter, stroke 10): calories consumed / target with "kcal" label inside
+  - [x] Right: stacked macro progress lines for **Protein**, **Carbs**, **Fat** — each line shows label, "**X** / Yg" value, and a filled `Bar` (h=6)
+  - [x] **Empty state**: shows ring at 0%, all macro bars at 0, "Log your first meal to start tracking" caption
 
 ### Acceptance Criteria
 
-- [ ] Image upload stores file in Google Drive and returns a working URL
-- [ ] Vision API returns parseable JSON with all required fields
-- [ ] Zod validation rejects malformed OpenAI responses
-- [ ] Confirmed meal saves one row to `Meals` and N rows to `MealItems`
-- [ ] `GET /api/meals/today` correctly sums all meals logged today
-- [ ] Editing a meal item before confirming updates totals in real time
-- [ ] Dashboard Nutrition card shows correct calories, protein, carbs, and fat after logging
-- [ ] Dashboard Quick Action "Weigh in" caption switches to "Logged ✓" after today's weight is recorded
-- [ ] Nutrition card empty state renders when no meals logged today
-- [ ] Agent can report today's nutrition status via chat ("how are my macros?")
-- [ ] Agent can save a meal via chat ("had chicken, rice, broccoli for lunch")
+- [x] Image upload stores file in Google Drive and returns a working URL
+- [x] Vision API returns parseable JSON with all required fields
+- [x] Zod validation rejects malformed OpenAI responses
+- [x] Confirmed meal saves one row to `Meals` and N rows to `MealItems`
+- [x] `GET /api/meals/today` correctly sums all meals logged today
+- [x] Editing a meal item before confirming updates totals in real time
+- [x] Dashboard Nutrition card shows correct calories, protein, carbs, and fat after logging
+- [x] Dashboard Quick Action "Weigh in" caption switches to "Logged ✓" after today's weight is recorded
+- [x] Nutrition card empty state renders when no meals logged today
+- [x] Agent can report today's nutrition status via chat ("how are my macros?")
+- [x] Agent can save a meal via chat ("had chicken, rice, broccoli for lunch")
 
 ---
 
@@ -618,7 +618,7 @@ The `POST /agent/chat` SSE endpoint and "Chat to log" drawer UI are shared infra
 |-------|-------|--------|
 | Phase 2 | `log_weight`, `get_weight_trend` | ✅ done |
 | Phase 3 | `get_today_workout`, `log_workout_set`, `get_progression_target` | ✅ done |
-| Phase 4 | `get_daily_nutrition`, `save_meal`, `analyze_meal_photo` | ⬜ pending |
+| Phase 4 | `get_daily_nutrition`, `save_meal`, `analyze_meal_photo` | ✅ done |
 | Phase 5 | `get_task_status`, `complete_task` | ⬜ pending |
 | Phase 6 | `generate_daily_coaching`, `generate_weekly_review` | ⬜ pending |
 
