@@ -23,6 +23,9 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
+  CartesianGrid,
+  ReferenceLine,
+  Legend,
 } from "recharts";
 import { apiFetch } from "@/lib/api";
 import { useRefresh } from "@/lib/refresh";
@@ -73,6 +76,7 @@ export default function WeightPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [range, setRange] = useState<7 | 30 | 90 | "all">(30);
 
   useEffect(() => {
     Promise.all([
@@ -115,8 +119,11 @@ export default function WeightPage() {
     }
   }
 
-  // Cap chart to last 30 data points to avoid an overly dense X-axis
-  const chartData = trend?.moving_avg.slice(-30) ?? [];
+  const allChartData = trend?.moving_avg ?? [];
+  const chartData =
+    range === "all"
+      ? allChartData
+      : allChartData.slice(-range);
   const currentWeight = history.length > 0 ? history[0].weight_kg : null;
 
   if (loading) {
@@ -202,42 +209,106 @@ export default function WeightPage() {
         </div>
       )}
 
-      {/* 30-day chart */}
-      {chartData.length > 0 && (
+      {/* Trend chart */}
+      {allChartData.length > 0 && (
         <section className="bg-white rounded-xl border border-zinc-100 p-4 mb-6">
-          <h2 className="text-sm font-semibold text-zinc-700 mb-3">
-            30-day trend
-          </h2>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={chartData}>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-zinc-700">Trend</h2>
+            <div className="flex gap-1">
+              {([7, 30, 90, "all"] as const).map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setRange(r)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                    range === r
+                      ? "bg-zinc-900 text-white"
+                      : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200"
+                  }`}
+                >
+                  {r === "all" ? "All" : `${r}d`}
+                </button>
+              ))}
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={chartData} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" vertical={false} />
               <XAxis
                 dataKey="date"
-                tick={{ fontSize: 10 }}
-                // Show MM-DD only to save horizontal space
+                tick={{ fontSize: 10, fill: "#a1a1aa" }}
+                tickLine={false}
+                axisLine={false}
                 tickFormatter={(v) => String(v).slice(5)}
+                interval="preserveStartEnd"
               />
-              <YAxis domain={["auto", "auto"]} tick={{ fontSize: 10 }} width={36} />
+              <YAxis
+                domain={["auto", "auto"]}
+                tick={{ fontSize: 10, fill: "#a1a1aa" }}
+                tickLine={false}
+                axisLine={false}
+                width={36}
+                tickFormatter={(v) => `${v}`}
+              />
               <Tooltip
-                formatter={(value) => [`${value} kg`]}
+                contentStyle={{
+                  background: "#18181b",
+                  border: "none",
+                  borderRadius: 8,
+                  padding: "8px 12px",
+                }}
+                labelStyle={{ color: "#a1a1aa", fontSize: 11, marginBottom: 4 }}
+                itemStyle={{ color: "#fff", fontSize: 12 }}
+                formatter={(value: number, name: string) => [
+                  `${value} kg`,
+                  name === "weight_kg" ? "Weight" : "7-day avg",
+                ]}
                 labelFormatter={(label) => label}
               />
+              <Legend
+                iconType="line"
+                iconSize={14}
+                wrapperStyle={{ fontSize: 11, paddingTop: 10 }}
+                formatter={(value) => (value === "weight_kg" ? "Weight" : "7-day avg")}
+              />
+              {settings && (
+                <ReferenceLine
+                  y={settings.goal_weight_kg}
+                  stroke="#22c55e"
+                  strokeDasharray="5 3"
+                  strokeWidth={1.5}
+                  label={{
+                    value: "Goal",
+                    position: "insideTopRight",
+                    fill: "#22c55e",
+                    fontSize: 10,
+                    fontWeight: 600,
+                  }}
+                />
+              )}
               <Line
                 type="monotone"
                 dataKey="weight_kg"
                 stroke="#18181b"
                 dot={false}
-                name="Weight"
+                name="weight_kg"
                 strokeWidth={2}
+                activeDot={{ r: 4, strokeWidth: 0, fill: "#18181b" }}
+                isAnimationActive={true}
+                animationDuration={600}
+                animationEasing="ease-out"
               />
               <Line
                 type="monotone"
                 dataKey="ma_7"
                 stroke="#a1a1aa"
                 dot={false}
-                name="7-day avg"
-                strokeDasharray="4 2"
-                // Don't bridge gaps — null means fewer than 7 days of data
+                name="ma_7"
+                strokeDasharray="5 3"
+                strokeWidth={1.5}
                 connectNulls={false}
+                isAnimationActive={true}
+                animationDuration={600}
+                animationEasing="ease-out"
               />
             </LineChart>
           </ResponsiveContainer>
