@@ -19,6 +19,9 @@ class AgentDeps:
 
     Attributes:
         user_id: Authenticated user's integer ID, scopes all data operations.
+        timezone: IANA timezone string read from the browser (e.g. "Asia/Kolkata").
+            Used to compute the correct local date/time for every write operation so
+            logs are filed under the user's local date rather than the server's UTC.
         event_queue: Async queue shared between the agent background task and the
             SSE generator. Tools push ``tool_call`` / ``tool_result`` dicts here
             so the client sees events in real time before the final text reply.
@@ -38,6 +41,7 @@ class AgentDeps:
     """
 
     user_id: int
+    timezone: str
     event_queue: asyncio.Queue
     weight_logger: Callable[[str, float], dict]
     trend_getter: Callable[[], dict]

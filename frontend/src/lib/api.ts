@@ -129,6 +129,10 @@ export type ChatEvent =
  * stream, parsing each `data: {...}` line into a typed `ChatEvent`. The
  * generator completes when the stream closes or a `done` event is parsed.
  *
+ * The browser's IANA timezone (e.g. "Asia/Kolkata") is read from
+ * `Intl.DateTimeFormat().resolvedOptions().timeZone` and sent with every
+ * request so the backend dates/times all entries in the user's local timezone.
+ *
  * Usage:
  * ```ts
  * for await (const event of streamChat(message, sessionId)) {
@@ -147,13 +151,14 @@ export async function* streamChat(
   sessionId: string
 ): AsyncGenerator<ChatEvent> {
   const token = getToken();
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const res = await fetch("/api/agent/chat", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ message, session_id: sessionId }),
+    body: JSON.stringify({ message, session_id: sessionId, timezone }),
   });
 
   if (res.status === 401) {

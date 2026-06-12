@@ -123,10 +123,20 @@ def get_history(user_id: int) -> list[WeightHistoryItem]:
         if w is None:
             logger.warning("Skipping malformed WeightLogs row (weight_kg=%r): %s", r.get("weight_kg"), r)
             continue
-        entries.append({"date": r["date"], "time": r.get("time", ""), "weight_kg": w})
+        entries.append({
+            "date": r["date"],
+            "time": r.get("time", ""),
+            "weight_kg": w,
+            # logged_at is always a correct UTC ISO timestamp — use it as the
+            # tiebreaker so entries appear in true insertion order regardless of
+            # whether the local `time` field was recorded in the wrong timezone.
+            "logged_at": r.get("logged_at", ""),
+        })
 
-    # Sort chronologically by date then time to compute diffs, then reverse for the response
-    entries.sort(key=lambda e: (e["date"], e["time"]))
+    # Sort chronologically: primary key is date, tiebreaker is logged_at (UTC).
+    # This means an entry logged later always wins even if its local `time` field
+    # is smaller (e.g. a chat-logged entry whose time was server-UTC, not local).
+    entries.sort(key=lambda e: (e["date"], e["logged_at"]))
 
     result: list[WeightHistoryItem] = []
     for i, entry in enumerate(entries):

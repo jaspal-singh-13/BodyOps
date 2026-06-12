@@ -33,6 +33,8 @@ package remains free of any ``api.*`` imports.
 import asyncio
 import json
 import time
+from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
@@ -70,28 +72,60 @@ from ..services.workout_service import switch_plan_by_name as svc_switch_plan_by
 router = APIRouter(prefix="/agent", tags=["agent"])
 
 
+# ---------------------------------------------------------------------------
+# Timezone helpers
+# ---------------------------------------------------------------------------
+
+
+def _local_today(timezone: str) -> str:
+    """Return today's date as ``YYYY-MM-DD`` in the given IANA timezone."""
+    try:
+        tz = ZoneInfo(timezone)
+    except (ZoneInfoNotFoundError, KeyError):
+        tz = ZoneInfo("UTC")
+    return datetime.now(tz).date().isoformat()
+
+
+def _local_hhmm(timezone: str) -> str:
+    """Return the current time as ``HH:MM`` in the given IANA timezone."""
+    try:
+        tz = ZoneInfo(timezone)
+    except (ZoneInfoNotFoundError, KeyError):
+        tz = ZoneInfo("UTC")
+    return datetime.now(tz).strftime("%H:%M")
+
+
 class ChatRequest(BaseModel):
     """Request body for ``POST /agent/chat``."""
 
     message: str
     session_id: str  # client-generated UUID; used to look up conversation history
+    timezone: str = "UTC"  # IANA timezone string from the browser
 
 
-def _make_weight_logger(user_id: int):
+def _make_weight_logger(user_id: int, timezone: str):
     """
     Return a callable that logs a weight entry for the given user.
 
     The returned closure matches the ``weight_logger`` signature expected by
     ``AgentDeps``: ``(date: str, weight_kg: float) -> dict``.
 
+    ``time`` is derived from the user's local timezone so the log entry reflects
+    the correct local time rather than the server's UTC clock.
+
     Args:
         user_id: Authenticated user's integer ID to scope the write.
+        timezone: IANA timezone string from the browser (e.g. "Asia/Kolkata").
 
     Returns:
         Callable that delegates to ``svc_log_weight`` and serialises the result.
     """
     def weight_logger(date: str, weight_kg: float) -> dict:
-        return svc_log_weight(user_id, WeightEntryCreate(date=date, weight_kg=weight_kg)).model_dump()
+        local_time = _local_hhmm(timezone)
+        return svc_log_weight(
+            user_id,
+            WeightEntryCreate(date=date, weight_kg=weight_kg, time=local_time),
+        ).model_dump()
     return weight_logger
 
 
@@ -118,21 +152,17 @@ def _make_trend_getter(user_id: int):
     return trend_getter
 
 
-def _make_today_workout_getter(user_id: int):
+def _make_today_workout_getter(user_id: int, timezone: str):
     """Return a callable that fetches today's workout for the given user."""
-    from datetime import date as _date
-
     def today_workout_getter() -> dict:
-        return svc_get_today_workout(user_id, _date.today().isoformat()).model_dump()
+        return svc_get_today_workout(user_id, _local_today(timezone)).model_dump()
     return today_workout_getter
 
 
-def _make_set_logger(user_id: int):
+def _make_set_logger(user_id: int, timezone: str):
     """Return a callable that logs a workout set for the given user."""
-    from datetime import date as _date
-
     def set_logger(exercise_name: str, weight_kg: float, reps: int) -> dict:
-        today = _date.today().isoformat()
+        today = _local_today(timezone)
         today_workout = svc_get_today_workout(user_id, today)
         day_name = today_workout.day_name
         req = LogSetRequest(
@@ -174,17 +204,15 @@ def _make_plan_switcher(user_id: int):
     return plan_switcher
 
 
-def _make_nutrition_getter(user_id: int):
+def _make_nutrition_getter(user_id: int, timezone: str):
     """Return a callable that fetches today's nutrition totals for the user."""
     def nutrition_getter() -> dict:
-        return svc_get_meals_today(user_id, "UTC").model_dump()
+        return svc_get_meals_today(user_id, timezone).model_dump()
     return nutrition_getter
 
 
-def _make_meal_saver(user_id: int):
+def _make_meal_saver(user_id: int, timezone: str):
     """Return an async callable that saves a meal from free-form item dicts."""
-    from datetime import date as _date
-
     async def meal_saver(meal_type: str, items: list[dict]) -> dict:
         detected = [
             DetectedItem(
@@ -202,26 +230,24 @@ def _make_meal_saver(user_id: int):
             meal_type=meal_type,  # type: ignore[arg-type]
             items=detected,
             drive_url="",
-            date=_date.today().isoformat(),
+            date=_local_today(timezone),
         )
         import asyncio as _asyncio
-        return (await _asyncio.to_thread(svc_save_meal, user_id, req, "UTC")).model_dump()
+        return (await _asyncio.to_thread(svc_save_meal, user_id, req, timezone)).model_dump()
     return meal_saver
 
 
-def _make_task_status_getter(user_id: int):
+def _make_task_status_getter(user_id: int, timezone: str):
     """Return a callable that fetches today's mission list for the given user."""
     def task_status_getter() -> dict:
-        return svc_get_today_tasks(user_id, "UTC").model_dump()
+        return svc_get_today_tasks(user_id, timezone).model_dump()
     return task_status_getter
 
 
-def _make_task_completer(user_id: int):
+def _make_task_completer(user_id: int, timezone: str):
     """Return a callable that marks a mission complete for the given user."""
-    from datetime import date as _date
-
     def task_completer(task_id: str) -> dict:
-        return svc_complete_task(user_id, task_id, _date.today().isoformat()).model_dump()
+        return svc_complete_task(user_id, task_id, _local_today(timezone)).model_dump()
     return task_completer
 
 
@@ -279,7 +305,7 @@ async def _run_agent_to_queue(
         await deps.event_queue.put(None)
 
 
-async def _sse_generator(message: str, session_id: str, user_id: int):
+async def _sse_generator(message: str, session_id: str, user_id: int, timezone: str):
     """
     Async generator that yields SSE-formatted event strings.
 
@@ -309,20 +335,21 @@ async def _sse_generator(message: str, session_id: str, user_id: int):
     )
     deps = AgentDeps(
         user_id=user_id,
+        timezone=timezone,
         event_queue=queue,
-        weight_logger=_make_weight_logger(user_id),
+        weight_logger=_make_weight_logger(user_id, timezone),
         trend_getter=_make_trend_getter(user_id),
-        today_workout_getter=_make_today_workout_getter(user_id),
-        set_logger=_make_set_logger(user_id),
+        today_workout_getter=_make_today_workout_getter(user_id, timezone),
+        set_logger=_make_set_logger(user_id, timezone),
         progression_getter=_make_progression_getter(user_id),
         workout_importer=_make_workout_importer(user_id),
         plans_lister=_make_plans_lister(user_id),
         plan_switcher=_make_plan_switcher(user_id),
-        nutrition_getter=_make_nutrition_getter(user_id),
-        meal_saver=_make_meal_saver(user_id),
+        nutrition_getter=_make_nutrition_getter(user_id, timezone),
+        meal_saver=_make_meal_saver(user_id, timezone),
         meal_analyzer=_make_meal_analyzer(user_id),
-        task_status_getter=_make_task_status_getter(user_id),
-        task_completer=_make_task_completer(user_id),
+        task_status_getter=_make_task_status_getter(user_id, timezone),
+        task_completer=_make_task_completer(user_id, timezone),
     )
 
     # Run agent in background so this generator can yield events as they arrive
@@ -370,7 +397,7 @@ async def chat_endpoint(
     prevent proxies (nginx, Vercel) from buffering the stream.
     """
     return StreamingResponse(
-        _sse_generator(body.message, body.session_id, user_id),
+        _sse_generator(body.message, body.session_id, user_id, body.timezone),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

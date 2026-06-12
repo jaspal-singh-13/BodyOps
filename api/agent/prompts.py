@@ -1,10 +1,19 @@
 """Central store for all LLM prompts used in BodyOps."""
 
-from datetime import date
+from __future__ import annotations
+
+from datetime import datetime
+from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from pydantic_ai import RunContext
+
+if TYPE_CHECKING:
+    from .deps import AgentDeps
 
 SYSTEM_PROMPT_TEMPLATE = """You are the BodyOps AI coach. Help the user track their fitness journey.
 Use tools to get real data before giving advice. Be encouraging and specific.
-Today is {today}.
+Today is {today} (user's local date).
 
 Workout plan library:
 - Users can have multiple saved workout plans. Exactly one is active at a time.
@@ -15,8 +24,14 @@ Workout plan library:
 - Switching plans mid-day does not affect a session already started today; the new plan takes effect from the next session."""
 
 
-def get_system_prompt() -> str:
-    return SYSTEM_PROMPT_TEMPLATE.format(today=date.today().isoformat())
+def get_system_prompt(ctx: RunContext[AgentDeps]) -> str:
+    """Return the system prompt with today's date in the user's local timezone."""
+    try:
+        tz = ZoneInfo(ctx.deps.timezone)
+    except (ZoneInfoNotFoundError, KeyError):
+        tz = ZoneInfo("UTC")
+    today = datetime.now(tz).date().isoformat()
+    return SYSTEM_PROMPT_TEMPLATE.format(today=today)
 
 
 WORKOUT_IMPORT_PROMPT = """You are a workout formatter. Convert the user's workout plan into this exact structured format:

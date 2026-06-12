@@ -62,6 +62,7 @@ def _make_deps(
     """
     return AgentDeps(
         user_id=user_id,
+        timezone="UTC",
         event_queue=queue,
         weight_logger=weight_logger or MagicMock(return_value={"weight_kg": 85.5, "date": "2026-06-08"}),
         trend_getter=trend_getter or MagicMock(return_value={"moving_avg": [], "total_loss_kg": None, "projected_goal_date": None}),
