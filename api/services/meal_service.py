@@ -66,9 +66,15 @@ def save_meal(user_id: int, confirm: ConfirmMealRequest, tz_str: str = "UTC") ->
         updated ``DailyNutrition`` for the day.
     """
     meal_id = str(uuid.uuid4())
-    now = datetime.now(timezone.utc)
-    entry_time = now.strftime("%H:%M")
-    logged_at = now.isoformat()
+    now_utc = datetime.now(timezone.utc)
+    logged_at = now_utc.isoformat()
+    # Derive the displayed clock time in the user's local timezone so meal
+    # records show the correct local time rather than the server's UTC clock.
+    try:
+        _tz = ZoneInfo(tz_str)
+    except Exception:
+        _tz = ZoneInfo("UTC")
+    entry_time = datetime.now(_tz).strftime("%H:%M")
 
     total = MacroTotal(
         calories=sum(it.calories for it in confirm.items),
@@ -195,25 +201,36 @@ def get_meals_today(user_id: int, tz_str: str = "UTC") -> DailyNutrition:
 # ---------------------------------------------------------------------------
 
 
-def get_meals_history(user_id: int, days: int = 30) -> list[MealHistoryDay]:
+def get_meals_history(user_id: int, days: int = 30, tz_str: str = "UTC") -> list[MealHistoryDay]:
     """
     Return per-day nutrition summaries for the last ``days`` calendar days.
 
     The returned list is sorted newest first. Days with no meals are omitted.
+    "Today" and "Yesterday" labels are computed in the user's local timezone.
 
     Args:
         user_id: Authenticated user's integer ID.
         days: Number of calendar days to look back. Defaults to 30.
+        tz_str: IANA timezone string (e.g. ``"Asia/Kolkata"``). Used to determine
+            which calendar date is "today" for display labels.
 
     Returns:
         List of ``MealHistoryDay`` objects, newest first.
     """
     try:
+        _tz = ZoneInfo(tz_str)
+    except Exception:
+        _tz = ZoneInfo("UTC")
+
+    today_str = datetime.now(_tz).date().isoformat()
+    yesterday_str = (datetime.now(_tz).date() - timedelta(days=1)).isoformat()
+    cutoff = (datetime.now(_tz).date() - timedelta(days=days)).isoformat()
+
+    try:
         meal_rows = read_rows(MEALS_TAB)
     except gspread.exceptions.WorksheetNotFound:
         return []
 
-    cutoff = (date_type.today() - timedelta(days=days)).isoformat()
     user_meals = [
         r for r in meal_rows
         if str(r.get("user_id", "")) == str(user_id) and r.get("date", "") >= cutoff
@@ -228,9 +245,6 @@ def get_meals_history(user_id: int, days: int = 30) -> list[MealHistoryDay]:
         by_date[d]["total_calories"] += int(r.get("total_calories", 0))
         by_date[d]["total_protein_g"] += float(r.get("total_protein_g", 0))
         by_date[d]["count"] += 1
-
-    today_str = date_type.today().isoformat()
-    yesterday_str = (date_type.today() - timedelta(days=1)).isoformat()
 
     result = []
     for d in sorted(by_date.keys(), reverse=True):
@@ -286,7 +300,7 @@ def get_meal_records_today(user_id: int, tz_str: str = "UTC") -> list[MealRecord
             r for r in meal_rows
             if str(r.get("user_id", "")) == str(user_id) and r.get("date") == today
         ],
-        key=lambda r: r.get("time", ""),
+        key=lambda r: r.get("logged_at", ""),
     )
 
     items_by_meal: dict[str, list[DetectedItem]] = {}

@@ -21,9 +21,8 @@ Endpoints:
 from __future__ import annotations
 
 import asyncio
-from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 
 from ..auth import get_current_user
 from ..services.task_service import auto_complete_task
@@ -98,8 +97,16 @@ async def ai_import_workout_endpoint(
 @router.get("/today", response_model=TodayWorkoutResponse)
 async def get_today_endpoint(
     user_id: int = Depends(get_current_user),
+    x_timezone: str = Header(default="UTC", alias="X-Timezone"),
 ) -> TodayWorkoutResponse:
-    return await asyncio.to_thread(get_today_workout, user_id, date.today().isoformat())
+    from datetime import datetime
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+    try:
+        tz = ZoneInfo(x_timezone)
+    except (ZoneInfoNotFoundError, KeyError):
+        tz = ZoneInfo("UTC")
+    today = datetime.now(tz).date().isoformat()
+    return await asyncio.to_thread(get_today_workout, user_id, today)
 
 
 @router.post("/log", response_model=LogSetResponse)

@@ -356,7 +356,7 @@ class TestAgentSaveMeal:
         from api.routers.agent import _make_meal_saver
 
         with patch("api.routers.agent.svc_save_meal", return_value=SAVED_MEAL):
-            meal_saver = _make_meal_saver(1)
+            meal_saver = _make_meal_saver(1, "UTC")
             result = asyncio.run(
                 meal_saver(
                     "Lunch",

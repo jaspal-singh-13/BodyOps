@@ -53,6 +53,11 @@ async function proxy(req: NextRequest, pathSegments: string[]): Promise<Response
     if (jwt) headers["Authorization"] = `Bearer ${jwt}`;
   }
 
+  // Forward the IANA timezone header so backend endpoints can resolve "today"
+  // in the user's local calendar date rather than the server's UTC date.
+  const tz = req.headers.get("x-timezone");
+  if (tz) headers["X-Timezone"] = tz;
+
   if (HF_TOKEN) headers["X-HF-Token"] = HF_TOKEN;
 
   // Only attach a body for methods that allow one; GET/HEAD have no body

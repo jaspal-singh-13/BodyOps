@@ -81,6 +81,9 @@ export async function apiFetch<T>(
   const headers: Record<string, string> = {
     // Omit Content-Type for FormData so the browser sets the multipart boundary automatically.
     ...(isFormData ? {} : { "Content-Type": "application/json" }),
+    // Send the browser's IANA timezone with every request so server-side
+    // "today" computations (meals, tasks, workouts) use the user's local date.
+    "X-Timezone": Intl.DateTimeFormat().resolvedOptions().timeZone,
     ...(options.headers as Record<string, string>),
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;

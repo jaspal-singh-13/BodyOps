@@ -155,13 +155,16 @@ async def get_today_endpoint(
 @router.get("/history", response_model=list[MealHistoryDay])
 async def get_history_endpoint(
     user_id: int = Depends(get_current_user),
+    x_timezone: str = Header(default="UTC", alias="X-Timezone"),
 ) -> list[MealHistoryDay]:
     """
     Return per-day nutrition summaries for the last 30 days.
 
     Days with no meals are omitted.  The list is sorted newest first.
+    "Today" and "Yesterday" labels are resolved in the user's local timezone
+    via the ``X-Timezone`` header.
 
     Returns:
         List of ``MealHistoryDay`` objects.
     """
-    return await asyncio.to_thread(get_meals_history, user_id)
+    return await asyncio.to_thread(get_meals_history, user_id, 30, x_timezone)

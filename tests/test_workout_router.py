@@ -432,6 +432,7 @@ def _make_workout_deps(queue: asyncio.Queue) -> "AgentDeps":
     from api.agent.deps import AgentDeps
     return AgentDeps(
         user_id=1,
+        timezone="UTC",
         event_queue=queue,
         weight_logger=MagicMock(return_value={}),
         trend_getter=MagicMock(return_value={}),

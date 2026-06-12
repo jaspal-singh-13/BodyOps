@@ -58,7 +58,7 @@ def log_weight(user_id: int, data: WeightEntryCreate) -> WeightEntryResponse:
         ``WeightEntryResponse`` reflecting the saved state.
     """
     now = datetime.now(timezone.utc).isoformat()
-    entry_time = data.time if data.time else datetime.now().strftime("%H:%M")
+    entry_time = data.time if data.time else datetime.now(timezone.utc).strftime("%H:%M")
     try:
         rows = read_rows(WEIGHT_TAB)
     except gspread.exceptions.WorksheetNotFound:
@@ -179,8 +179,15 @@ def get_trend(user_id: int, goal_weight_kg: float) -> WeightTrendResponse:
         if w is None:
             logger.warning("Skipping malformed WeightLogs row (weight_kg=%r): %s", r.get("weight_kg"), r)
             continue
-        raw.append({"date": r["date"], "time": r.get("time", ""), "weight_kg": w})
-    all_entries = sorted(raw, key=lambda e: (e["date"], e["time"]))
+        raw.append({
+            "date": r["date"],
+            "time": r.get("time", ""),
+            "weight_kg": w,
+            "logged_at": r.get("logged_at", ""),
+        })
+    # Sort by date + logged_at (UTC) so the last physical entry per day is used
+    # for the trend, regardless of whether the local `time` field is accurate.
+    all_entries = sorted(raw, key=lambda e: (e["date"], e["logged_at"]))
     # Use the last entry per day so multiple daily logs don't skew the trend chart
     seen: dict[str, dict] = {}
     for e in all_entries:

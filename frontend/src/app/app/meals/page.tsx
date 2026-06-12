@@ -179,14 +179,17 @@ function MealsPageInner() {
     if (!analysisResult) return;
     setConfirming(true);
     try {
-      const today = new Date().toISOString().split("T")[0];
+      // Use local calendar date so meals are filed under the correct day for
+      // users east/west of UTC (toISOString() returns UTC which can be wrong).
+      const d = new Date();
+      const localToday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       await apiFetch<SavedMealResponse>("/meals", {
         method: "POST",
         body: JSON.stringify({
           meal_type: mealType,
           items: editedItems,
           drive_url: analysisResult.drive_url,
-          date: today,
+          date: localToday,
         }),
       });
       fetchNutrition();
@@ -257,8 +260,10 @@ function ListScreen({
   nutritionLoading: boolean;
   onCameraClick: () => void;
 }) {
-  const today = history[0];
-  const earlier = history.slice(1);
+  const d = new Date();
+  const localToday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const today = history[0]?.date === localToday ? history[0] : null;
+  const earlier = today ? history.slice(1) : history;
 
   return (
     <div className="flex flex-col min-h-screen bg-zinc-50">
