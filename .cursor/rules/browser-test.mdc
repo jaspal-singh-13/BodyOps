@@ -1,0 +1,61 @@
+---
+description: Require a browser walkthrough test after implementing any frontend feature or fixing a bug
+alwaysApply: true
+---
+
+# Browser Test After Every Feature / Fix
+
+After implementing any frontend feature, UI change, or bug fix, **always** run a browser walkthrough test before considering the task done.
+
+## Local Services
+
+| Service  | URL                         | How to start (if not running)                                      |
+|----------|-----------------------------|--------------------------------------------------------------------|
+| Backend  | http://localhost:8000       | `Start-Process .\.venv\Scripts\python.exe "-m uvicorn api.main:app --port 8000"` |
+| Frontend | http://localhost:3000       | `npm run dev` inside `frontend/`                                   |
+
+Check both ports with `netstat -ano | findstr ":8000 \|:3000 "` before starting.
+
+## Login
+
+- Email: `jaspal@bodyops.com` · Password: `jaspal@13!`
+- POST `/auth/login` with `{"email":"...", "password":"..."}` → JWT token.
+
+## What to Test
+
+### 1. The feature you just built
+- Navigate to the affected page.
+- Take a screenshot to confirm it renders correctly.
+- Interact with the core action (submit form, toggle, click button).
+- Verify the result updates in the UI.
+
+### 2. Regression check — all nav pages
+| Page | URL |
+|---|---|
+| Dashboard | `/app` |
+| Weight | `/app/weight` |
+| Meals | `/app/meals` |
+| Workouts | `/app/workouts` |
+| Missions | `/app/missions` |
+| AI Coach | `/app/coach` |
+| Progress | `/app/progress` |
+
+For each: load the page, confirm it does not show an error or blank screen.
+
+### 3. Agent chat (if any backend/agent change)
+Open the **Chat to log** drawer and send:
+- `"What is my current weight trend?"` → expects `get_weight_trend` tool call
+- `"Give me my daily coaching summary"` → expects `generate_daily_coaching` tool call
+
+Confirm the `▶ N tools used` indicator appears in the chat bubble.
+
+## Pass Criteria
+
+- No page shows a blank screen or unhandled error.
+- The feature under test works end-to-end with real data.
+- Screenshots taken for every page that changed.
+
+## Known Limitations
+
+- Google Sheets free-tier quota: 60 reads/min. Space out rapid test runs by ~60 s to avoid 429 errors.
+- `total_loss_kg` from `/progress/summary` is negative when the user has **gained** weight since first log — the UI must show `"Total gained"` with the absolute value in that case.
