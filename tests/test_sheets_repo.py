@@ -80,7 +80,9 @@ class TestUpdateRow:
 
         sheets_repo.update_row("WeightLogs", 2, {"id": "abc", "date": "2026-01-01", "weight_kg": "82"})
 
-        ws.update.assert_called_once_with("A2:C2", [["abc", "2026-01-01", "82"]])
+        ws.update.assert_called_once_with(
+            "A2:C2", [["abc", "2026-01-01", "82"]], value_input_option="USER_ENTERED"
+        )
 
     def test_missing_keys_fill_with_empty_string(self, mock_get_ws):
         ws = _make_ws(["id", "date", "weight_kg"], [])
@@ -88,7 +90,9 @@ class TestUpdateRow:
 
         sheets_repo.update_row("WeightLogs", 3, {"id": "xyz"})
 
-        ws.update.assert_called_once_with("A3:C3", [["xyz", "", ""]])
+        ws.update.assert_called_once_with(
+            "A3:C3", [["xyz", "", ""]], value_input_option="USER_ENTERED"
+        )
 
 
 @patch("api.sheets.sheets_repo.get_worksheet")

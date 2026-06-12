@@ -86,7 +86,10 @@ def append_row(tab: str, row: dict[str, Any]) -> None:
         _header_cache[tab] = headers
     values = [row.get(h, "") for h in headers]
     t0 = time.perf_counter()
-    ws.append_row(values, value_input_option="RAW")
+    # USER_ENTERED lets Sheets parse dates/times as native values instead of
+    # apostrophe-escaped text. Reads stay FORMATTED_VALUE so values round-trip
+    # as the same strings that were written (e.g. "2026-06-12", "22:22").
+    ws.append_row(values, value_input_option="USER_ENTERED")
     elapsed_ms = (time.perf_counter() - t0) * 1000
     logger.debug("Sheets append tab=%r (%.0f ms)", tab, elapsed_ms)
 
@@ -114,7 +117,7 @@ def append_rows_batch(tab: str, rows: list[dict[str, Any]]) -> None:
         _header_cache[tab] = headers
     values = [[row.get(h, "") for h in headers] for row in rows]
     t0 = time.perf_counter()
-    ws.append_rows(values, value_input_option="RAW")
+    ws.append_rows(values, value_input_option="USER_ENTERED")
     elapsed_ms = (time.perf_counter() - t0) * 1000
     logger.debug("Sheets batch-append tab=%r rows=%d (%.0f ms)", tab, len(rows), elapsed_ms)
 
@@ -136,7 +139,7 @@ def update_row(tab: str, row_index: int, row: dict[str, Any]) -> None:
     headers = _get_headers(ws, tab)
     values = [row.get(h, "") for h in headers]
     t0 = time.perf_counter()
-    ws.update(f"A{row_index}:{_col_letter(len(headers))}{row_index}", [values], value_input_option="RAW")
+    ws.update(f"A{row_index}:{_col_letter(len(headers))}{row_index}", [values], value_input_option="USER_ENTERED")
     elapsed_ms = (time.perf_counter() - t0) * 1000
     logger.debug("Sheets update tab=%r row=%d (%.0f ms)", tab, row_index, elapsed_ms)
 

@@ -5,8 +5,10 @@ This module creates the singleton ``agent`` instance used across the app.
 Tools are registered in ``tools.py`` by importing that module after this one;
 the ``@agent.tool`` decorator wires them in at import time.
 
-The system prompt is baked in at startup with today's date so the agent always
-knows the current date without needing a tool call.
+The system prompt is supplied as a per-run instructions callable so today's
+date is re-evaluated on every chat request — a long-running server process
+never serves a stale date (which previously caused chat-logged weights to be
+written under the server's startup date).
 """
 
 from pydantic_ai import Agent
@@ -21,7 +23,8 @@ def build_agent() -> Agent[AgentDeps, str]:  # type: ignore[type-arg]
     """
     Construct and return the Pydantic AI ``Agent`` instance.
 
-    Injects today's ISO date into the system prompt and binds ``AgentDeps``
+    Passes ``get_system_prompt`` as a callable so it is evaluated on every
+    run, keeping the injected "Today is ..." date current. Binds ``AgentDeps``
     as the dependency type so all tool functions receive a typed
     ``RunContext[AgentDeps]``.
 
@@ -31,7 +34,7 @@ def build_agent() -> Agent[AgentDeps, str]:  # type: ignore[type-arg]
     """
     a: Agent[AgentDeps, str] = Agent(
         get_model(),
-        system_prompt=get_system_prompt(),
+        instructions=get_system_prompt,
         deps_type=AgentDeps,
     )
     return a
