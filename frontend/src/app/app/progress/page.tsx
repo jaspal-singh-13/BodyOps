@@ -109,10 +109,16 @@ export default function ProgressPage() {
       >
         <div className="grid grid-cols-2 gap-3 mt-3">
           <StatBox
-            label="Total lost"
+            label={
+              summary?.weight_trend.total_loss_kg != null
+                ? summary.weight_trend.total_loss_kg >= 0
+                  ? "Total lost"
+                  : "Total gained"
+                : "Total change"
+            }
             value={
               summary?.weight_trend.total_loss_kg != null
-                ? `${summary.weight_trend.total_loss_kg.toFixed(1)} kg`
+                ? `${Math.abs(summary.weight_trend.total_loss_kg).toFixed(1)} kg`
                 : "—"
             }
           />
