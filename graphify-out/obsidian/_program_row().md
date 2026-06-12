@@ -1,0 +1,33 @@
+---
+source_file: "tests/test_workout_service.py"
+type: "code"
+community: "Workout Service Queries"
+location: "L57"
+tags:
+  - graphify/code
+  - graphify/EXTRACTED
+  - community/Workout_Service_Queries
+---
+
+# _program_row()
+
+## Connections
+- [[.test_exercise_count_per_plan()]] - `calls` [EXTRACTED]
+- [[.test_exercises_mapped_to_correct_day()]] - `calls` [EXTRACTED]
+- [[.test_get_schedule_skips_row_with_empty_exercise_name()]] - `calls` [EXTRACTED]
+- [[.test_get_schedule_skips_row_with_missing_exercise_name_key()]] - `calls` [EXTRACTED]
+- [[.test_get_today_workout_all_bad_rows_returns_no_exercises()]] - `calls` [EXTRACTED]
+- [[.test_get_today_workout_skips_row_with_empty_exercise_name()]] - `calls` [EXTRACTED]
+- [[.test_ignores_rows_from_other_plans()]] - `calls` [EXTRACTED]
+- [[.test_is_completed_true_when_completed_at_set()]] - `calls` [EXTRACTED]
+- [[.test_legacy_fallback_no_plans_rows()]] - `calls` [EXTRACTED]
+- [[.test_legacy_fallback_no_plans_tab()]] - `calls` [EXTRACTED]
+- [[.test_plan_name_in_response()]] - `calls` [EXTRACTED]
+- [[.test_program_name_from_plans_tab()]] - `calls` [EXTRACTED]
+- [[.test_returns_all_user_plans()]] - `calls` [EXTRACTED]
+- [[.test_session_id_is_none_when_no_session_exists()]] - `calls` [EXTRACTED]
+- [[.test_session_id_returned_when_session_exists()]] - `calls` [EXTRACTED]
+- [[.test_sets_logged_today_counts_only_todays_sets()]] - `calls` [EXTRACTED]
+- [[test_workout_service.py]] - `contains` [EXTRACTED]
+
+#graphify/code #graphify/EXTRACTED #community/Workout_Service_Queries

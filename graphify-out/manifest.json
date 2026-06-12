@@ -1,0 +1,637 @@
+{
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\.graphify_detect.json": {
+    "mtime": 1781289952.1770127,
+    "ast_hash": "7986bd5ca9892828b1387fb3edd4d534",
+    "semantic_hash": "7986bd5ca9892828b1387fb3edd4d534"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\__init__.py": {
+    "mtime": 1780869408.1344826,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\agent\\__init__.py": {
+    "mtime": 1780869408.1344826,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\agent\\agent.py": {
+    "mtime": 1781283597.4705553,
+    "ast_hash": "6d7e091fb88dced963dcf1fd7a2422b2",
+    "semantic_hash": "6d7e091fb88dced963dcf1fd7a2422b2"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\agent\\deps.py": {
+    "mtime": 1781284040.7722518,
+    "ast_hash": "0ab7b7d811ad3ae8dc0388ff2102c6a7",
+    "semantic_hash": "0ab7b7d811ad3ae8dc0388ff2102c6a7"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\agent\\history.py": {
+    "mtime": 1781205031.3757484,
+    "ast_hash": "5c610b200c68ac88f0e9e0f48a1a43c8",
+    "semantic_hash": "5c610b200c68ac88f0e9e0f48a1a43c8"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\agent\\llm.py": {
+    "mtime": 1780934652.7213247,
+    "ast_hash": "c0cba249384774f534f8d0bc5f17673d",
+    "semantic_hash": "c0cba249384774f534f8d0bc5f17673d"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\agent\\prompts.py": {
+    "mtime": 1781284058.684524,
+    "ast_hash": "e3295924ec69fd529d4479875417cf2c",
+    "semantic_hash": "e3295924ec69fd529d4479875417cf2c"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\agent\\tools.py": {
+    "mtime": 1781205123.7282767,
+    "ast_hash": "7b182508a26f98489e431ca0b059d2da",
+    "semantic_hash": "7b182508a26f98489e431ca0b059d2da"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\auth.py": {
+    "mtime": 1781287696.6882727,
+    "ast_hash": "b7788d353a85338503bca5114801e140",
+    "semantic_hash": "b7788d353a85338503bca5114801e140"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\logger.py": {
+    "mtime": 1781204902.6389024,
+    "ast_hash": "fde231558474c0b283eefcb9ade042df",
+    "semantic_hash": "fde231558474c0b283eefcb9ade042df"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\main.py": {
+    "mtime": 1781288294.84043,
+    "ast_hash": "8457fcf30a73da5ed2966d698783fffe",
+    "semantic_hash": "8457fcf30a73da5ed2966d698783fffe"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\models\\__init__.py": {
+    "mtime": 1780869408.1394832,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\models\\meal.py": {
+    "mtime": 1780942054.6431818,
+    "ast_hash": "2cef089a4367828bec3b9c4dbf6201f4",
+    "semantic_hash": "2cef089a4367828bec3b9c4dbf6201f4"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\models\\settings.py": {
+    "mtime": 1781193173.4854846,
+    "ast_hash": "d097c5844abd50960b2b0770fb843696",
+    "semantic_hash": "d097c5844abd50960b2b0770fb843696"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\models\\task.py": {
+    "mtime": 1781190317.427068,
+    "ast_hash": "7419547ec243ba58561d47e9ffa1ac9b",
+    "semantic_hash": "7419547ec243ba58561d47e9ffa1ac9b"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\models\\weight.py": {
+    "mtime": 1780942008.122693,
+    "ast_hash": "70df7dc5eb0e38b7a0e1c1dd0962ee21",
+    "semantic_hash": "70df7dc5eb0e38b7a0e1c1dd0962ee21"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\models\\workout.py": {
+    "mtime": 1781194329.316564,
+    "ast_hash": "c0c30c18583b768302d89a5e97fdf32e",
+    "semantic_hash": "c0c30c18583b768302d89a5e97fdf32e"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\routers\\__init__.py": {
+    "mtime": 1780869408.1414888,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\routers\\agent.py": {
+    "mtime": 1781287599.581365,
+    "ast_hash": "5d0b0d81bbd0ab5312971184d6830fdd",
+    "semantic_hash": "5d0b0d81bbd0ab5312971184d6830fdd"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\routers\\meals.py": {
+    "mtime": 1781288179.0155547,
+    "ast_hash": "bf9e5b5f8288bd3afb04ad58e03428b9",
+    "semantic_hash": "bf9e5b5f8288bd3afb04ad58e03428b9"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\routers\\settings.py": {
+    "mtime": 1781190412.940007,
+    "ast_hash": "4f8456413ab503998f0854961c567855",
+    "semantic_hash": "4f8456413ab503998f0854961c567855"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\routers\\tasks.py": {
+    "mtime": 1781189209.3912725,
+    "ast_hash": "4ad70b160866beed19fbd8d04cfd4c27",
+    "semantic_hash": "4ad70b160866beed19fbd8d04cfd4c27"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\routers\\weight.py": {
+    "mtime": 1781288194.8845305,
+    "ast_hash": "4f8129bf26a3156c4e02fda27c2416aa",
+    "semantic_hash": "4f8129bf26a3156c4e02fda27c2416aa"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\routers\\workouts.py": {
+    "mtime": 1781288214.9721017,
+    "ast_hash": "8aeae411ba6357a54008991af230d249",
+    "semantic_hash": "8aeae411ba6357a54008991af230d249"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\services\\__init__.py": {
+    "mtime": 1780869408.1434834,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\services\\drive_service.py": {
+    "mtime": 1781205213.07745,
+    "ast_hash": "9d9a0848689ce514f1166029c08c2c0b",
+    "semantic_hash": "9d9a0848689ce514f1166029c08c2c0b"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\services\\meal_service.py": {
+    "mtime": 1781288145.5806615,
+    "ast_hash": "a9b270a78d02ae319c450f462f3d3a3c",
+    "semantic_hash": "a9b270a78d02ae319c450f462f3d3a3c"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\services\\meal_vision.py": {
+    "mtime": 1781206233.6661673,
+    "ast_hash": "510162b501f341c1f7463f7e90398d86",
+    "semantic_hash": "510162b501f341c1f7463f7e90398d86"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\services\\settings_service.py": {
+    "mtime": 1781287982.6477544,
+    "ast_hash": "be4f265fd0fe5baa7c959f7c2cf12bd8",
+    "semantic_hash": "be4f265fd0fe5baa7c959f7c2cf12bd8"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\services\\task_service.py": {
+    "mtime": 1781287956.9370813,
+    "ast_hash": "31b5060b5aaf56b8de04d59d77e5cd52",
+    "semantic_hash": "31b5060b5aaf56b8de04d59d77e5cd52"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\services\\weight_service.py": {
+    "mtime": 1781288135.9312353,
+    "ast_hash": "8553ebbca1094a5ffe0a18ae19e71ab5",
+    "semantic_hash": "8553ebbca1094a5ffe0a18ae19e71ab5"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\services\\workout_parser.py": {
+    "mtime": 1780938067.1277232,
+    "ast_hash": "332d27dd97cbdd92ddfedc9fb21d0259",
+    "semantic_hash": "332d27dd97cbdd92ddfedc9fb21d0259"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\services\\workout_service.py": {
+    "mtime": 1781288002.2512262,
+    "ast_hash": "6ac3c211db9e495319b8d9ebafdca2e1",
+    "semantic_hash": "6ac3c211db9e495319b8d9ebafdca2e1"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\sheets\\__init__.py": {
+    "mtime": 1780869408.1454859,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\sheets\\auth_sheet.py": {
+    "mtime": 1781288005.6903129,
+    "ast_hash": "3b55697314401584e945573e58632335",
+    "semantic_hash": "3b55697314401584e945573e58632335"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\sheets\\sheets_client.py": {
+    "mtime": 1781204964.1493123,
+    "ast_hash": "80ea5998971258b524347af956745499",
+    "semantic_hash": "80ea5998971258b524347af956745499"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\sheets\\sheets_repo.py": {
+    "mtime": 1781287840.9102497,
+    "ast_hash": "adf6a792b62907d094da461c767712f0",
+    "semantic_hash": "adf6a792b62907d094da461c767712f0"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\app\\charts.jsx": {
+    "mtime": 1780758477.430311,
+    "ast_hash": "9fef3fbcf8de76af523853a4236f3dad",
+    "semantic_hash": "9fef3fbcf8de76af523853a4236f3dad"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\app\\chat-logging.jsx": {
+    "mtime": 1780758477.4428594,
+    "ast_hash": "95195394ce3fcff159e1fdd03bdd2928",
+    "semantic_hash": "95195394ce3fcff159e1fdd03bdd2928"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\app\\d-dashboard.jsx": {
+    "mtime": 1780758477.4498632,
+    "ast_hash": "b77bfd9a1d8a0712f4720c8805a027bb",
+    "semantic_hash": "b77bfd9a1d8a0712f4720c8805a027bb"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\app\\d-onboarding.jsx": {
+    "mtime": 1780758477.460548,
+    "ast_hash": "2ae75561089f548be2193666b082978b",
+    "semantic_hash": "2ae75561089f548be2193666b082978b"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\app\\d-screens-a.jsx": {
+    "mtime": 1780758477.468137,
+    "ast_hash": "153cc8468fa062e6acb761ff04ec30a4",
+    "semantic_hash": "153cc8468fa062e6acb761ff04ec30a4"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\app\\d-screens-b.jsx": {
+    "mtime": 1780758477.4754846,
+    "ast_hash": "6b5b62ce0b824f4fbf4becb67824ddca",
+    "semantic_hash": "6b5b62ce0b824f4fbf4becb67824ddca"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\app\\data.jsx": {
+    "mtime": 1780758477.4837563,
+    "ast_hash": "5a4710cb3ade9840bb1a3ad231ec6f64",
+    "semantic_hash": "5a4710cb3ade9840bb1a3ad231ec6f64"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\app\\desktop-shell.jsx": {
+    "mtime": 1780758477.4926667,
+    "ast_hash": "f9933b3c29b7f3fe9c125f7e0df95223",
+    "semantic_hash": "f9933b3c29b7f3fe9c125f7e0df95223"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\app\\kit.jsx": {
+    "mtime": 1780758477.5088897,
+    "ast_hash": "6cfd27055e1688f2465207243ab58b99",
+    "semantic_hash": "6cfd27055e1688f2465207243ab58b99"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\app\\m-coach.jsx": {
+    "mtime": 1780758477.520998,
+    "ast_hash": "a02dab1510b845d91c9806189ba265a2",
+    "semantic_hash": "a02dab1510b845d91c9806189ba265a2"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\app\\m-home.jsx": {
+    "mtime": 1780758477.5325098,
+    "ast_hash": "cb9eda0149bc468bd04d80bcef35ceff",
+    "semantic_hash": "cb9eda0149bc468bd04d80bcef35ceff"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\app\\m-meals.jsx": {
+    "mtime": 1780758477.5415113,
+    "ast_hash": "9344507ace2f75ccbdf320cc4eff6780",
+    "semantic_hash": "9344507ace2f75ccbdf320cc4eff6780"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\app\\m-misc.jsx": {
+    "mtime": 1780758477.550511,
+    "ast_hash": "d62f330c0c4376711019751230343d98",
+    "semantic_hash": "d62f330c0c4376711019751230343d98"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\app\\m-progress.jsx": {
+    "mtime": 1780758477.5595107,
+    "ast_hash": "bd9b96f95d0fb8c04c069c78fa7e0c98",
+    "semantic_hash": "bd9b96f95d0fb8c04c069c78fa7e0c98"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\app\\m-weight.jsx": {
+    "mtime": 1780758477.564257,
+    "ast_hash": "6070017d5fc0899767b74bc3fa4f6d5d",
+    "semantic_hash": "6070017d5fc0899767b74bc3fa4f6d5d"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\app\\m-workout.jsx": {
+    "mtime": 1780758477.5727715,
+    "ast_hash": "f8c36f2f52196b94a4519aff9db29836",
+    "semantic_hash": "f8c36f2f52196b94a4519aff9db29836"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\app\\mobile-shell.jsx": {
+    "mtime": 1780758477.5817723,
+    "ast_hash": "fb458e98c705c5ca1060704683439c62",
+    "semantic_hash": "fb458e98c705c5ca1060704683439c62"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\frames\\design-canvas.jsx": {
+    "mtime": 1780758706.9608686,
+    "ast_hash": "b512d2fa8e17140d08170e8a2f903dc3",
+    "semantic_hash": "b512d2fa8e17140d08170e8a2f903dc3"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\components.json": {
+    "mtime": 1780869408.175485,
+    "ast_hash": "519f93133ded707d8847caceca85dbac",
+    "semantic_hash": "519f93133ded707d8847caceca85dbac"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\next-env.d.ts": {
+    "mtime": 1781186759.4791164,
+    "ast_hash": "b698cdd97fe8e3bd16dcd74899ad7cef",
+    "semantic_hash": "b698cdd97fe8e3bd16dcd74899ad7cef"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\next.config.ts": {
+    "mtime": 1780869408.175485,
+    "ast_hash": "025f4fcb6024b3524d19492cf7ce54a2",
+    "semantic_hash": "025f4fcb6024b3524d19492cf7ce54a2"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\package.json": {
+    "mtime": 1781288376.4885578,
+    "ast_hash": "1b7179af535613954b8838c94ee01645",
+    "semantic_hash": "1b7179af535613954b8838c94ee01645"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\postcss.config.mjs": {
+    "mtime": 1780869408.1794832,
+    "ast_hash": "481fac0fdecd70e1821cc30b86030c1a",
+    "semantic_hash": "481fac0fdecd70e1821cc30b86030c1a"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\src\\app\\api\\[...path]\\route.ts": {
+    "mtime": 1781284710.241078,
+    "ast_hash": "e8d66b7047b75cbc3131c77d3c49a76e",
+    "semantic_hash": "e8d66b7047b75cbc3131c77d3c49a76e"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\src\\app\\app\\layout.tsx": {
+    "mtime": 1781189885.49488,
+    "ast_hash": "c0526351f1a95b82ff3927aedf5963f7",
+    "semantic_hash": "c0526351f1a95b82ff3927aedf5963f7"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\src\\app\\app\\meals\\page.tsx": {
+    "mtime": 1781284820.4120102,
+    "ast_hash": "6b2ee850e43218562482130dc09467c3",
+    "semantic_hash": "6b2ee850e43218562482130dc09467c3"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\src\\app\\app\\missions\\page.tsx": {
+    "mtime": 1781190978.686778,
+    "ast_hash": "de40e92aeda01e23f98fdfe6fce75552",
+    "semantic_hash": "de40e92aeda01e23f98fdfe6fce75552"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\src\\app\\app\\page.tsx": {
+    "mtime": 1781190590.5848022,
+    "ast_hash": "2be6079541ae8bdcd9afdc710fbc81b6",
+    "semantic_hash": "2be6079541ae8bdcd9afdc710fbc81b6"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\src\\app\\app\\weight\\page.tsx": {
+    "mtime": 1781288282.450363,
+    "ast_hash": "5b6914578310d2bd08df185ba5b5a21d",
+    "semantic_hash": "5b6914578310d2bd08df185ba5b5a21d"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\src\\app\\app\\workouts\\page.tsx": {
+    "mtime": 1781194549.5928438,
+    "ast_hash": "a1ace9a09d95f1c3d79398cebc1062c7",
+    "semantic_hash": "a1ace9a09d95f1c3d79398cebc1062c7"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\src\\app\\layout.tsx": {
+    "mtime": 1780869408.1894832,
+    "ast_hash": "9179b07363a1926decd971914e11d821",
+    "semantic_hash": "9179b07363a1926decd971914e11d821"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\src\\app\\login\\page.tsx": {
+    "mtime": 1780869408.1904838,
+    "ast_hash": "6d9e99cde7e388d14baec2688cc816cf",
+    "semantic_hash": "6d9e99cde7e388d14baec2688cc816cf"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\src\\app\\onboarding\\page.tsx": {
+    "mtime": 1781288278.698979,
+    "ast_hash": "2444dbcee7641010801fbb0c8c2181ee",
+    "semantic_hash": "2444dbcee7641010801fbb0c8c2181ee"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\src\\app\\page.tsx": {
+    "mtime": 1780869408.1914823,
+    "ast_hash": "971f11143810ff346affd34242161480",
+    "semantic_hash": "971f11143810ff346affd34242161480"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\src\\components\\ChatDrawer.tsx": {
+    "mtime": 1781185792.2402031,
+    "ast_hash": "4654475ef946672a2c3044ae21345182",
+    "semantic_hash": "4654475ef946672a2c3044ae21345182"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\src\\components\\ui\\button.tsx": {
+    "mtime": 1780869408.1934834,
+    "ast_hash": "48e8908ce530d302055b9b6602f0a045",
+    "semantic_hash": "48e8908ce530d302055b9b6602f0a045"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\src\\lib\\api.ts": {
+    "mtime": 1781288284.8579702,
+    "ast_hash": "82e84df548bcc9c2d42a824ad3990080",
+    "semantic_hash": "82e84df548bcc9c2d42a824ad3990080"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\src\\lib\\refresh.tsx": {
+    "mtime": 1781185723.3667538,
+    "ast_hash": "108eff095faf28d7470f2624288b2dee",
+    "semantic_hash": "108eff095faf28d7470f2624288b2dee"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\src\\lib\\utils.ts": {
+    "mtime": 1780869408.1954842,
+    "ast_hash": "88439d4a8fcd958dabacc4068a8de89d",
+    "semantic_hash": "88439d4a8fcd958dabacc4068a8de89d"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\src\\proxy.ts": {
+    "mtime": 1780910759.4005535,
+    "ast_hash": "fa60188749e33b3bdb0665fe713a654f",
+    "semantic_hash": "fa60188749e33b3bdb0665fe713a654f"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\tsconfig.json": {
+    "mtime": 1780869408.1964827,
+    "ast_hash": "0a2f4ed9289b65cd3feb4fb4ab3a4fcd",
+    "semantic_hash": "0a2f4ed9289b65cd3feb4fb4ab3a4fcd"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\main.py": {
+    "mtime": 1780771421.5945287,
+    "ast_hash": "e146483b33cee722e6a2c00022a0051b",
+    "semantic_hash": "e146483b33cee722e6a2c00022a0051b"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\scripts\\migrate_add_plan_id.py": {
+    "mtime": 1781191423.2571037,
+    "ast_hash": "24eaf9a693ac3c6ed1040cc3c85a4cf5",
+    "semantic_hash": "24eaf9a693ac3c6ed1040cc3c85a4cf5"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\scripts\\migrate_add_user_id.py": {
+    "mtime": 1780869408.198483,
+    "ast_hash": "e1807b6a4852e92bfa129074849bb64e",
+    "semantic_hash": "e1807b6a4852e92bfa129074849bb64e"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\scripts\\migrate_add_weight_time.py": {
+    "mtime": 1780917791.145238,
+    "ast_hash": "9ea490b30d644e4cf9e25df48402c67a",
+    "semantic_hash": "9ea490b30d644e4cf9e25df48402c67a"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\scripts\\migrate_sheet_headers.py": {
+    "mtime": 1780938821.9462142,
+    "ast_hash": "bfe137ef6b4da822dc7c0219ef442fce",
+    "semantic_hash": "bfe137ef6b4da822dc7c0219ef442fce"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\scripts\\setup.py": {
+    "mtime": 1781191389.1658225,
+    "ast_hash": "c436c8d0440b7035b35fef9c43ece327",
+    "semantic_hash": "c436c8d0440b7035b35fef9c43ece327"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\tests\\__init__.py": {
+    "mtime": 1780869408.1994836,
+    "ast_hash": "d41d8cd98f00b204e9800998ecf8427e",
+    "semantic_hash": "d41d8cd98f00b204e9800998ecf8427e"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\tests\\conftest.py": {
+    "mtime": 1780869408.2014859,
+    "ast_hash": "8fa6003d14e13038496df0048a248753",
+    "semantic_hash": "8fa6003d14e13038496df0048a248753"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\tests\\test_agent_router.py": {
+    "mtime": 1780934652.7404642,
+    "ast_hash": "5def5f4c696618423cb496b51ecd86c9",
+    "semantic_hash": "5def5f4c696618423cb496b51ecd86c9"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\tests\\test_agent_tools.py": {
+    "mtime": 1781284184.2679965,
+    "ast_hash": "5cdb477cf722c6566d75d4c3c5431970",
+    "semantic_hash": "5cdb477cf722c6566d75d4c3c5431970"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\tests\\test_ai_import.py": {
+    "mtime": 1781287558.8115501,
+    "ast_hash": "37bb5f744c57da5eec67c17275690251",
+    "semantic_hash": "37bb5f744c57da5eec67c17275690251"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\tests\\test_auth.py": {
+    "mtime": 1781287723.6212685,
+    "ast_hash": "e1c324a82a6480ba8da72ac73da18477",
+    "semantic_hash": "e1c324a82a6480ba8da72ac73da18477"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\tests\\test_meal_integration.py": {
+    "mtime": 1781206217.2980905,
+    "ast_hash": "8381d775f9fd4d8ae80fe1aed7ec42be",
+    "semantic_hash": "8381d775f9fd4d8ae80fe1aed7ec42be"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\tests\\test_meal_router.py": {
+    "mtime": 1781288244.2621512,
+    "ast_hash": "538809eb915a9196a9dfd5080d350f38",
+    "semantic_hash": "538809eb915a9196a9dfd5080d350f38"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\tests\\test_meal_vision.py": {
+    "mtime": 1781206086.341791,
+    "ast_hash": "27537e0602894e9cd99954a29c7710d8",
+    "semantic_hash": "27537e0602894e9cd99954a29c7710d8"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\tests\\test_missions.py": {
+    "mtime": 1781287797.1158834,
+    "ast_hash": "a530945ab36ba0782510d8300261391c",
+    "semantic_hash": "a530945ab36ba0782510d8300261391c"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\tests\\test_progression.py": {
+    "mtime": 1780912511.5378687,
+    "ast_hash": "8913e9e0d8f37c29ac7d813f8430fd2f",
+    "semantic_hash": "8913e9e0d8f37c29ac7d813f8430fd2f"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\tests\\test_settings.py": {
+    "mtime": 1780934652.7424655,
+    "ast_hash": "dfedb78a3af5e6fb7a6675abef913bad",
+    "semantic_hash": "dfedb78a3af5e6fb7a6675abef913bad"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\tests\\test_sheets_repo.py": {
+    "mtime": 1781288034.9050508,
+    "ast_hash": "b1828f0227e86206b039fd4bcac50816",
+    "semantic_hash": "b1828f0227e86206b039fd4bcac50816"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\tests\\test_tasks_router.py": {
+    "mtime": 1781189419.0600019,
+    "ast_hash": "073330de561c08144153901c9402cb4a",
+    "semantic_hash": "073330de561c08144153901c9402cb4a"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\tests\\test_weight_router.py": {
+    "mtime": 1780934652.7444646,
+    "ast_hash": "7c6610d3fe2f51bdeb653242e32c765a",
+    "semantic_hash": "7c6610d3fe2f51bdeb653242e32c765a"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\tests\\test_weight_service.py": {
+    "mtime": 1781288244.2611322,
+    "ast_hash": "023f7bd0dd4746f254148b6fbe9350de",
+    "semantic_hash": "023f7bd0dd4746f254148b6fbe9350de"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\tests\\test_workout_parser.py": {
+    "mtime": 1780938437.0588906,
+    "ast_hash": "c9ee34f0efd6a604b7d80e87ce0a14ce",
+    "semantic_hash": "c9ee34f0efd6a604b7d80e87ce0a14ce"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\tests\\test_workout_router.py": {
+    "mtime": 1781287461.0513704,
+    "ast_hash": "169646217aec79d56e8e408aa991d197",
+    "semantic_hash": "169646217aec79d56e8e408aa991d197"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\tests\\test_workout_service.py": {
+    "mtime": 1781287438.998768,
+    "ast_hash": "38cf7198193c8f3c261868ea986ffa7d",
+    "semantic_hash": "38cf7198193c8f3c261868ea986ffa7d"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\.github\\workflows\\deploy-backend.yml": {
+    "mtime": 1780869408.1294827,
+    "ast_hash": "6dc6039780a9de29e3a797f51339e734",
+    "semantic_hash": "6dc6039780a9de29e3a797f51339e734"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\PLAN.md": {
+    "mtime": 1781190185.778912,
+    "ast_hash": "759385930f959bca5089a06702e901b4",
+    "semantic_hash": "759385930f959bca5089a06702e901b4"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\PRD.md": {
+    "mtime": 1780771098.7883015,
+    "ast_hash": "42d56406d1d893d3a67d4ced930f2fe6",
+    "semantic_hash": "42d56406d1d893d3a67d4ced930f2fe6"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\README.md": {
+    "mtime": 1780869408.1314824,
+    "ast_hash": "a82aa9d193469af603da142d5bcfa8e5",
+    "semantic_hash": "a82aa9d193469af603da142d5bcfa8e5"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\SETUP.md": {
+    "mtime": 1780869408.1324828,
+    "ast_hash": "7d1face36264f0045704058936bac4d7",
+    "semantic_hash": "7d1face36264f0045704058936bac4d7"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\README.md": {
+    "mtime": 1780869408.1344826,
+    "ast_hash": "8da6691484853259c9058c107d20da77",
+    "semantic_hash": "8da6691484853259c9058c107d20da77"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\api\\requirements.txt": {
+    "mtime": 1781287139.8597543,
+    "ast_hash": "63968f71ab042ac5ed995c6f99bd5ab5",
+    "semantic_hash": "63968f71ab042ac5ed995c6f99bd5ab5"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\BodyOps App (Offline).html": {
+    "mtime": 1780869408.1604817,
+    "ast_hash": "81731c4de8606d25fc0309a9d6ee884b",
+    "semantic_hash": "81731c4de8606d25fc0309a9d6ee884b"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\BodyOps App (bundle-src).html": {
+    "mtime": 1780758572.2007859,
+    "ast_hash": "788450cfce7f8151fa3728bbf41eea71",
+    "semantic_hash": "788450cfce7f8151fa3728bbf41eea71"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\BodyOps App.html": {
+    "mtime": 1780758577.3696404,
+    "ast_hash": "788450cfce7f8151fa3728bbf41eea71",
+    "semantic_hash": "788450cfce7f8151fa3728bbf41eea71"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\BodyOps Foundations.html": {
+    "mtime": 1780758588.906272,
+    "ast_hash": "4a1a6c23dd32f5da19bf21ea16ea8fd9",
+    "semantic_hash": "4a1a6c23dd32f5da19bf21ea16ea8fd9"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\BodyOps Prototype (Offline).html": {
+    "mtime": 1780869408.1714854,
+    "ast_hash": "df932eb630c0173986fafac23526dcac",
+    "semantic_hash": "df932eb630c0173986fafac23526dcac"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\BodyOps Prototype.html": {
+    "mtime": 1780758580.839614,
+    "ast_hash": "3b1946fd776a5f7f5a6b90a89d197637",
+    "semantic_hash": "3b1946fd776a5f7f5a6b90a89d197637"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\design\\BodyOps Screens.html": {
+    "mtime": 1780758584.068722,
+    "ast_hash": "c9cbbec79c33b20771e6105b72c01d5f",
+    "semantic_hash": "c9cbbec79c33b20771e6105b72c01d5f"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\AGENTS.md": {
+    "mtime": 1780869408.1734831,
+    "ast_hash": "9346a4897ff955555ddedb7bebf77adb",
+    "semantic_hash": "9346a4897ff955555ddedb7bebf77adb"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\CLAUDE.md": {
+    "mtime": 1780869408.1744828,
+    "ast_hash": "771faa62feb60b7de901a397aebb29b0",
+    "semantic_hash": "771faa62feb60b7de901a397aebb29b0"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\README.md": {
+    "mtime": 1780869408.1744828,
+    "ast_hash": "9162add00befbcdb432430f405c4ad8d",
+    "semantic_hash": "9162add00befbcdb432430f405c4ad8d"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\requirements.txt": {
+    "mtime": 1780934652.7393327,
+    "ast_hash": "24bd9fdd9a010693128b67b10a957a7f",
+    "semantic_hash": "24bd9fdd9a010693128b67b10a957a7f"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\public\\file.svg": {
+    "mtime": 1780869408.1804826,
+    "ast_hash": "d09f95206c3fa0bb9bd9fefabfd0ea71",
+    "semantic_hash": "d09f95206c3fa0bb9bd9fefabfd0ea71"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\public\\globe.svg": {
+    "mtime": 1780869408.1814833,
+    "ast_hash": "2aaafa6a49b6563925fe440891e32717",
+    "semantic_hash": "2aaafa6a49b6563925fe440891e32717"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\public\\next.svg": {
+    "mtime": 1780869408.1814833,
+    "ast_hash": "8e061864f388b47f33a1c3780831193e",
+    "semantic_hash": "8e061864f388b47f33a1c3780831193e"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\public\\vercel.svg": {
+    "mtime": 1780869408.1814833,
+    "ast_hash": "c0af2f507b369b085b35ef4bbe3bcf1e",
+    "semantic_hash": "c0af2f507b369b085b35ef4bbe3bcf1e"
+  },
+  "C:\\Users\\jaspa\\OneDrive\\Desktop\\personal projects\\BodyOps\\frontend\\public\\window.svg": {
+    "mtime": 1780869408.1824834,
+    "ast_hash": "a2760511c65806022ad20adf74370ff3",
+    "semantic_hash": "a2760511c65806022ad20adf74370ff3"
+  }
+}
