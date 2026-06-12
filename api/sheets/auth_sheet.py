@@ -16,6 +16,7 @@ import os
 
 from ..logger import get_logger
 from .sheets_client import get_client
+from .sheets_repo import to_int
 
 logger = get_logger("auth_sheet")
 
@@ -44,8 +45,9 @@ def _fetch_from_sheet() -> list[dict]:
         users.append(
             {
                 # Fall back to row position (1-based) so legacy single-row
-                # sheets without a user_id column keep user_id=1.
-                "user_id": int(row["user_id"]) if row.get("user_id") else i + 1,
+                # sheets without a user_id column keep user_id=1. A malformed
+                # user_id cell also falls back instead of crashing startup.
+                "user_id": to_int(row.get("user_id"), i + 1),
                 "email": str(row["email"]).strip(),
                 "password": str(row["password"]),
             }

@@ -11,7 +11,7 @@ All endpoints require a valid JWT. Data is scoped to the authenticated user_id.
 
 import asyncio
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 
 from ..auth import get_current_user
 from ..models.weight import WeightEntryCreate, WeightEntryResponse, WeightHistoryItem, WeightTrendResponse
@@ -30,10 +30,23 @@ async def _bg_auto_complete(user_id: int, task_type: str, date: str) -> None:
         pass
 
 
+# Strong references to in-flight background tasks — asyncio only keeps weak
+# references, so an unreferenced task can be garbage-collected before it runs.
+_bg_tasks: set[asyncio.Task] = set()
+
+
+def _spawn_bg(coro) -> None:
+    """Run a coroutine as a background task that survives garbage collection."""
+    task = asyncio.create_task(coro)
+    _bg_tasks.add(task)
+    task.add_done_callback(_bg_tasks.discard)
+
+
 @router.post("", response_model=WeightEntryResponse)
 async def log_weight_endpoint(
     body: WeightEntryCreate,
     user_id: int = Depends(get_current_user),
+    x_timezone: str = Header(default="UTC", alias="X-Timezone"),
 ) -> WeightEntryResponse:
     """
     Log a body weight entry, updating if an entry already exists for that date.
@@ -42,14 +55,17 @@ async def log_weight_endpoint(
     and ``date`` already exists in the ``WeightLogs`` tab, it is updated in
     place; otherwise a new row is appended.
 
+    ``X-Timezone`` is used to derive the entry time when the client does not
+    supply one, so the stored time reflects the user's local clock.
+
     Args:
         body: ``{date: YYYY-MM-DD, weight_kg: float}``
 
     Returns:
         The saved ``WeightEntryResponse`` including ``logged_at`` timestamp.
     """
-    result = await asyncio.to_thread(log_weight, user_id, body)
-    asyncio.create_task(_bg_auto_complete(user_id, "log_weight", body.date))
+    result = await asyncio.to_thread(log_weight, user_id, body, x_timezone)
+    _spawn_bg(_bg_auto_complete(user_id, "log_weight", body.date))
     return result
 
 

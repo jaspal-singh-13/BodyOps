@@ -48,6 +48,18 @@ async def _bg_check_nutrition(user_id: int, tz_str: str) -> None:
     except Exception:
         pass
 
+
+# Strong references to in-flight background tasks — asyncio only keeps weak
+# references, so an unreferenced task can be garbage-collected before it runs.
+_bg_tasks: set[asyncio.Task] = set()
+
+
+def _spawn_bg(coro) -> None:
+    """Run a coroutine as a background task that survives garbage collection."""
+    task = asyncio.create_task(coro)
+    _bg_tasks.add(task)
+    task.add_done_callback(_bg_tasks.discard)
+
 _ALLOWED_MIME = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
 
 
@@ -131,7 +143,7 @@ async def save_meal_endpoint(
         ``SavedMealResponse`` with the new meal ID and updated daily totals.
     """
     result = await asyncio.to_thread(save_meal, user_id, body, x_timezone)
-    asyncio.create_task(_bg_check_nutrition(user_id, x_timezone))
+    _spawn_bg(_bg_check_nutrition(user_id, x_timezone))
     return result
 
 

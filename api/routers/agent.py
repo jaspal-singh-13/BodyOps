@@ -252,9 +252,24 @@ def _make_task_completer(user_id: int, timezone: str):
 
 
 def _make_meal_analyzer(user_id: int):  # noqa: ARG001 — user_id reserved for future scoping
-    """Return an async callable that runs vision analysis on a meal photo URL."""
+    """Return an async callable that runs vision analysis on a meal photo URL.
+
+    ``svc_analyze_meal`` expects raw image bytes + MIME type, so the photo is
+    downloaded from ``image_url`` first. Fetch failures return an error dict so
+    the agent can report the problem instead of crashing the SSE stream.
+    """
     async def meal_analyzer(image_url: str) -> dict:
-        result = await svc_analyze_meal(image_url, image_url)
+        import httpx
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+                resp = await client.get(image_url)
+                resp.raise_for_status()
+        except httpx.HTTPError as e:
+            return {"error": f"Could not download image from URL: {e}"}
+
+        mime = resp.headers.get("content-type", "").split(";")[0].strip() or "image/jpeg"
+        result = await svc_analyze_meal(resp.content, mime, drive_url=image_url)
         return result.model_dump()
     return meal_analyzer
 

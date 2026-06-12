@@ -53,7 +53,7 @@ REQUIRED_ENV_VARS = [
 # so we log a warning rather than blocking startup.
 AGENT_ENV_VARS = ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_DEPLOYMENT"]
 
-VERSION = "0.17.7"
+VERSION = "0.17.8"
 
 
 @asynccontextmanager
@@ -102,11 +102,14 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception:
         logger.exception("Could not pre-warm credentials cache")
 
-    asyncio.create_task(poll_credentials(interval=60))
+    # Keep a reference so the poller task is not garbage-collected mid-flight
+    # (asyncio only holds weak references to tasks).
+    poller_task = asyncio.create_task(poll_credentials(interval=60))
     logger.info("Credentials poller: started (interval=60s)")
 
     logger.info("BodyOps API v%s ready", VERSION)
     yield
+    poller_task.cancel()
     logger.info("BodyOps API shutting down")
 
 

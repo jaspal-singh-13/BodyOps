@@ -62,7 +62,12 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const today = new Date().toISOString().split("T")[0];
+  // Local calendar date — toISOString() would give the UTC date, which is
+  // yesterday for timezones ahead of UTC during the early morning.
+  const today = (() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  })();
 
   const [step1, setStep1] = useState<Step1>({
     name: "",

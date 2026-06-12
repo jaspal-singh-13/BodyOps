@@ -11,6 +11,7 @@ Functions:
     append_rows_batch — append many rows in a single API call (avoids quota).
     update_row       — overwrite an existing row by 1-based row index.
     find_row         — find the first row matching a column/value filter.
+    to_int / to_float — lenient cell parsers (blank/malformed → default).
     _col_letter      — convert a 1-based column number to a spreadsheet letter.
 """
 
@@ -37,6 +38,28 @@ def _get_headers(ws: gspread.Worksheet, tab: str) -> list[str]:
         _header_cache[tab] = ws.row_values(1)
         logger.debug("Sheets: headers cached tab=%r cols=%d", tab, len(_header_cache[tab]))
     return _header_cache[tab]
+
+
+def to_int(value: Any, default: int = 0) -> int:
+    """
+    Return ``value`` as int, or ``default`` if it cannot be converted.
+
+    ``get_all_records()`` returns ``""`` for blank cells, so a stray blank or
+    partially-filled row must degrade to the default instead of raising and
+    taking down every endpoint that reads the tab.
+    """
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
+
+def to_float(value: Any, default: float = 0.0) -> float:
+    """Return ``value`` as float, or ``default`` if it cannot be converted."""
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
 
 
 def read_rows(tab: str) -> list[dict[str, Any]]:

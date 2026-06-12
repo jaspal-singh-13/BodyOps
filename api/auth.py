@@ -92,7 +92,7 @@ def verify_jwt(token: str) -> int:
         if user_id is None:
             raise ValueError("missing user_id")
         return int(user_id)
-    except JWTError as e:
+    except (JWTError, ValueError) as e:
         segments = len(token.split(".")) if token else 0
         logger.warning(
             "JWT verification failed: %s (segments=%d, token_len=%d)",

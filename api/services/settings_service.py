@@ -21,7 +21,7 @@ import gspread.exceptions
 
 from ..logger import get_logger
 from ..models.settings import SettingsCreate, SettingsResponse
-from ..sheets.sheets_repo import append_row, find_row, read_rows, update_row
+from ..sheets.sheets_repo import append_row, find_row, read_rows, to_float, to_int, update_row
 
 logger = get_logger("settings_service")
 SETTINGS_TAB = "Settings"
@@ -78,7 +78,7 @@ def get_settings(user_id: int) -> SettingsResponse | None:
         return None
 
     row: dict[str, Any] | None = next(
-        (r for r in rows if int(r.get("user_id", -1)) == user_id), None
+        (r for r in rows if to_int(r.get("user_id"), -1) == user_id), None
     )
     if row is None:
         logger.debug("No settings row found for user_id=%s", user_id)
@@ -86,15 +86,15 @@ def get_settings(user_id: int) -> SettingsResponse | None:
         return None
 
     result = SettingsResponse(
-        user_id=int(row.get("user_id", 0)),
+        user_id=to_int(row.get("user_id"), 0),
         name=str(row.get("name", "")),
-        current_weight_kg=float(row.get("current_weight_kg", 0)),
-        height_cm=float(row.get("height_cm", 0)),
-        age=int(row.get("age", 0)),
-        goal_weight_kg=float(row.get("goal_weight_kg", 0)),
+        current_weight_kg=to_float(row.get("current_weight_kg"), 0),
+        height_cm=to_float(row.get("height_cm"), 0),
+        age=to_int(row.get("age"), 0),
+        goal_weight_kg=to_float(row.get("goal_weight_kg"), 0),
         start_date=str(row.get("start_date", "")),
-        calorie_target=int(row.get("calorie_target", 0)),
-        protein_target_g=int(row.get("protein_target_g", 0)),
+        calorie_target=to_int(row.get("calorie_target"), 0),
+        protein_target_g=to_int(row.get("protein_target_g"), 0),
         wake_up_time=str(row.get("wake_up_time", "07:00")),
         unit_preference=str(row.get("unit_preference", "metric")),
         reminders_json=str(row.get("reminders_json", "{}")),

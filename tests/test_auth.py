@@ -76,6 +76,36 @@ class TestJWTUtilities:
             verify_jwt("not.a.valid.token")
         assert exc_info.value.status_code == 401
 
+    def test_verify_jwt_missing_user_id_claim_raises_401(self):
+        """A correctly-signed token without a user_id claim is rejected with 401, not 500."""
+        import os
+
+        from jose import jwt as jose_jwt
+
+        from api.auth import verify_jwt
+
+        token = jose_jwt.encode({"sub": "test@example.com"}, os.environ["JWT_SECRET"], algorithm="HS256")
+        with pytest.raises(HTTPException) as exc_info:
+            verify_jwt(token)
+        assert exc_info.value.status_code == 401
+
+    def test_verify_jwt_non_numeric_user_id_raises_401(self):
+        """A user_id claim that cannot be coerced to int is rejected with 401."""
+        import os
+
+        from jose import jwt as jose_jwt
+
+        from api.auth import verify_jwt
+
+        token = jose_jwt.encode(
+            {"sub": "test@example.com", "user_id": "not-a-number"},
+            os.environ["JWT_SECRET"],
+            algorithm="HS256",
+        )
+        with pytest.raises(HTTPException) as exc_info:
+            verify_jwt(token)
+        assert exc_info.value.status_code == 401
+
 
 class TestProtectedRoute:
     def test_no_auth_header_returns_401(self, client):

@@ -553,11 +553,23 @@ class TestDeletePlan:
     PLAN_A = "1-100"
     PLAN_B = "1-200"
 
-    def test_raises_when_deleting_active_plan(self):
+    def test_deactivates_active_plan_before_deleting(self):
+        """Deleting the active plan deactivates it first instead of raising."""
         plan_rows = [_plan_row(1, self.PLAN_A, "PPL", is_active=True)]
-        with patch("api.services.workout_service._safe_read_rows", return_value=plan_rows):
-            with pytest.raises(ValueError, match="active plan"):
-                delete_plan(user_id=1, plan_id=self.PLAN_A)
+        mock_ws = MagicMock()
+        with (
+            patch("api.services.workout_service._safe_read_rows", return_value=plan_rows),
+            patch("api.services.workout_service.update_row") as mock_update,
+            patch("api.services.workout_service._delete_plan_rows"),
+            patch("api.services.workout_service.get_worksheet", return_value=mock_ws),
+        ):
+            delete_plan(user_id=1, plan_id=self.PLAN_A)
+
+        # The active plan row was flipped to is_active=FALSE before deletion
+        mock_update.assert_called_once()
+        updated_row = mock_update.call_args[0][2]
+        assert updated_row["is_active"] == "FALSE"
+        mock_ws.delete_rows.assert_called_once()
 
     def test_raises_when_plan_not_found(self):
         plan_rows = [_plan_row(1, self.PLAN_A, "PPL", is_active=True)]
@@ -567,18 +579,10 @@ class TestDeletePlan:
                 delete_plan(user_id=1, plan_id=self.PLAN_B)
 
     def test_deletes_plan_rows_and_plan_entry(self):
-        plan_rows_for_get_active = [_plan_row(1, self.PLAN_A, "PPL", is_active=True)]
-        plan_rows_for_idx = [
+        plan_rows = [
             _plan_row(1, self.PLAN_A, "PPL", is_active=True),
             _plan_row(1, self.PLAN_B, "Cut", is_active=False),
         ]
-        call_count = {"n": 0}
-
-        def fake_safe_read(tab):
-            call_count["n"] += 1
-            if call_count["n"] == 1:  # get_active_plan_id
-                return plan_rows_for_get_active
-            return plan_rows_for_idx  # second read for plan index lookup
 
         deleted_tabs: list[str] = []
 
@@ -588,7 +592,7 @@ class TestDeletePlan:
         mock_ws = MagicMock()
 
         with (
-            patch("api.services.workout_service._safe_read_rows", side_effect=fake_safe_read),
+            patch("api.services.workout_service._safe_read_rows", return_value=plan_rows),
             patch("api.services.workout_service._delete_plan_rows", side_effect=fake_delete_plan_rows),
             patch("api.services.workout_service.get_worksheet", return_value=mock_ws),
         ):

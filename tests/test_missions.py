@@ -120,6 +120,7 @@ class TestGenerateDailyTasksIdempotency:
         with (
             patch("api.services.task_service.read_rows") as mock_read,
             patch("api.services.task_service.append_rows_batch") as mock_append,
+            patch("api.services.workout_service.get_active_plan_id", return_value=None),
         ):
             mock_read.side_effect = lambda tab: {
                 "Tasks": TASK_ROWS,
@@ -138,6 +139,7 @@ class TestGenerateDailyTasksIdempotency:
         with (
             patch("api.services.task_service.read_rows") as mock_read,
             patch("api.services.task_service.append_rows_batch") as mock_append,
+            patch("api.services.workout_service.get_active_plan_id", return_value=None),
         ):
             mock_read.side_effect = lambda tab: {
                 "Tasks": TASK_ROWS,
@@ -420,3 +422,66 @@ class TestGetStatus:
         assert result.total == 5
         assert result.completed == 3
         assert result.percentage == 60.0
+
+
+# ---------------------------------------------------------------------------
+# _compute_streak
+# ---------------------------------------------------------------------------
+
+def _status_rows_for(date_str: str, completed: bool, n_tasks: int = 2) -> list[dict]:
+    """Build n DailyTaskStatus rows for a date, all complete or all incomplete."""
+    flag = "TRUE" if completed else "FALSE"
+    return [
+        {"user_id": "1", "id": f"ds-{date_str}-{i}", "task_id": f"task-{i}",
+         "date": date_str, "completed": flag, "completed_at": ""}
+        for i in range(n_tasks)
+    ]
+
+
+class TestComputeStreak:
+    def test_incomplete_today_does_not_break_existing_streak(self):
+        """An in-progress today is skipped: streak counts back from yesterday."""
+        from datetime import timedelta
+
+        today = _date.today()
+        rows = (
+            _status_rows_for(today.isoformat(), completed=False)
+            + _status_rows_for((today - timedelta(days=1)).isoformat(), completed=True)
+            + _status_rows_for((today - timedelta(days=2)).isoformat(), completed=True)
+        )
+        with patch("api.services.task_service.read_rows", return_value=rows):
+            from api.services.task_service import _compute_streak
+            assert _compute_streak(USER_ID, today.isoformat()) == 2
+
+    def test_complete_today_extends_streak(self):
+        """A fully complete today counts toward the streak."""
+        from datetime import timedelta
+
+        today = _date.today()
+        rows = (
+            _status_rows_for(today.isoformat(), completed=True)
+            + _status_rows_for((today - timedelta(days=1)).isoformat(), completed=True)
+            + _status_rows_for((today - timedelta(days=2)).isoformat(), completed=True)
+        )
+        with patch("api.services.task_service.read_rows", return_value=rows):
+            from api.services.task_service import _compute_streak
+            assert _compute_streak(USER_ID, today.isoformat()) == 3
+
+    def test_gap_breaks_streak(self):
+        """A missed day stops the count even if earlier days were complete."""
+        from datetime import timedelta
+
+        today = _date.today()
+        rows = (
+            _status_rows_for((today - timedelta(days=1)).isoformat(), completed=True)
+            + _status_rows_for((today - timedelta(days=2)).isoformat(), completed=False)
+            + _status_rows_for((today - timedelta(days=3)).isoformat(), completed=True)
+        )
+        with patch("api.services.task_service.read_rows", return_value=rows):
+            from api.services.task_service import _compute_streak
+            assert _compute_streak(USER_ID, today.isoformat()) == 1
+
+    def test_no_rows_returns_zero(self):
+        with patch("api.services.task_service.read_rows", return_value=[]):
+            from api.services.task_service import _compute_streak
+            assert _compute_streak(USER_ID, _date.today().isoformat()) == 0

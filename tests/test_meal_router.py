@@ -372,19 +372,103 @@ class TestAgentSaveMeal:
 # ---------------------------------------------------------------------------
 
 
+def _mock_httpx_async_client(get_result=None, get_error=None):
+    """Return a patch for httpx.AsyncClient whose ``get`` resolves to the given mock response."""
+    mock_client = MagicMock()
+    if get_error is not None:
+        mock_client.get = AsyncMock(side_effect=get_error)
+    else:
+        mock_client.get = AsyncMock(return_value=get_result)
+    mock_cm = MagicMock()
+    mock_cm.__aenter__ = AsyncMock(return_value=mock_client)
+    mock_cm.__aexit__ = AsyncMock(return_value=False)
+    return patch("httpx.AsyncClient", return_value=mock_cm)
+
+
 class TestAgentAnalyzeMealPhoto:
-    def test_analyze_photo_agent_tool_callable(self):
-        """The meal_analyzer factory produces a callable that runs vision."""
+    def test_analyze_photo_downloads_bytes_and_runs_vision(self):
+        """The meal_analyzer factory downloads the image and passes bytes + mime to vision."""
         from api.routers.agent import _make_meal_analyzer
 
-        with patch(
-            "api.routers.agent.svc_analyze_meal",
-            new_callable=AsyncMock,
-            return_value=ANALYZE_RESPONSE,
+        mock_resp = MagicMock()
+        mock_resp.content = b"PNGBYTES"
+        mock_resp.headers = {"content-type": "image/png; charset=binary"}
+        mock_resp.raise_for_status = MagicMock()
+
+        with (
+            _mock_httpx_async_client(get_result=mock_resp),
+            patch(
+                "api.routers.agent.svc_analyze_meal",
+                new_callable=AsyncMock,
+                return_value=ANALYZE_RESPONSE,
+            ) as mock_vision,
         ):
             analyzer = _make_meal_analyzer(1)
             result = asyncio.run(
                 analyzer("https://drive.google.com/uc?id=test123")
             )
+
+        mock_vision.assert_awaited_once_with(
+            b"PNGBYTES", "image/png", drive_url="https://drive.google.com/uc?id=test123"
+        )
         assert result["title"] == "Chicken rice bowl"
         assert len(result["detected"]) == 1
+
+    def test_analyze_photo_fetch_failure_returns_error_dict(self):
+        """A download failure returns an error dict instead of raising."""
+        import httpx
+
+        from api.routers.agent import _make_meal_analyzer
+
+        with (
+            _mock_httpx_async_client(get_error=httpx.ConnectError("no route to host")),
+            patch(
+                "api.routers.agent.svc_analyze_meal",
+                new_callable=AsyncMock,
+            ) as mock_vision,
+        ):
+            analyzer = _make_meal_analyzer(1)
+            result = asyncio.run(analyzer("https://bad.example.com/img.jpg"))
+
+        mock_vision.assert_not_awaited()
+        assert "error" in result
+        assert "Could not download image" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# Service robustness: blank cells in sheet rows
+# ---------------------------------------------------------------------------
+
+
+class TestMealServiceBlankCells:
+    def test_get_meals_today_skips_blank_numeric_cells(self):
+        """A meal row with blank totals (gspread returns "") must not 500 the endpoint."""
+        from datetime import datetime, timezone as _tz
+
+        from api.services.meal_service import get_meals_today
+
+        today = datetime.now(_tz.utc).strftime("%Y-%m-%d")
+        rows = [
+            {"user_id": "1", "date": today, "total_calories": 500,
+             "total_protein_g": 30.0, "total_carbs_g": 40.0, "total_fat_g": 10.0},
+            # Stray half-filled row: blank numeric cells come back as ""
+            {"user_id": "1", "date": today, "total_calories": "",
+             "total_protein_g": "", "total_carbs_g": "", "total_fat_g": ""},
+        ]
+        with (
+            patch("api.services.meal_service.read_rows", return_value=rows),
+            patch("api.services.meal_service.get_settings", return_value=None),
+        ):
+            result = get_meals_today(1, "UTC")
+
+        assert result.calories == 500
+        assert result.protein_g == 30.0
+        assert result.meals_count == 2
+
+    def test_fmt_date_is_platform_independent(self):
+        """_fmt_date renders "Jun 5" without the Unix-only %-d flag."""
+        from api.services.meal_service import _fmt_date
+
+        assert _fmt_date("2026-06-05") == "Jun 5"
+        assert _fmt_date("2026-12-25") == "Dec 25"
+        assert _fmt_date("not-a-date") == "not-a-date"

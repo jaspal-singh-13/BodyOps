@@ -71,6 +71,18 @@ async def _bg_auto_complete(user_id: int, task_type: str, date: str) -> None:
         pass
 
 
+# Strong references to in-flight background tasks — asyncio only keeps weak
+# references, so an unreferenced task can be garbage-collected before it runs.
+_bg_tasks: set[asyncio.Task] = set()
+
+
+def _spawn_bg(coro) -> None:
+    """Run a coroutine as a background task that survives garbage collection."""
+    task = asyncio.create_task(coro)
+    _bg_tasks.add(task)
+    task.add_done_callback(_bg_tasks.discard)
+
+
 @router.post("/import", response_model=WorkoutImportResponse)
 async def import_workout_endpoint(
     body: WorkoutImportRequest,
@@ -123,7 +135,7 @@ async def complete_session_endpoint(
     user_id: int = Depends(get_current_user),
 ) -> None:
     await asyncio.to_thread(complete_session, user_id, body.date)
-    asyncio.create_task(_bg_auto_complete(user_id, "complete_workout", body.date))
+    _spawn_bg(_bg_auto_complete(user_id, "complete_workout", body.date))
 
 
 @router.get("/progression", response_model=ExerciseProgressionResponse)

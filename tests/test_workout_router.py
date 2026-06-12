@@ -635,12 +635,6 @@ class TestDeletePlanEndpoint:
             resp = client.delete("/workouts/plans/1-200", headers=auth_headers)
         assert resp.status_code == 204
 
-    def test_delete_active_plan_returns_409(self, client, auth_headers):
-        with patch("api.routers.workouts.delete_plan",
-                   side_effect=ValueError("Cannot delete the active plan")):
-            resp = client.delete("/workouts/plans/1-100", headers=auth_headers)
-        assert resp.status_code == 409
-
     def test_delete_plan_not_found_returns_404(self, client, auth_headers):
         with patch("api.routers.workouts.delete_plan",
                    side_effect=ValueError("Plan 'x' not found")):

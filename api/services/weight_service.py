@@ -16,12 +16,13 @@ Private helpers:
 
 from datetime import date as date_type, datetime, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import gspread.exceptions
 
 from ..logger import get_logger
 from ..models.weight import WeightEntryCreate, WeightEntryResponse, WeightHistoryItem, WeightTrendResponse
-from ..sheets.sheets_repo import append_row, read_rows, update_row
+from ..sheets.sheets_repo import append_row, read_rows, to_int, update_row
 
 logger = get_logger("weight_service")
 WEIGHT_TAB = "WeightLogs"
@@ -39,7 +40,7 @@ def _parse_weight(value: Any) -> float | None:
         return None
 
 
-def log_weight(user_id: int, data: WeightEntryCreate) -> WeightEntryResponse:
+def log_weight(user_id: int, data: WeightEntryCreate, tz_str: str = "UTC") -> WeightEntryResponse:
     """
     Upsert a weight entry: append if the date+time is new, update if it exists.
 
@@ -47,18 +48,24 @@ def log_weight(user_id: int, data: WeightEntryCreate) -> WeightEntryResponse:
     ``date``, and ``time`` all match. If found, updates that row in place.
     Otherwise appends a new row, allowing multiple entries per day.
 
-    ``time`` defaults to the current local HH:MM when not supplied by the caller.
-    ``logged_at`` is always set to the current UTC timestamp.
+    ``time`` defaults to the current HH:MM in ``tz_str`` (the user's local
+    timezone) when not supplied by the caller. ``logged_at`` is always set to
+    the current UTC timestamp.
 
     Args:
         user_id: Authenticated user's integer ID.
         data: ``WeightEntryCreate`` with ``date``, ``weight_kg``, and optional ``time``.
+        tz_str: IANA timezone string used for the fallback entry time.
 
     Returns:
         ``WeightEntryResponse`` reflecting the saved state.
     """
     now = datetime.now(timezone.utc).isoformat()
-    entry_time = data.time if data.time else datetime.now(timezone.utc).strftime("%H:%M")
+    try:
+        _tz = ZoneInfo(tz_str)
+    except Exception:
+        _tz = timezone.utc
+    entry_time = data.time if data.time else datetime.now(_tz).strftime("%H:%M")
     try:
         rows = read_rows(WEIGHT_TAB)
     except gspread.exceptions.WorksheetNotFound:
@@ -67,7 +74,7 @@ def log_weight(user_id: int, data: WeightEntryCreate) -> WeightEntryResponse:
     existing_index: int | None = None
     for i, row in enumerate(rows):
         if (
-            int(row.get("user_id", -1)) == user_id
+            to_int(row.get("user_id"), -1) == user_id
             and row.get("date") == data.date
             and row.get("time") == entry_time
         ):
@@ -117,7 +124,7 @@ def get_history(user_id: int) -> list[WeightHistoryItem]:
     cutoff = (date_type.today() - timedelta(days=90)).isoformat()
     entries: list[dict] = []
     for r in rows:
-        if int(r.get("user_id", -1)) != user_id or r.get("date", "") < cutoff:
+        if to_int(r.get("user_id"), -1) != user_id or r.get("date", "") < cutoff:
             continue
         w = _parse_weight(r.get("weight_kg"))
         if w is None:
@@ -173,7 +180,7 @@ def get_trend(user_id: int, goal_weight_kg: float) -> WeightTrendResponse:
 
     raw: list[dict] = []
     for r in rows:
-        if int(r.get("user_id", -1)) != user_id:
+        if to_int(r.get("user_id"), -1) != user_id:
             continue
         w = _parse_weight(r.get("weight_kg"))
         if w is None:

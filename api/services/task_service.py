@@ -29,7 +29,7 @@ import gspread.exceptions
 
 from ..logger import get_logger
 from ..models.task import CompleteTaskRequest, DailyStatusResponse, TaskResponse
-from ..sheets.sheets_repo import append_row, append_rows_batch, read_rows, update_row
+from ..sheets.sheets_repo import append_row, append_rows_batch, read_rows, to_int, update_row
 
 logger = get_logger("task_service")
 
@@ -123,7 +123,7 @@ def complete_task(user_id: int, task_id: str, date: str) -> DailyStatusResponse:
 
     for i, row in enumerate(status_rows):
         if (
-            int(row.get("user_id", -1)) == user_id
+            to_int(row.get("user_id"), -1) == user_id
             and row.get("task_id") == task_id
             and row.get("date") == date
         ):
@@ -174,7 +174,7 @@ def auto_complete_task(user_id: int, task_type: str, date: str) -> None:
         now = datetime.now(timezone.utc).isoformat()
         for i, row in enumerate(status_rows):
             if (
-                int(row.get("user_id", -1)) == user_id
+                to_int(row.get("user_id"), -1) == user_id
                 and row.get("task_id") == task_id
                 and row.get("date") == date
             ):
@@ -259,7 +259,7 @@ def _get_task_definitions(user_id: int) -> list[dict]:
     except gspread.exceptions.WorksheetNotFound:
         rows = []
 
-    user_tasks = [r for r in rows if int(r.get("user_id", -1)) == user_id]
+    user_tasks = [r for r in rows if to_int(r.get("user_id"), -1) == user_id]
     if not user_tasks:
         user_tasks = _seed_tasks(user_id)
     return user_tasks
@@ -302,7 +302,7 @@ def _ensure_daily_status(user_id: int, date: str, task_rows: list[dict]) -> None
     existing_task_ids = {
         r.get("task_id")
         for r in existing
-        if int(r.get("user_id", -1)) == user_id and r.get("date") == date
+        if to_int(r.get("user_id"), -1) == user_id and r.get("date") == date
     }
 
     is_rest = _is_rest_day(user_id, date)
@@ -350,7 +350,7 @@ def _read_daily_status(user_id: int, date: str) -> list[dict]:
         return []
     return [
         r for r in rows
-        if int(r.get("user_id", -1)) == user_id and r.get("date") == date
+        if to_int(r.get("user_id"), -1) == user_id and r.get("date") == date
     ]
 
 
@@ -375,7 +375,7 @@ def _compute_streak(user_id: int, today: str) -> int:
     except gspread.exceptions.WorksheetNotFound:
         return 0
 
-    user_rows = [r for r in rows if int(r.get("user_id", -1)) == user_id]
+    user_rows = [r for r in rows if to_int(r.get("user_id"), -1) == user_id]
     if not user_rows:
         return 0
 
@@ -390,15 +390,20 @@ def _compute_streak(user_id: int, today: str) -> int:
         if r.get("completed") == "TRUE":
             entry["completed"] += 1
 
-    # Walk backwards from today, counting consecutive complete days
+    # Walk backwards from today, counting consecutive complete days.
+    # Today still being in progress must not break an existing streak, so if
+    # today is not (yet) fully complete the walk starts from yesterday instead.
     from datetime import timedelta
+
+    def _is_complete(key: str) -> bool:
+        day = by_date.get(key)
+        return day is not None and day["total"] > 0 and day["completed"] >= day["total"]
+
     streak = 0
     check = date_type.fromisoformat(today)
-    while True:
-        key = check.isoformat()
-        day = by_date.get(key)
-        if day is None or day["total"] == 0 or day["completed"] < day["total"]:
-            break
+    if not _is_complete(check.isoformat()):
+        check -= timedelta(days=1)
+    while _is_complete(check.isoformat()):
         streak += 1
         check -= timedelta(days=1)
 
@@ -465,12 +470,12 @@ def _is_rest_day(user_id: int, date_str: str) -> bool:
         active_plan_id = get_active_plan_id(user_id)
 
         for r in rows:
-            if int(r.get("user_id", -1)) != user_id:
+            if to_int(r.get("user_id"), -1) != user_id:
                 continue
             # If we have an active plan, filter to its rows; skip rows from other plans
             if active_plan_id is not None and str(r.get("plan_id", "")) != active_plan_id:
                 continue
-            if int(r.get("weekday", -1)) == weekday:
+            if to_int(r.get("weekday"), -1) == weekday:
                 day_name = str(r.get("day_name", ""))
                 return day_name == "Rest" or not day_name
         # No schedule row found → treat as rest day

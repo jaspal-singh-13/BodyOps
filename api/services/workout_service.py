@@ -42,7 +42,7 @@ from ..models.workout import (
     WorkoutScheduleResponse,
 )
 from ..sheets.sheets_client import get_worksheet
-from ..sheets.sheets_repo import append_row, append_rows_batch, read_rows, update_row
+from ..sheets.sheets_repo import append_row, append_rows_batch, read_rows, to_float, to_int, update_row
 
 PLANS_TAB = "WorkoutPlans"
 PROGRAMS_TAB = "WorkoutPrograms"
@@ -139,7 +139,7 @@ def _delete_user_rows(tab: str, user_id: int) -> None:
     indices = sorted(
         i + 2  # +1 for header row, +1 for 0-based → 1-based
         for i, r in enumerate(records)
-        if int(r.get("user_id", -1)) == user_id
+        if to_int(r.get("user_id"), -1) == user_id
     )
     if not indices:
         return
@@ -157,7 +157,7 @@ def _delete_plan_rows(tab: str, user_id: int, plan_id: str) -> None:
     indices = sorted(
         i + 2
         for i, r in enumerate(records)
-        if int(r.get("user_id", -1)) == user_id and str(r.get("plan_id", "")) == plan_id
+        if to_int(r.get("user_id"), -1) == user_id and str(r.get("plan_id", "")) == plan_id
     )
     if not indices:
         return
@@ -175,7 +175,7 @@ def _delete_day_rows(tab: str, user_id: int, plan_id: str, day_name: str) -> Non
     indices = sorted(
         i + 2
         for i, r in enumerate(records)
-        if int(r.get("user_id", -1)) == user_id
+        if to_int(r.get("user_id"), -1) == user_id
         and str(r.get("plan_id", "")) == plan_id
         and str(r.get("day_name", "")) == day_name
     )
@@ -197,7 +197,7 @@ def _filter_by_plan(
     user_id is applied so existing data behaves exactly as before the
     plan library was introduced.
     """
-    user_rows = [r for r in rows if int(r.get("user_id", -1)) == user_id]
+    user_rows = [r for r in rows if to_int(r.get("user_id"), -1) == user_id]
     if plan_id is None:
         return user_rows
     return [r for r in user_rows if str(r.get("plan_id", "")) == plan_id]
@@ -217,7 +217,7 @@ def _get_last_set_from_rows(
     """
     user_rows = [
         r for r in set_rows
-        if int(r.get("user_id", -1)) == user_id
+        if to_int(r.get("user_id"), -1) == user_id
         and r.get("exercise_name", "") == exercise_name
     ]
     if not user_rows:
@@ -226,7 +226,7 @@ def _get_last_set_from_rows(
     user_rows.sort(key=lambda r: r.get("logged_at", ""), reverse=True)
     most_recent_session = user_rows[0].get("session_id", "")
     session_rows = [r for r in user_rows if r.get("session_id") == most_recent_session]
-    last_row = max(session_rows, key=lambda r: int(r.get("set_number", 0)))
+    last_row = max(session_rows, key=lambda r: to_int(r.get("set_number"), 0))
     return float(last_row["weight_kg"]), int(last_row["reps"])
 
 
@@ -248,10 +248,10 @@ def _get_program_rep_range_from_rows(
     """
     for r in program_rows:
         if (
-            int(r.get("user_id", -1)) == user_id
+            to_int(r.get("user_id"), -1) == user_id
             and r.get("exercise_name", "") == exercise_name
         ):
-            return int(r["rep_min"]), int(r["rep_max"])
+            return to_int(r.get("rep_min"), 8), to_int(r.get("rep_max"), 12)
     return 8, 12
 
 
@@ -277,7 +277,7 @@ def get_active_plan_id(user_id: int) -> str | None:
     rows = _safe_read_rows(PLANS_TAB)
     for r in rows:
         if (
-            int(r.get("user_id", -1)) == user_id
+            to_int(r.get("user_id"), -1) == user_id
             and str(r.get("is_active", "")).upper() == "TRUE"
         ):
             return str(r["plan_id"])
@@ -289,7 +289,7 @@ def list_plans(user_id: int) -> WorkoutPlansResponse:
     plan_rows = _safe_read_rows(PLANS_TAB)
     program_rows = _safe_read_rows(PROGRAMS_TAB)
 
-    user_plans = [r for r in plan_rows if int(r.get("user_id", -1)) == user_id]
+    user_plans = [r for r in plan_rows if to_int(r.get("user_id"), -1) == user_id]
     summaries: list[WorkoutPlanSummary] = []
 
     for r in user_plans:
@@ -300,7 +300,7 @@ def list_plans(user_id: int) -> WorkoutPlansResponse:
 
         plan_programs = [
             p for p in program_rows
-            if int(p.get("user_id", -1)) == user_id
+            if to_int(p.get("user_id"), -1) == user_id
             and str(p.get("plan_id", "")) == plan_id
             and p.get("exercise_name", "")
         ]
@@ -332,7 +332,7 @@ def activate_plan(user_id: int, plan_id: str) -> None:
     rows_to_deactivate: list[tuple[int, dict]] = []
 
     for i, r in enumerate(plan_rows):
-        if int(r.get("user_id", -1)) != user_id:
+        if to_int(r.get("user_id"), -1) != user_id:
             continue
         row_index = i + 2  # 1-based + header
         if str(r.get("plan_id", "")) == plan_id:
@@ -364,7 +364,7 @@ def delete_plan(user_id: int, plan_id: str) -> None:
     plan_row_idx: int | None = None
     is_active_plan = False
     for i, r in enumerate(plan_rows):
-        if int(r.get("user_id", -1)) == user_id and str(r.get("plan_id", "")) == plan_id:
+        if to_int(r.get("user_id"), -1) == user_id and str(r.get("plan_id", "")) == plan_id:
             plan_row_idx = i + 2
             is_active_plan = str(r.get("is_active", "")).upper() == "TRUE"
             break
@@ -396,7 +396,7 @@ def switch_plan_by_name(user_id: int, plan_name: str) -> dict:
     model can recover without exposing raw plan_ids.
     """
     plan_rows = _safe_read_rows(PLANS_TAB)
-    user_plans = [r for r in plan_rows if int(r.get("user_id", -1)) == user_id]
+    user_plans = [r for r in plan_rows if to_int(r.get("user_id"), -1) == user_id]
 
     target: dict | None = None
     for r in user_plans:
@@ -424,7 +424,7 @@ def rename_plan(user_id: int, plan_id: str, new_name: str) -> None:
     """Rename a saved plan. Raises ValueError if the plan is not found."""
     plan_rows = _safe_read_rows(PLANS_TAB)
     for i, r in enumerate(plan_rows):
-        if int(r.get("user_id", -1)) == user_id and str(r.get("plan_id", "")) == plan_id:
+        if to_int(r.get("user_id"), -1) == user_id and str(r.get("plan_id", "")) == plan_id:
             row = dict(r)
             row["plan_name"] = new_name
             update_row(PLANS_TAB, i + 2, row)
@@ -447,7 +447,7 @@ def update_day_exercises(
     """
     plan_rows = _safe_read_rows(PLANS_TAB)
     if not any(
-        int(r.get("user_id", -1)) == user_id and str(r.get("plan_id", "")) == plan_id
+        to_int(r.get("user_id"), -1) == user_id and str(r.get("plan_id", "")) == plan_id
         for r in plan_rows
     ):
         raise ValueError(f"Plan '{plan_id}' not found for user {user_id}")
@@ -456,7 +456,7 @@ def update_day_exercises(
     program_rows_existing = _safe_read_rows(PROGRAMS_TAB)
     program_name = ""
     for r in program_rows_existing:
-        if int(r.get("user_id", -1)) == user_id and str(r.get("plan_id", "")) == plan_id:
+        if to_int(r.get("user_id"), -1) == user_id and str(r.get("plan_id", "")) == plan_id:
             program_name = str(r.get("program_name", ""))
             break
 
@@ -501,9 +501,9 @@ def update_schedule_weekday(
     schedule_rows = _safe_read_rows(SCHEDULES_TAB)
     for i, r in enumerate(schedule_rows):
         if (
-            int(r.get("user_id", -1)) == user_id
+            to_int(r.get("user_id"), -1) == user_id
             and str(r.get("plan_id", "")) == plan_id
-            and int(r.get("weekday", -1)) == weekday
+            and to_int(r.get("weekday"), -1) == weekday
         ):
             row = dict(r)
             row["day_name"] = day_name
@@ -523,7 +523,7 @@ def _deactivate_current_plan(user_id: int) -> None:
     plan_rows = _safe_read_rows(PLANS_TAB)
     for i, r in enumerate(plan_rows):
         if (
-            int(r.get("user_id", -1)) == user_id
+            to_int(r.get("user_id"), -1) == user_id
             and str(r.get("is_active", "")).upper() == "TRUE"
         ):
             row = dict(r)
@@ -630,7 +630,7 @@ def get_today_workout(user_id: int, today_date: str) -> TodayWorkoutResponse:
 
     day_name: str | None = None
     for r in plan_schedule:
-        if int(r.get("weekday", -1)) == weekday:
+        if to_int(r.get("weekday"), -1) == weekday:
             day_name = str(r.get("day_name", "")) or None
             break
 
@@ -639,7 +639,7 @@ def get_today_workout(user_id: int, today_date: str) -> TodayWorkoutResponse:
     if active_plan_id is not None:
         plan_rows = _safe_read_rows(PLANS_TAB)
         for r in plan_rows:
-            if int(r.get("user_id", -1)) == user_id and str(r.get("plan_id", "")) == active_plan_id:
+            if to_int(r.get("user_id"), -1) == user_id and str(r.get("plan_id", "")) == active_plan_id:
                 plan_name = str(r.get("plan_name", "")) or None
                 break
 
@@ -664,7 +664,7 @@ def get_today_workout(user_id: int, today_date: str) -> TodayWorkoutResponse:
             if r.get("day_name") == day_name
             and r.get("exercise_name")
         ],
-        key=lambda r: int(r.get("order", 0)),
+        key=lambda r: to_int(r.get("order"), 0),
     )
 
     # Read SETS_TAB and SESSIONS_TAB once — eliminates the N+1
@@ -675,7 +675,7 @@ def get_today_workout(user_id: int, today_date: str) -> TodayWorkoutResponse:
     today_session_id = f"{user_id}-{today_date}"
     today_session: dict[str, Any] | None = None
     for r in session_rows:
-        if r.get("session_id") == today_session_id and int(r.get("user_id", -1)) == user_id:
+        if r.get("session_id") == today_session_id and to_int(r.get("user_id"), -1) == user_id:
             today_session = r
             break
 
@@ -692,9 +692,9 @@ def get_today_workout(user_id: int, today_date: str) -> TodayWorkoutResponse:
     total_sets = 0
     for r in ex_rows:
         ex_name = str(r["exercise_name"])
-        sets = int(r["sets"])
-        rep_min = int(r["rep_min"])
-        rep_max = int(r["rep_max"])
+        sets = to_int(r.get("sets"), 3)
+        rep_min = to_int(r.get("rep_min"), 8)
+        rep_max = to_int(r.get("rep_max"), 12)
         last_weight, last_reps = _get_last_set_from_rows(all_set_rows, user_id, ex_name)
         suggestion = compute_suggestion(ex_name, rep_min, rep_max, last_weight, last_reps)
         exercises.append(
@@ -703,7 +703,7 @@ def get_today_workout(user_id: int, today_date: str) -> TodayWorkoutResponse:
                 sets=sets,
                 rep_min=rep_min,
                 rep_max=rep_max,
-                order=int(r.get("order", 0)),
+                order=to_int(r.get("order"), 0),
                 last_weight_kg=last_weight,
                 last_reps=last_reps,
                 suggestion=suggestion,
@@ -797,7 +797,7 @@ def complete_session(user_id: int, date_str: str) -> None:
     session_rows = _safe_read_rows(SESSIONS_TAB)
 
     for i, r in enumerate(session_rows):
-        if r.get("session_id") == session_id and int(r.get("user_id", -1)) == user_id:
+        if r.get("session_id") == session_id and to_int(r.get("user_id"), -1) == user_id:
             row_index = i + 2
             updated = dict(r)
             updated["completed_at"] = _now_utc()
@@ -816,7 +816,7 @@ def get_progression(user_id: int, exercise_name: str) -> ExerciseProgressionResp
 
     user_rows = [
         r for r in set_rows
-        if int(r.get("user_id", -1)) == user_id
+        if to_int(r.get("user_id"), -1) == user_id
         and r.get("exercise_name") == exercise_name
     ]
 
@@ -835,15 +835,15 @@ def get_progression(user_id: int, exercise_name: str) -> ExerciseProgressionResp
 
     last_5: list[dict] = []
     for sid in sorted_sessions:
-        sets_in_session = sorted(sessions[sid], key=lambda r: int(r.get("set_number", 0)))
+        sets_in_session = sorted(sessions[sid], key=lambda r: to_int(r.get("set_number"), 0))
         last_5.append(
             {
                 "date": _session_date(sid),
                 "sets": [
                     {
-                        "set_number": int(r["set_number"]),
-                        "weight_kg": float(r["weight_kg"]),
-                        "reps": int(r["reps"]),
+                        "set_number": to_int(r.get("set_number"), 0),
+                        "weight_kg": to_float(r.get("weight_kg"), 0.0),
+                        "reps": to_int(r.get("reps"), 0),
                     }
                     for r in sets_in_session
                 ],
@@ -949,12 +949,12 @@ def get_schedule(user_id: int) -> WorkoutScheduleResponse:
     if active_plan_id is not None:
         plan_rows = _safe_read_rows(PLANS_TAB)
         for r in plan_rows:
-            if int(r.get("user_id", -1)) == user_id and str(r.get("plan_id", "")) == active_plan_id:
+            if to_int(r.get("user_id"), -1) == user_id and str(r.get("plan_id", "")) == active_plan_id:
                 plan_name = str(r.get("plan_name", "")) or None
                 break
     else:
         # Legacy fallback: read plan_name from the program_name column
-        for r in sorted(plan_programs, key=lambda r: int(r.get("order", 0))):
+        for r in sorted(plan_programs, key=lambda r: to_int(r.get("order"), 0)):
             candidate = str(r.get("program_name", "")).strip()
             if candidate:
                 plan_name = candidate
@@ -963,21 +963,21 @@ def get_schedule(user_id: int) -> WorkoutScheduleResponse:
     # Build weekday → day_name map from stored schedule
     day_name_by_weekday: dict[int, str] = {}
     for r in plan_schedule:
-        day_name_by_weekday[int(r["weekday"])] = str(r.get("day_name", "Rest"))
+        day_name_by_weekday[to_int(r.get("weekday"), -1)] = str(r.get("day_name", "Rest"))
 
     # Build day_name → exercises map from plan programs
     exercises_by_day: dict[str, list[ExerciseInfo]] = {}
-    for r in sorted(plan_programs, key=lambda r: int(r.get("order", 0))):
+    for r in sorted(plan_programs, key=lambda r: to_int(r.get("order"), 0)):
         if not r.get("exercise_name"):
             continue
         day = str(r.get("day_name", ""))
         exercises_by_day.setdefault(day, []).append(
             ExerciseInfo(
                 exercise_name=str(r["exercise_name"]),
-                sets=int(r["sets"]),
-                rep_min=int(r["rep_min"]),
-                rep_max=int(r["rep_max"]),
-                order=int(r.get("order", 0)),
+                sets=to_int(r.get("sets"), 3),
+                rep_min=to_int(r.get("rep_min"), 8),
+                rep_max=to_int(r.get("rep_max"), 12),
+                order=to_int(r.get("order"), 0),
             )
         )
 
@@ -1010,7 +1010,7 @@ def get_history(user_id: int) -> WorkoutHistoryResponse:
             "completed_at": str(r.get("completed_at", "")),
         }
         for r in session_rows
-        if int(r.get("user_id", -1)) == user_id
+        if to_int(r.get("user_id"), -1) == user_id
     ]
 
     user_sessions.sort(key=lambda s: s["date"], reverse=True)

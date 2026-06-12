@@ -138,3 +138,27 @@ class TestColLetter:
     def test_double_letters(self):
         assert sheets_repo._col_letter(27) == "AA"
         assert sheets_repo._col_letter(28) == "AB"
+
+
+class TestToIntToFloat:
+    """to_int / to_float degrade blank or malformed cells to the default."""
+
+    def test_to_int_parses_numbers_and_numeric_strings(self):
+        assert sheets_repo.to_int(3) == 3
+        assert sheets_repo.to_int("42") == 42
+
+    def test_to_int_blank_cell_returns_default(self):
+        assert sheets_repo.to_int("", -1) == -1
+
+    def test_to_int_garbage_returns_default(self):
+        assert sheets_repo.to_int("abc", 7) == 7
+        assert sheets_repo.to_int(None, 7) == 7
+
+    def test_to_float_parses_numbers_and_numeric_strings(self):
+        assert sheets_repo.to_float("82.5") == 82.5
+        assert sheets_repo.to_float(80) == 80.0
+
+    def test_to_float_blank_or_garbage_returns_default(self):
+        assert sheets_repo.to_float("", 1.5) == 1.5
+        assert sheets_repo.to_float("04:48", 0.0) == 0.0
+        assert sheets_repo.to_float(None, 0.0) == 0.0

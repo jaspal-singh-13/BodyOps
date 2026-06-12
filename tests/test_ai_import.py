@@ -89,6 +89,8 @@ def _ai_mocks(parsed_return, mock_append=None, mock_delete=None):
       - get_async_client() → mock client with beta.chat.completions.parse as AsyncMock
       - append_rows_batch → no-op (or supplied mock) so no Sheets writes happen
       - _delete_user_rows → no-op (or supplied mock)
+      - _safe_read_rows → [] (plan management reads WorkoutPlans for deactivation)
+      - append_row / update_row → no-op (WorkoutPlans row registration)
     """
     mock_client = MagicMock()
     mock_completion = MagicMock()
@@ -104,6 +106,11 @@ def _ai_mocks(parsed_return, mock_append=None, mock_delete=None):
     stack.enter_context(
         patch("api.services.workout_service._delete_user_rows", mock_delete or MagicMock())
     )
+    stack.enter_context(
+        patch("api.services.workout_service._safe_read_rows", return_value=[])
+    )
+    stack.enter_context(patch("api.services.workout_service.append_row"))
+    stack.enter_context(patch("api.services.workout_service.update_row"))
     return stack
 
 
@@ -159,7 +166,9 @@ async def test_explicit_schedule_day_index_maps_to_correct_day_name():
     sched_rows = sched_batch.args[1]
     # import_workout gap-fills all 7 weekdays; the first 3 come from the explicit schedule
     assert len(sched_rows) == 7
-    assert sched_rows[0] == {"user_id": 1, "weekday": 0, "day_name": "Upper", "created_at": sched_rows[0]["created_at"]}
+    assert sched_rows[0]["user_id"] == 1
+    assert sched_rows[0]["weekday"] == 0
+    assert sched_rows[0]["day_name"] == "Upper"
     assert sched_rows[1]["day_name"] == "Lower"
     assert sched_rows[2]["day_name"] == "Rest"
 
@@ -367,20 +376,20 @@ async def test_single_training_day_program():
 # ---------------------------------------------------------------------------
 
 
-async def test_delete_called_before_append():
-    """_delete_user_rows must fire before any append_row so stale data is cleared."""
+async def test_import_is_non_destructive():
+    """Plan-based import keeps old plan rows: _delete_user_rows is never called."""
     days = [WorkoutDaySummary(day_name="Push", exercises=[_ex("Bench")])]
-    call_order: list[str] = []
 
-    mock_delete = MagicMock(side_effect=lambda *_: call_order.append("delete"))
-    mock_append = MagicMock(side_effect=lambda *_: call_order.append("append"))
+    mock_delete = MagicMock()
+    mock_append = MagicMock()
 
     with _ai_mocks(_parsed(days), mock_append=mock_append, mock_delete=mock_delete):
         await ai_import_workout(user_id=1, program_name="P", raw_text="...")
 
-    assert call_order[0] == "delete"
-    assert call_order[1] == "delete"
-    assert "append" in call_order[2:]
+    mock_delete.assert_not_called()
+    appended_tabs = [c.args[0] for c in mock_append.call_args_list]
+    assert "WorkoutPrograms" in appended_tabs
+    assert "WorkoutSchedules" in appended_tabs
 
 
 async def test_user_id_propagated_to_all_append_rows():
@@ -488,6 +497,9 @@ async def test_all_out_of_bounds_day_index_falls_back_to_auto_schedule():
         patch("api.agent.llm.get_async_client", return_value=mock_client),
         patch("api.services.workout_service.append_rows_batch", mock_batch),
         patch("api.services.workout_service._delete_user_rows"),
+        patch("api.services.workout_service._safe_read_rows", return_value=[]),
+        patch("api.services.workout_service.append_row"),
+        patch("api.services.workout_service.update_row"),
     ):
         result = await ai_import_workout(user_id=1, program_name="PPL", raw_text="...")
 

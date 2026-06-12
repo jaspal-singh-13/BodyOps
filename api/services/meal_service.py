@@ -34,7 +34,7 @@ from ..models.meal import (
     SavedMealResponse,
 )
 from ..services.settings_service import get_settings
-from ..sheets.sheets_repo import append_row, append_rows_batch, read_rows
+from ..sheets.sheets_repo import append_row, append_rows_batch, read_rows, to_float, to_int
 
 logger = get_logger("meal_service")
 
@@ -175,10 +175,10 @@ def get_meals_today(user_id: int, tz_str: str = "UTC") -> DailyNutrition:
         if str(r.get("user_id", "")) == str(user_id) and r.get("date") == today
     ]
 
-    cals = sum(int(r.get("total_calories", 0)) for r in today_meals)
-    protein = sum(float(r.get("total_protein_g", 0)) for r in today_meals)
-    carbs = sum(float(r.get("total_carbs_g", 0)) for r in today_meals)
-    fat = sum(float(r.get("total_fat_g", 0)) for r in today_meals)
+    cals = sum(to_int(r.get("total_calories"), 0) for r in today_meals)
+    protein = sum(to_float(r.get("total_protein_g"), 0) for r in today_meals)
+    carbs = sum(to_float(r.get("total_carbs_g"), 0) for r in today_meals)
+    fat = sum(to_float(r.get("total_fat_g"), 0) for r in today_meals)
 
     target_cals, target_protein, target_carbs, target_fat = _get_targets(user_id)
 
@@ -242,8 +242,8 @@ def get_meals_history(user_id: int, days: int = 30, tz_str: str = "UTC") -> list
         d = r.get("date", "")
         if d not in by_date:
             by_date[d] = {"total_calories": 0, "total_protein_g": 0.0, "count": 0}
-        by_date[d]["total_calories"] += int(r.get("total_calories", 0))
-        by_date[d]["total_protein_g"] += float(r.get("total_protein_g", 0))
+        by_date[d]["total_calories"] += to_int(r.get("total_calories"), 0)
+        by_date[d]["total_protein_g"] += to_float(r.get("total_protein_g"), 0)
         by_date[d]["count"] += 1
 
     result = []
@@ -312,10 +312,10 @@ def get_meal_records_today(user_id: int, tz_str: str = "UTC") -> list[MealRecord
             DetectedItem(
                 name=str(it.get("name", "")),
                 quantity=str(it.get("quantity", "")),
-                calories=int(it.get("calories", 0)),
-                protein_g=float(it.get("protein_g", 0)),
-                carbs_g=float(it.get("carbs_g", 0)),
-                fat_g=float(it.get("fat_g", 0)),
+                calories=to_int(it.get("calories"), 0),
+                protein_g=to_float(it.get("protein_g"), 0),
+                carbs_g=to_float(it.get("carbs_g"), 0),
+                fat_g=to_float(it.get("fat_g"), 0),
                 confidence=it.get("confidence", "med"),  # type: ignore[arg-type]
             )
         )
@@ -324,10 +324,10 @@ def get_meal_records_today(user_id: int, tz_str: str = "UTC") -> list[MealRecord
     for r in today_meals:
         mid = str(r.get("meal_id", ""))
         total = MacroTotal(
-            calories=int(r.get("total_calories", 0)),
-            protein_g=float(r.get("total_protein_g", 0)),
-            carbs_g=float(r.get("total_carbs_g", 0)),
-            fat_g=float(r.get("total_fat_g", 0)),
+            calories=to_int(r.get("total_calories"), 0),
+            protein_g=to_float(r.get("total_protein_g"), 0),
+            carbs_g=to_float(r.get("total_carbs_g"), 0),
+            fat_g=to_float(r.get("total_fat_g"), 0),
         )
         records.append(
             MealRecord(
@@ -381,7 +381,9 @@ def _fmt_date(date_str: str) -> str:
     """Format YYYY-MM-DD as 'Jun 5'."""
     try:
         d = date_type.fromisoformat(date_str)
-        return d.strftime("%b %-d")
+        # f-string day instead of strftime("%-d"): the %-d flag is Unix-only
+        # and raises on Windows.
+        return f"{d.strftime('%b')} {d.day}"
     except Exception:
         return date_str
 

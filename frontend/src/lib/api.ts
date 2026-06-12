@@ -30,9 +30,9 @@ export function isLoggedIn(): boolean {
 /**
  * Persist a JWT in a browser cookie valid for 7 days.
  *
- * Uses `SameSite=Strict` to prevent CSRF. The cookie is readable by the
- * Next.js proxy middleware but NOT accessible to client-side JS in `HttpOnly`
- * mode — here it is readable so `isLoggedIn()` can check it.
+ * Uses `SameSite=Lax` so the cookie survives top-level navigations. The cookie
+ * is readable by the Next.js proxy middleware and by client-side JS so
+ * `isLoggedIn()` can check it.
  *
  * @param token - Raw JWT string returned by `POST /auth/login`.
  */

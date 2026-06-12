@@ -104,12 +104,13 @@ export default function WeightPage() {
         method: "POST",
         body: JSON.stringify({ date, time: timeInput, weight_kg: parseFloat(weightInput) }),
       });
-      // Refresh both history and trend so chart and stats reflect the new entry
+      // Refresh both history and trend so chart and stats reflect the new entry.
+      // Refresh failures must not surface as "Failed to save" — the save succeeded.
       const [h, t] = await Promise.all([
-        apiFetch<HistoryItem[]>("/weight/history"),
+        apiFetch<HistoryItem[]>("/weight/history").catch(() => null),
         apiFetch<TrendData>("/weight/trend").catch(() => null),
       ]);
-      setHistory(h);
+      if (h) setHistory(h);
       setTrend(t);
       triggerRefresh();
     } catch (err) {

@@ -243,3 +243,38 @@ class TestProjectGoalDate:
         # Extremely slow loss — projection > 5 years should return None
         entries = self._linear_entries(90.0, 0.0001, 10)
         assert _project_goal_date(entries, 80.0) is None
+
+
+class TestLogWeightTimezoneFallback:
+    def test_fallback_time_uses_user_timezone(self):
+        """When no time is supplied, the entry time is the current HH:MM in tz_str."""
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        data = WeightEntryCreate(date="2026-06-08", weight_kg=85.5)
+        with (
+            patch("api.services.weight_service.read_rows", return_value=[]),
+            patch("api.services.weight_service.append_row") as mock_append,
+            patch("api.services.weight_service.update_row"),
+        ):
+            result = log_weight(USER_ID, data, tz_str="Asia/Kolkata")
+
+        saved_time = mock_append.call_args[0][1]["time"]
+        expected = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%H:%M")
+        # Allow a 1-minute boundary crossing between call and assertion
+        assert abs(
+            (int(saved_time[:2]) * 60 + int(saved_time[3:]))
+            - (int(expected[:2]) * 60 + int(expected[3:]))
+        ) <= 1
+        assert result.time == saved_time
+
+    def test_invalid_timezone_falls_back_to_utc(self):
+        """An unknown tz string must not crash — falls back to UTC."""
+        data = WeightEntryCreate(date="2026-06-08", weight_kg=85.5)
+        with (
+            patch("api.services.weight_service.read_rows", return_value=[]),
+            patch("api.services.weight_service.append_row") as mock_append,
+            patch("api.services.weight_service.update_row"),
+        ):
+            log_weight(USER_ID, data, tz_str="Not/AZone")
+        assert mock_append.call_args[0][1]["time"]
