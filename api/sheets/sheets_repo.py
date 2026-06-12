@@ -16,14 +16,32 @@ Functions:
 """
 
 import time
-from typing import Any
+from contextlib import contextmanager
+from typing import Any, Generator
 
 import gspread
+from fastapi import HTTPException
 
 from ..logger import get_logger
 from .sheets_client import get_or_create_worksheet, get_worksheet
 
 logger = get_logger("sheets_repo")
+
+
+@contextmanager
+def _quota_guard() -> Generator[None, None, None]:
+    """Convert gspread 429 quota errors to a client-visible 429 HTTPException."""
+    try:
+        yield
+    except gspread.exceptions.APIError as exc:
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+        if status == 429:
+            logger.warning("Sheets quota exceeded (429) — client should retry after 60 s")
+            raise HTTPException(
+                status_code=429,
+                detail="Google Sheets quota exceeded — please wait 60 s and try again.",
+            )
+        raise
 
 # Per-tab header cache: populated on the first write to each tab and reused
 # for all subsequent append_row / update_row calls, saving one row_values(1)
@@ -78,11 +96,12 @@ def read_rows(tab: str) -> list[dict[str, Any]]:
     Raises:
         gspread.exceptions.WorksheetNotFound: If the tab does not exist.
     """
-    t0 = time.perf_counter()
-    rows = get_worksheet(tab).get_all_records()
-    elapsed_ms = (time.perf_counter() - t0) * 1000
-    logger.debug("Sheets read tab=%r rows=%d (%.0f ms)", tab, len(rows), elapsed_ms)
-    return rows
+    with _quota_guard():
+        t0 = time.perf_counter()
+        rows = get_worksheet(tab).get_all_records()
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        logger.debug("Sheets read tab=%r rows=%d (%.0f ms)", tab, len(rows), elapsed_ms)
+        return rows
 
 
 def append_row(tab: str, row: dict[str, Any]) -> None:
@@ -101,20 +120,21 @@ def append_row(tab: str, row: dict[str, Any]) -> None:
         tab: Tab name (e.g. ``"WeightLogs"``).
         row: Dict mapping column header names to values.
     """
-    ws = get_or_create_worksheet(tab)
-    headers = _get_headers(ws, tab)
-    if not headers:
-        headers = list(row.keys())
-        ws.append_row(headers, value_input_option="USER_ENTERED")
-        _header_cache[tab] = headers
-    values = [row.get(h, "") for h in headers]
-    t0 = time.perf_counter()
-    # USER_ENTERED lets Sheets parse dates/times as native values instead of
-    # apostrophe-escaped text. Reads stay FORMATTED_VALUE so values round-trip
-    # as the same strings that were written (e.g. "2026-06-12", "22:22").
-    ws.append_row(values, value_input_option="USER_ENTERED")
-    elapsed_ms = (time.perf_counter() - t0) * 1000
-    logger.debug("Sheets append tab=%r (%.0f ms)", tab, elapsed_ms)
+    with _quota_guard():
+        ws = get_or_create_worksheet(tab)
+        headers = _get_headers(ws, tab)
+        if not headers:
+            headers = list(row.keys())
+            ws.append_row(headers, value_input_option="USER_ENTERED")
+            _header_cache[tab] = headers
+        values = [row.get(h, "") for h in headers]
+        t0 = time.perf_counter()
+        # USER_ENTERED lets Sheets parse dates/times as native values instead of
+        # apostrophe-escaped text. Reads stay FORMATTED_VALUE so values round-trip
+        # as the same strings that were written (e.g. "2026-06-12", "22:22").
+        ws.append_row(values, value_input_option="USER_ENTERED")
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        logger.debug("Sheets append tab=%r (%.0f ms)", tab, elapsed_ms)
 
 
 def append_rows_batch(tab: str, rows: list[dict[str, Any]]) -> None:
@@ -132,17 +152,18 @@ def append_rows_batch(tab: str, rows: list[dict[str, Any]]) -> None:
     """
     if not rows:
         return
-    ws = get_or_create_worksheet(tab)
-    headers = _get_headers(ws, tab)
-    if not headers:
-        headers = list(rows[0].keys())
-        ws.append_row(headers, value_input_option="USER_ENTERED")
-        _header_cache[tab] = headers
-    values = [[row.get(h, "") for h in headers] for row in rows]
-    t0 = time.perf_counter()
-    ws.append_rows(values, value_input_option="USER_ENTERED")
-    elapsed_ms = (time.perf_counter() - t0) * 1000
-    logger.debug("Sheets batch-append tab=%r rows=%d (%.0f ms)", tab, len(rows), elapsed_ms)
+    with _quota_guard():
+        ws = get_or_create_worksheet(tab)
+        headers = _get_headers(ws, tab)
+        if not headers:
+            headers = list(rows[0].keys())
+            ws.append_row(headers, value_input_option="USER_ENTERED")
+            _header_cache[tab] = headers
+        values = [[row.get(h, "") for h in headers] for row in rows]
+        t0 = time.perf_counter()
+        ws.append_rows(values, value_input_option="USER_ENTERED")
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        logger.debug("Sheets batch-append tab=%r rows=%d (%.0f ms)", tab, len(rows), elapsed_ms)
 
 
 def update_row(tab: str, row_index: int, row: dict[str, Any]) -> None:
@@ -158,13 +179,14 @@ def update_row(tab: str, row_index: int, row: dict[str, Any]) -> None:
         row_index: 1-based row number to update (row 2 = first data row).
         row: Dict mapping column header names to new values.
     """
-    ws = get_worksheet(tab)
-    headers = _get_headers(ws, tab)
-    values = [row.get(h, "") for h in headers]
-    t0 = time.perf_counter()
-    ws.update(f"A{row_index}:{_col_letter(len(headers))}{row_index}", [values], value_input_option="USER_ENTERED")
-    elapsed_ms = (time.perf_counter() - t0) * 1000
-    logger.debug("Sheets update tab=%r row=%d (%.0f ms)", tab, row_index, elapsed_ms)
+    with _quota_guard():
+        ws = get_worksheet(tab)
+        headers = _get_headers(ws, tab)
+        values = [row.get(h, "") for h in headers]
+        t0 = time.perf_counter()
+        ws.update(f"A{row_index}:{_col_letter(len(headers))}{row_index}", [values], value_input_option="USER_ENTERED")
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        logger.debug("Sheets update tab=%r row=%d (%.0f ms)", tab, row_index, elapsed_ms)
 
 
 def find_row(tab: str, column: str, value: str) -> tuple[int, dict[str, Any]] | None:
@@ -183,17 +205,18 @@ def find_row(tab: str, column: str, value: str) -> tuple[int, dict[str, Any]] | 
         ``(row_index, record)`` tuple where ``row_index`` is 1-based, or
         ``None`` if no matching row is found.
     """
-    t0 = time.perf_counter()
-    ws = get_worksheet(tab)
-    records = ws.get_all_records()
-    for i, record in enumerate(records):
-        if str(record.get(column, "")) == str(value):
-            elapsed_ms = (time.perf_counter() - t0) * 1000
-            logger.debug("Sheets find tab=%r col=%r -> row %d (%.0f ms)", tab, column, i + 2, elapsed_ms)
-            return i + 2, record  # +2: skip header row and convert to 1-based
-    elapsed_ms = (time.perf_counter() - t0) * 1000
-    logger.debug("Sheets find tab=%r col=%r -> not found (%.0f ms)", tab, column, elapsed_ms)
-    return None
+    with _quota_guard():
+        t0 = time.perf_counter()
+        ws = get_worksheet(tab)
+        records = ws.get_all_records()
+        for i, record in enumerate(records):
+            if str(record.get(column, "")) == str(value):
+                elapsed_ms = (time.perf_counter() - t0) * 1000
+                logger.debug("Sheets find tab=%r col=%r -> row %d (%.0f ms)", tab, column, i + 2, elapsed_ms)
+                return i + 2, record  # +2: skip header row and convert to 1-based
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        logger.debug("Sheets find tab=%r col=%r -> not found (%.0f ms)", tab, column, elapsed_ms)
+        return None
 
 
 def _col_letter(n: int) -> str:
