@@ -113,6 +113,36 @@ def get_worksheet(name: str) -> gspread.Worksheet:
     return _worksheet_cache[name]
 
 
+def get_or_create_worksheet(name: str, rows: int = 1000, cols: int = 26) -> gspread.Worksheet:
+    """
+    Return a cached ``Worksheet``, creating the tab if it does not exist.
+
+    Used by write operations (``append_row``, ``append_rows_batch``) so that
+    the first write to a new tab automatically provisions the sheet instead of
+    raising ``WorksheetNotFound``.
+
+    Args:
+        name: Tab name (e.g. ``"DailyTaskStatus"``).
+        rows: Initial row count when creating a new tab (default 1000).
+        cols: Initial column count when creating a new tab (default 26).
+
+    Returns:
+        Cached ``gspread.Worksheet`` instance (opened or newly created).
+    """
+    if name not in _worksheet_cache:
+        try:
+            logger.debug("Sheets: worksheet cache miss — opening tab=%r", name)
+            _worksheet_cache[name] = _get_spreadsheet().worksheet(name)
+            logger.info("Sheets: worksheet tab=%r opened and cached", name)
+        except gspread.exceptions.WorksheetNotFound:
+            logger.info("Sheets: tab=%r not found — creating it", name)
+            _worksheet_cache[name] = _get_spreadsheet().add_worksheet(
+                title=name, rows=rows, cols=cols
+            )
+            logger.info("Sheets: worksheet tab=%r created and cached", name)
+    return _worksheet_cache[name]
+
+
 def get_chat_history_sheet() -> gspread.Spreadsheet:
     """
     Open and return the Chat History Sheet spreadsheet.

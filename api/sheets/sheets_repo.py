@@ -21,7 +21,7 @@ from typing import Any
 import gspread
 
 from ..logger import get_logger
-from .sheets_client import get_worksheet
+from .sheets_client import get_or_create_worksheet, get_worksheet
 
 logger = get_logger("sheets_repo")
 
@@ -101,7 +101,7 @@ def append_row(tab: str, row: dict[str, Any]) -> None:
         tab: Tab name (e.g. ``"WeightLogs"``).
         row: Dict mapping column header names to values.
     """
-    ws = get_worksheet(tab)
+    ws = get_or_create_worksheet(tab)
     headers = _get_headers(ws, tab)
     if not headers:
         headers = list(row.keys())
@@ -132,7 +132,7 @@ def append_rows_batch(tab: str, rows: list[dict[str, Any]]) -> None:
     """
     if not rows:
         return
-    ws = get_worksheet(tab)
+    ws = get_or_create_worksheet(tab)
     headers = _get_headers(ws, tab)
     if not headers:
         headers = list(rows[0].keys())
