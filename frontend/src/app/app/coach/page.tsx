@@ -71,7 +71,8 @@ function formatTs(isoTs: string): string {
 // ---------------------------------------------------------------------------
 
 export default function CoachPage() {
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const [tz, setTz] = useState("UTC");
+  const [mounted, setMounted] = useState(false);
 
   const [daily, setDaily] = useState<CoachingResponse | null>(null);
   const [weekly, setWeekly] = useState<WeeklyReviewResponse | null>(null);
@@ -111,8 +112,13 @@ export default function CoachPage() {
   }, [tz]);
 
   useEffect(() => {
-    fetchDaily();
-  }, [fetchDaily]);
+    setTz(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (mounted) fetchDaily();
+  }, [mounted, fetchDaily]);
 
   useEffect(() => {
     if (weeklyOpen && !weekly && !weeklyLoading) {
@@ -157,7 +163,7 @@ export default function CoachPage() {
             Today&apos;s Coaching
           </p>
           <div className="flex items-center gap-2">
-            {daily && (
+            {daily && mounted && (
               <span className="font-mono text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>
                 {formatTs(daily.generated_at)}{daily.cached ? " · cached" : ""}
               </span>

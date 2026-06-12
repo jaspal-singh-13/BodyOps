@@ -56,19 +56,18 @@ function formatGoalDate(iso: string): string {
 // ---------------------------------------------------------------------------
 
 export default function ProgressPage() {
-  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-
   const [summary, setSummary] = useState<ProgressSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     apiFetch<ProgressSummary>("/progress/summary", {
       headers: { "X-Timezone": tz },
     })
       .then(setSummary)
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [tz]);
+  }, []);
 
   if (loading) {
     return (
