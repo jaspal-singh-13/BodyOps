@@ -15,7 +15,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { Home, Utensils, Dumbbell, TrendingUp, Scale, MessageCircle, CheckSquare } from "lucide-react";
+import { Home, Utensils, Dumbbell, TrendingUp, Scale, MessageCircle, CheckSquare, Sparkles, BarChart2 } from "lucide-react";
 import { clearToken } from "@/lib/api";
 import { ChatDrawer } from "@/components/ChatDrawer";
 import { RefreshProvider } from "@/lib/refresh";
@@ -26,6 +26,11 @@ const navItems = [
   { href: "/app/meals", label: "Meals", icon: Utensils },
   { href: "/app/workouts", label: "Workouts", icon: Dumbbell },
   { href: "/app/missions", label: "Missions", icon: CheckSquare },
+];
+
+const navItemsExtra = [
+  { href: "/app/coach", label: "Coach", icon: Sparkles },
+  { href: "/app/progress", label: "Progress", icon: BarChart2 },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -60,6 +65,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         <nav className="flex flex-col gap-1 flex-1">
           {navItems.map(({ href, label, icon: Icon }) => {
+            const active = pathname === href;
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  active
+                    ? "bg-zinc-100 text-zinc-900"
+                    : "text-zinc-600 hover:bg-zinc-100"
+                }`}
+              >
+                <Icon className="size-4" />
+                {label}
+              </Link>
+            );
+          })}
+          <div className="my-1 border-t border-zinc-100" />
+          {navItemsExtra.map(({ href, label, icon: Icon }) => {
             const active = pathname === href;
             return (
               <Link

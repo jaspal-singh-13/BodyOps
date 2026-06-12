@@ -30,7 +30,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from .auth import LoginRequest, TokenResponse, login
 from .logger import get_logger, request_id_var
 from .routers.agent import router as agent_router
+from .routers.coach import router as coach_router
 from .routers.meals import router as meals_router
+from .routers.progress import router as progress_router
 from .routers.settings import router as settings_router
 from .routers.tasks import router as tasks_router
 from .routers.weight import router as weight_router
@@ -53,7 +55,7 @@ REQUIRED_ENV_VARS = [
 # so we log a warning rather than blocking startup.
 AGENT_ENV_VARS = ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_DEPLOYMENT"]
 
-VERSION = "0.17.9"
+VERSION = "0.18.0"
 
 
 @asynccontextmanager
@@ -174,6 +176,8 @@ app.include_router(weight_router)
 app.include_router(workout_router)
 app.include_router(meals_router)
 app.include_router(tasks_router)
+app.include_router(coach_router)
+app.include_router(progress_router)
 app.include_router(agent_router)
 
 
@@ -207,6 +211,8 @@ async def root() -> dict:
             "/weight",
             "/workouts",
             "/meals",
+            "/coach",
+            "/progress",
             "/agent",
         ],
     }

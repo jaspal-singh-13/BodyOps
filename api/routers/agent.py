@@ -60,6 +60,8 @@ from ..services.meal_service import get_meals_today as svc_get_meals_today
 from ..services.meal_service import save_meal as svc_save_meal
 from ..services.meal_vision import analyze_meal as svc_analyze_meal
 from ..models.meal import ConfirmMealRequest, DetectedItem
+from ..services.coach_service import generate_daily_coaching as svc_generate_daily_coaching
+from ..services.coach_service import generate_weekly_review as svc_generate_weekly_review
 from ..services.task_service import complete_task as svc_complete_task
 from ..services.task_service import get_today_tasks as svc_get_today_tasks
 from ..services.workout_service import ai_import_workout as svc_ai_import_workout
@@ -251,6 +253,22 @@ def _make_task_completer(user_id: int, timezone: str):
     return task_completer
 
 
+def _make_coaching_generator(user_id: int, timezone: str):
+    """Return an async callable that generates (or returns cached) daily coaching."""
+    async def coaching_generator() -> dict:
+        result = await svc_generate_daily_coaching(user_id, timezone)
+        return result.model_dump()
+    return coaching_generator
+
+
+def _make_weekly_review_generator(user_id: int, timezone: str):
+    """Return an async callable that generates (or returns cached) weekly review."""
+    async def weekly_review_generator() -> dict:
+        result = await svc_generate_weekly_review(user_id, timezone)
+        return result.model_dump()
+    return weekly_review_generator
+
+
 def _make_meal_analyzer(user_id: int):  # noqa: ARG001 — user_id reserved for future scoping
     """Return an async callable that runs vision analysis on a meal photo URL.
 
@@ -365,6 +383,8 @@ async def _sse_generator(message: str, session_id: str, user_id: int, timezone: 
         meal_analyzer=_make_meal_analyzer(user_id),
         task_status_getter=_make_task_status_getter(user_id, timezone),
         task_completer=_make_task_completer(user_id, timezone),
+        coaching_generator=_make_coaching_generator(user_id, timezone),
+        weekly_review_generator=_make_weekly_review_generator(user_id, timezone),
     )
 
     # Run agent in background so this generator can yield events as they arrive

@@ -38,6 +38,8 @@ class AgentDeps:
         meal_analyzer: ``async (image_url) -> dict`` — run vision analysis on a meal photo.
         task_status_getter: ``() -> dict`` — return today's mission list with completion state.
         task_completer: ``(task_id) -> dict`` — mark a mission complete, return updated status.
+        coaching_generator: ``async () -> dict`` — generate (or return cached) daily coaching summary.
+        weekly_review_generator: ``async () -> dict`` — generate (or return cached) weekly review.
     """
 
     user_id: int
@@ -56,3 +58,5 @@ class AgentDeps:
     meal_analyzer: Callable[[str], dict]
     task_status_getter: Callable[[], dict]
     task_completer: Callable[[str], dict]
+    coaching_generator: Callable[[], dict]
+    weekly_review_generator: Callable[[], dict]

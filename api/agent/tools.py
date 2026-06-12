@@ -317,6 +317,62 @@ async def complete_task(ctx: RunContext[AgentDeps], task_id: str) -> dict:
     return result
 
 
+# ---------------------------------------------------------------------------
+# Phase 6 — AI Coach
+# ---------------------------------------------------------------------------
+
+
+@agent.tool
+async def generate_daily_coaching(ctx: RunContext[AgentDeps]) -> dict:
+    """
+    Generate (or return cached) today's AI coaching summary.
+
+    Gathers weight, nutrition, and mission data for the day, then calls
+    Azure OpenAI to produce a structured coaching response. If coaching was
+    already generated within the last 60 minutes, the cached result is returned
+    without a new LLM call.
+
+    Args:
+        ctx: Pydantic AI run context carrying ``AgentDeps``.
+
+    Returns:
+        ``CoachingResponse`` dict with ``summary``, ``wins``, ``focus``,
+        ``next_step``, ``date``, ``generated_at``, and ``cached`` fields.
+    """
+    logger.debug("tool=generate_daily_coaching")
+    await ctx.deps.event_queue.put({"type": "tool_call", "tool": "generate_daily_coaching", "args": {}})
+    t0 = time.perf_counter()
+    result = await ctx.deps.coaching_generator()
+    logger.debug("tool=generate_daily_coaching done (%.0f ms)", (time.perf_counter() - t0) * 1000)
+    await ctx.deps.event_queue.put({"type": "tool_result", "tool": "generate_daily_coaching", "result": result})
+    return result
+
+
+@agent.tool
+async def generate_weekly_review(ctx: RunContext[AgentDeps]) -> dict:
+    """
+    Generate (or return cached) the current week's AI coaching review.
+
+    Covers the Mon–Sun ISO week containing today. Once generated for a given
+    week, subsequent calls return the cached result without a new LLM call.
+
+    Args:
+        ctx: Pydantic AI run context carrying ``AgentDeps``.
+
+    Returns:
+        ``WeeklyReviewResponse`` dict with ``summary``, ``wins``, ``focus``,
+        ``next_step``, ``week_start``, ``week_end``, ``generated_at``, and
+        ``cached`` fields.
+    """
+    logger.debug("tool=generate_weekly_review")
+    await ctx.deps.event_queue.put({"type": "tool_call", "tool": "generate_weekly_review", "args": {}})
+    t0 = time.perf_counter()
+    result = await ctx.deps.weekly_review_generator()
+    logger.debug("tool=generate_weekly_review done (%.0f ms)", (time.perf_counter() - t0) * 1000)
+    await ctx.deps.event_queue.put({"type": "tool_result", "tool": "generate_weekly_review", "result": result})
+    return result
+
+
 @agent.tool
 async def import_workout_from_text(
     ctx: RunContext[AgentDeps],

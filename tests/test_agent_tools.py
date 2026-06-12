@@ -41,6 +41,8 @@ def _make_deps(
     workout_importer=None,
     plans_lister=None,
     plan_switcher=None,
+    coaching_generator=None,
+    weekly_review_generator=None,
 ) -> AgentDeps:
     """
     Build an ``AgentDeps`` instance with mock service callables.
@@ -56,10 +58,14 @@ def _make_deps(
         workout_importer: Optional async mock for AI workout import.
         plans_lister: Optional mock for listing workout plans.
         plan_switcher: Optional mock for switching workout plans.
+        coaching_generator: Optional async mock for daily coaching generation.
+        weekly_review_generator: Optional async mock for weekly review generation.
 
     Returns:
         ``AgentDeps`` ready to be passed to a tool via a mock ``RunContext``.
     """
+    _default_coaching = {"date": "2026-06-08", "summary": "Good job", "wins": [], "focus": [], "next_step": "Keep going", "generated_at": "2026-06-08T00:00:00+00:00", "cached": False}
+    _default_weekly = {"week_start": "2026-06-02", "week_end": "2026-06-08", "summary": "Solid week", "wins": [], "focus": [], "next_step": "Keep going", "generated_at": "2026-06-08T00:00:00+00:00", "cached": False}
     return AgentDeps(
         user_id=user_id,
         timezone="UTC",
@@ -77,6 +83,8 @@ def _make_deps(
         meal_analyzer=AsyncMock(return_value={"title": "Test", "detected": []}),
         task_status_getter=MagicMock(return_value={"date": "2026-06-08", "tasks": [], "total": 0, "completed": 0, "percentage": 0.0}),
         task_completer=MagicMock(return_value={"date": "2026-06-08", "tasks": [], "total": 0, "completed": 0, "percentage": 0.0}),
+        coaching_generator=coaching_generator or AsyncMock(return_value=_default_coaching),
+        weekly_review_generator=weekly_review_generator or AsyncMock(return_value=_default_weekly),
     )
 
 
@@ -194,3 +202,124 @@ class TestGetWeightTrendTool:
 
         assert result == expected
         assert "moving_avg" in result
+
+
+# ── generate_daily_coaching tool ─────────────────────────────────────────────
+
+class TestGenerateDailyCoachingTool:
+    @pytest.mark.asyncio
+    async def test_emits_tool_call_then_tool_result(self):
+        """Queue receives exactly 2 events with correct type and tool name."""
+        import api.agent.tools  # noqa: F401
+
+        queue: asyncio.Queue = asyncio.Queue()
+        deps = _make_deps(1, queue)
+        ctx = _make_ctx(deps)
+
+        await api.agent.tools.generate_daily_coaching(ctx)
+
+        assert queue.qsize() == 2
+        call_evt = await queue.get()
+        result_evt = await queue.get()
+        assert call_evt["type"] == "tool_call"
+        assert call_evt["tool"] == "generate_daily_coaching"
+        assert call_evt["args"] == {}
+        assert result_evt["type"] == "tool_result"
+        assert result_evt["tool"] == "generate_daily_coaching"
+
+    @pytest.mark.asyncio
+    async def test_delegates_to_coaching_generator(self):
+        """coaching_generator callable is awaited exactly once with no arguments."""
+        import api.agent.tools  # noqa: F401
+
+        queue: asyncio.Queue = asyncio.Queue()
+        mock_generator = AsyncMock(return_value={"summary": "test", "wins": [], "focus": [], "next_step": "go"})
+        deps = _make_deps(1, queue, coaching_generator=mock_generator)
+        ctx = _make_ctx(deps)
+
+        await api.agent.tools.generate_daily_coaching(ctx)
+
+        mock_generator.assert_awaited_once_with()
+
+    @pytest.mark.asyncio
+    async def test_returns_coaching_dict(self):
+        """Tool returns the exact dict from the coaching_generator callable."""
+        import api.agent.tools  # noqa: F401
+
+        queue: asyncio.Queue = asyncio.Queue()
+        expected = {
+            "date": "2026-06-13",
+            "summary": "You crushed your protein target.",
+            "wins": ["Hit protein target"],
+            "focus": ["Log weight daily"],
+            "next_step": "Weigh in tomorrow morning",
+            "generated_at": "2026-06-13T00:00:00+00:00",
+            "cached": False,
+        }
+        deps = _make_deps(1, queue, coaching_generator=AsyncMock(return_value=expected))
+        ctx = _make_ctx(deps)
+
+        result = await api.agent.tools.generate_daily_coaching(ctx)
+
+        assert result == expected
+
+
+# ── generate_weekly_review tool ──────────────────────────────────────────────
+
+class TestGenerateWeeklyReviewTool:
+    @pytest.mark.asyncio
+    async def test_emits_tool_call_then_tool_result(self):
+        """Queue receives exactly 2 events with correct type and tool name."""
+        import api.agent.tools  # noqa: F401
+
+        queue: asyncio.Queue = asyncio.Queue()
+        deps = _make_deps(1, queue)
+        ctx = _make_ctx(deps)
+
+        await api.agent.tools.generate_weekly_review(ctx)
+
+        assert queue.qsize() == 2
+        call_evt = await queue.get()
+        result_evt = await queue.get()
+        assert call_evt["type"] == "tool_call"
+        assert call_evt["tool"] == "generate_weekly_review"
+        assert call_evt["args"] == {}
+        assert result_evt["type"] == "tool_result"
+        assert result_evt["tool"] == "generate_weekly_review"
+
+    @pytest.mark.asyncio
+    async def test_delegates_to_weekly_review_generator(self):
+        """weekly_review_generator callable is awaited exactly once with no arguments."""
+        import api.agent.tools  # noqa: F401
+
+        queue: asyncio.Queue = asyncio.Queue()
+        mock_generator = AsyncMock(return_value={"summary": "great week", "wins": [], "focus": [], "next_step": "keep going"})
+        deps = _make_deps(1, queue, weekly_review_generator=mock_generator)
+        ctx = _make_ctx(deps)
+
+        await api.agent.tools.generate_weekly_review(ctx)
+
+        mock_generator.assert_awaited_once_with()
+
+    @pytest.mark.asyncio
+    async def test_returns_weekly_review_dict(self):
+        """Tool returns the exact dict from the weekly_review_generator callable."""
+        import api.agent.tools  # noqa: F401
+
+        queue: asyncio.Queue = asyncio.Queue()
+        expected = {
+            "week_start": "2026-06-09",
+            "week_end": "2026-06-15",
+            "summary": "Consistent week — 5 out of 7 days on target.",
+            "wins": ["Hit protein 5/7 days"],
+            "focus": ["Weekend logging"],
+            "next_step": "Plan Sunday meals in advance",
+            "generated_at": "2026-06-13T00:00:00+00:00",
+            "cached": False,
+        }
+        deps = _make_deps(1, queue, weekly_review_generator=AsyncMock(return_value=expected))
+        ctx = _make_ctx(deps)
+
+        result = await api.agent.tools.generate_weekly_review(ctx)
+
+        assert result == expected

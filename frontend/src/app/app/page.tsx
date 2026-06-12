@@ -16,7 +16,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Dumbbell, Moon, Camera, Scale, Flame, CheckCircle2, Circle, ChevronRight } from "lucide-react";
+import { Dumbbell, Moon, Camera, Scale, Flame, CheckCircle2, Circle, ChevronRight, Sparkles, BarChart2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useRefresh } from "@/lib/refresh";
 
@@ -80,6 +80,17 @@ interface DailyMissions {
   streak: number;
 }
 
+interface CoachPreview {
+  summary: string;
+  cached: boolean;
+}
+
+interface ProgressPreview {
+  calorie_avg_7d: number;
+  protein_avg_7d: number;
+  weight_trend: { seven_day_avg: number | null; total_loss_kg: number | null };
+}
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -95,6 +106,8 @@ export default function DashboardPage() {
   const [nutrition, setNutrition] = useState<DailyNutrition | null>(null);
   const [missions, setMissions] = useState<DailyMissions | null>(null);
   const [weightLoggedToday, setWeightLoggedToday] = useState(false);
+  const [coachPreview, setCoachPreview] = useState<CoachPreview | null>(null);
+  const [progressPreview, setProgressPreview] = useState<ProgressPreview | null>(null);
 
   const fetchAll = useCallback(() => {
     const today = (() => {
@@ -146,6 +159,15 @@ export default function DashboardPage() {
 
     apiFetch<DailyMissions>("/tasks/today")
       .then(setMissions)
+      .catch(() => {});
+
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    apiFetch<CoachPreview>("/coach/daily", { headers: { "X-Timezone": tz } })
+      .then((d) => setCoachPreview({ summary: d.summary, cached: d.cached }))
+      .catch(() => {});
+
+    apiFetch<ProgressPreview>("/progress/summary", { headers: { "X-Timezone": tz } })
+      .then(setProgressPreview)
       .catch(() => {});
   }, [router]);
 
@@ -281,6 +303,12 @@ export default function DashboardPage() {
 
       {/* ── 5. Today's workout ── */}
       <TodayWorkoutCard workout={todayWorkout} />
+
+      {/* ── 6. Coach preview ── */}
+      <CoachPreviewCard preview={coachPreview} />
+
+      {/* ── 7. This week progress ── */}
+      <ProgressPreviewCard preview={progressPreview} />
     </div>
   );
 }
@@ -564,6 +592,96 @@ function TodayWorkoutCard({
       <Link href="/app/workouts" className="btn-primary block text-center text-sm px-4">
         Start session
       </Link>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Coach preview card (Phase 6)
+// ---------------------------------------------------------------------------
+
+function CoachPreviewCard({ preview }: { preview: CoachPreview | null }) {
+  if (!preview) return null;
+
+  const lines = preview.summary.split(". ").slice(0, 2).join(". ");
+  const display = lines.endsWith(".") ? lines : lines + ".";
+
+  return (
+    <Link href="/app/coach">
+      <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 cursor-pointer hover:bg-zinc-50 transition-colors">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <div className="w-[30px] h-[30px] rounded-lg bg-zinc-900 flex items-center justify-center shrink-0">
+              <Sparkles size={14} color="#fff" />
+            </div>
+            <p className="font-mono text-[10.5px] font-semibold tracking-widest text-zinc-400 uppercase">
+              AI Coach
+            </p>
+          </div>
+          <ChevronRight size={15} className="text-zinc-300" />
+        </div>
+        <p className="text-[13px] text-zinc-700 leading-relaxed line-clamp-2">{display}</p>
+      </div>
+    </Link>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Progress preview card — "This week" (Phase 6)
+// ---------------------------------------------------------------------------
+
+function ProgressPreviewCard({ preview }: { preview: ProgressPreview | null }) {
+  if (!preview) return null;
+
+  const hasData =
+    preview.calorie_avg_7d > 0 ||
+    preview.protein_avg_7d > 0 ||
+    preview.weight_trend.seven_day_avg != null;
+
+  if (!hasData) return null;
+
+  return (
+    <Link href="/app/progress">
+      <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 cursor-pointer hover:bg-zinc-50 transition-colors">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-[30px] h-[30px] rounded-lg bg-zinc-100 flex items-center justify-center shrink-0">
+              <BarChart2 size={14} className="text-zinc-700" />
+            </div>
+            <p className="font-mono text-[10.5px] font-semibold tracking-widest text-zinc-400 uppercase">
+              This Week
+            </p>
+          </div>
+          <ChevronRight size={15} className="text-zinc-300" />
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          <MiniStat
+            label="7d avg wt"
+            value={
+              preview.weight_trend.seven_day_avg != null
+                ? `${preview.weight_trend.seven_day_avg.toFixed(1)} kg`
+                : "—"
+            }
+          />
+          <MiniStat
+            label="Avg kcal"
+            value={preview.calorie_avg_7d > 0 ? `${Math.round(preview.calorie_avg_7d)}` : "—"}
+          />
+          <MiniStat
+            label="Avg protein"
+            value={preview.protein_avg_7d > 0 ? `${Math.round(preview.protein_avg_7d)}g` : "—"}
+          />
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-zinc-50 rounded-xl p-2.5">
+      <p className="font-mono text-[9px] text-zinc-400 uppercase tracking-wider mb-0.5">{label}</p>
+      <p className="font-mono text-[14px] font-bold text-zinc-900 leading-none">{value}</p>
     </div>
   );
 }
