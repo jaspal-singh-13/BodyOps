@@ -5,9 +5,10 @@ Reads from and writes to the ``WeightLogs`` tab of the Main Data Sheet.
 Each row stores one daily weigh-in scoped by ``user_id``.
 
 Public functions:
-    log_weight   — upsert a weigh-in (append or update same-date row).
-    get_history  — last 90 days of entries, newest first, with change diffs.
-    get_trend    — 7-day moving average + linear-regression goal projection.
+    log_weight     — upsert a weigh-in (append or update same-date row).
+    delete_weight  — delete a specific weight entry by user_id + date + time.
+    get_history    — last 90 days of entries, newest first, with change diffs.
+    get_trend      — 7-day moving average + linear-regression goal projection.
 
 Private helpers:
     _compute_moving_avg — rolling 7-day average over all entries.
@@ -22,7 +23,7 @@ import gspread.exceptions
 
 from ..logger import get_logger
 from ..models.weight import WeightEntryCreate, WeightEntryResponse, WeightHistoryItem, WeightTrendResponse
-from ..sheets.sheets_repo import append_row, read_rows, to_int, update_row
+from ..sheets.sheets_repo import append_row, delete_row, read_rows, to_int, update_row
 
 logger = get_logger("weight_service")
 WEIGHT_TAB = "WeightLogs"
@@ -97,6 +98,37 @@ def log_weight(user_id: int, data: WeightEntryCreate, tz_str: str = "UTC") -> We
         append_row(WEIGHT_TAB, row_dict)
 
     return WeightEntryResponse(**row_dict)
+
+
+def delete_weight(user_id: int, date: str, time_str: str) -> None:
+    """
+    Delete a specific weight entry identified by user_id + date + time.
+
+    Args:
+        user_id: Authenticated user's integer ID.
+        date: Date of the entry in ``YYYY-MM-DD`` format.
+        time_str: Time of the entry in ``HH:MM`` format.
+
+    Raises:
+        ValueError: If no matching entry is found.
+    """
+    try:
+        rows = read_rows(WEIGHT_TAB)
+    except gspread.exceptions.WorksheetNotFound:
+        raise ValueError(f"No weight entry found for date={date} time={time_str}")
+
+    for i, row in enumerate(rows):
+        if (
+            to_int(row.get("user_id"), -1) == user_id
+            and row.get("date") == date
+            and row.get("time") == time_str
+        ):
+            row_index = i + 2  # +1 header, +1 0-based → 1-based
+            logger.info("Deleting weight entry user_id=%s date=%s time=%s", user_id, date, time_str)
+            delete_row(WEIGHT_TAB, row_index)
+            return
+
+    raise ValueError(f"No weight entry found for date={date} time={time_str}")
 
 
 def get_history(user_id: int) -> list[WeightHistoryItem]:

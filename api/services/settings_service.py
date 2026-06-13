@@ -95,6 +95,8 @@ def get_settings(user_id: int) -> SettingsResponse | None:
         start_date=str(row.get("start_date", "")),
         calorie_target=to_int(row.get("calorie_target"), 0),
         protein_target_g=to_int(row.get("protein_target_g"), 0),
+        carb_target_g=to_int(row.get("carb_target_g"), 0),
+        fat_target_g=to_int(row.get("fat_target_g"), 0),
         wake_up_time=str(row.get("wake_up_time", "07:00")),
         unit_preference=str(row.get("unit_preference", "metric")),
         reminders_json=str(row.get("reminders_json", "{}")),

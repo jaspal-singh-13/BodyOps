@@ -2,9 +2,10 @@
 Weight router — daily weigh-in logging and trend analytics.
 
 Endpoints:
-    POST /weight          — log (or update) a body weight entry for a given date.
-    GET  /weight/history  — return the last 90 days of entries, newest first.
-    GET  /weight/trend    — return 7-day moving average + projected goal date.
+    POST   /weight                  — log (or update) a body weight entry for a given date.
+    DELETE /weight/{date}/{time_str} — delete a specific weight entry.
+    GET    /weight/history           — return the last 90 days of entries, newest first.
+    GET    /weight/trend             — return 7-day moving average + projected goal date.
 
 All endpoints require a valid JWT. Data is scoped to the authenticated user_id.
 """
@@ -17,7 +18,7 @@ from ..auth import get_current_user
 from ..models.weight import WeightEntryCreate, WeightEntryResponse, WeightHistoryItem, WeightTrendResponse
 from ..services.settings_service import get_settings
 from ..services.task_service import auto_complete_task
-from ..services.weight_service import get_history, get_trend, log_weight
+from ..services.weight_service import delete_weight, get_history, get_trend, log_weight
 
 router = APIRouter(prefix="/weight", tags=["weight"])
 
@@ -107,3 +108,25 @@ async def get_trend_endpoint(
     if settings is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No settings found")
     return await asyncio.to_thread(get_trend, user_id, settings.goal_weight_kg)
+
+
+@router.delete("/{date}/{time_str}", status_code=204)
+async def delete_weight_endpoint(
+    date: str,
+    time_str: str,
+    user_id: int = Depends(get_current_user),
+) -> None:
+    """
+    Delete a specific weight entry identified by date + time.
+
+    Args:
+        date: Date of the entry in ``YYYY-MM-DD`` format.
+        time_str: Time of the entry in ``HH:MM`` format (colons encoded as ``%3A`` in URLs).
+
+    Raises:
+        HTTPException(404): If no matching entry is found for this user.
+    """
+    try:
+        await asyncio.to_thread(delete_weight, user_id, date, time_str)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

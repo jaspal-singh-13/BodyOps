@@ -16,6 +16,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Trash2 } from "lucide-react";
 import {
   LineChart,
   Line,
@@ -93,6 +94,22 @@ export default function WeightPage() {
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
+
+  async function deleteEntry(entryDate: string, entryTime: string) {
+    if (!window.confirm(`Delete entry for ${entryDate} ${entryTime}?`)) return;
+    try {
+      await apiFetch(`/weight/${entryDate}/${encodeURIComponent(entryTime)}`, { method: "DELETE" });
+      const [h, t] = await Promise.all([
+        apiFetch<HistoryItem[]>("/weight/history").catch(() => null),
+        apiFetch<TrendData>("/weight/trend").catch(() => null),
+      ]);
+      if (h) setHistory(h);
+      setTrend(t);
+      triggerRefresh();
+    } catch {
+      // silent — entry already gone or error
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -348,6 +365,13 @@ export default function WeightPage() {
                       {entry.change_kg} kg
                     </span>
                   )}
+                  <button
+                    onClick={() => deleteEntry(entry.date, entry.time)}
+                    className="p-1 text-zinc-300 hover:text-red-500 transition-colors"
+                    aria-label="Delete entry"
+                  >
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               </div>
             ))}

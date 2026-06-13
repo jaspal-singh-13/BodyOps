@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { CheckCircle2, Circle, Flame, Bell, ChevronDown, ChevronUp, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, Circle, Flame, Bell } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useRefresh } from "@/lib/refresh";
 
@@ -29,15 +29,11 @@ interface DailyMissions {
 
 interface ReminderConfig {
   enabled: boolean;
-  time: string; // HH:MM 24-hour
-  label?: string; // only present on custom reminders
+  time: string;
+  label?: string;
 }
 
 interface Reminders {
-  weigh_in?: ReminderConfig;
-  meal_log?: ReminderConfig;
-  workout?: ReminderConfig;
-  check_in?: ReminderConfig;
   [key: string]: ReminderConfig | undefined;
 }
 
@@ -81,7 +77,7 @@ function scheduleNotification(label: string, timeStr: string) {
   const now = new Date();
   const target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0);
   const delay = target.getTime() - now.getTime();
-  if (delay <= 0) return; // Already passed today
+  if (delay <= 0) return;
 
   setTimeout(() => {
     new Notification("BodyOps", { body: `Time for: ${label}`, icon: "/icon-192.png" });
@@ -110,14 +106,6 @@ export default function MissionsPage() {
   const [loading, setLoading] = useState(true);
   const [completing, setCompleting] = useState<string | null>(null);
 
-  const [reminders, setReminders] = useState<Reminders>({});
-  const [remindersOpen, setRemindersOpen] = useState(false);
-  const [notifPermission, setNotifPermission] = useState<NotificationPermission | "unsupported">("default");
-  const [savingReminders, setSavingReminders] = useState(false);
-  const [addingNew, setAddingNew] = useState(false);
-  const [newLabel, setNewLabel] = useState("");
-  const [newTime, setNewTime] = useState("08:00");
-
   const fetchMissions = useCallback(async () => {
     try {
       const data = await apiFetch<DailyMissions>("/tasks/today");
@@ -129,21 +117,9 @@ export default function MissionsPage() {
     }
   }, []);
 
-  const fetchReminders = useCallback(async () => {
-    try {
-      const data = await apiFetch<Reminders>("/settings/reminders");
-      setReminders(data ?? {});
-      scheduleAllReminders(data ?? {});
-    } catch {
-      // silent
-    }
-  }, []);
-
   useEffect(() => {
     fetchMissions();
-    fetchReminders();
-    setNotifPermission(getNotifPermission());
-  }, [fetchMissions, fetchReminders]);
+  }, [fetchMissions]);
 
   async function handleComplete(taskId: string, date: string) {
     if (completing) return;
@@ -164,61 +140,7 @@ export default function MissionsPage() {
 
   async function handleEnableNotifications() {
     const perm = await requestNotifPermission();
-    setNotifPermission(perm);
-    if (perm === "granted") scheduleAllReminders(reminders);
-  }
-
-  function toggleReminder(key: string) {
-    setReminders((prev) => ({
-      ...prev,
-      [key]: {
-        ...prev[key],
-        enabled: !prev[key]?.enabled,
-        time: prev[key]?.time ?? DEFAULT_TIMES[key as BuiltInKey] ?? "08:00",
-      },
-    }));
-  }
-
-  function setTime(key: string, time: string) {
-    setReminders((prev) => ({
-      ...prev,
-      [key]: { ...prev[key], enabled: prev[key]?.enabled ?? false, time },
-    }));
-  }
-
-  function addCustomReminder() {
-    if (!newLabel.trim()) return;
-    const key = `custom_${Date.now()}`;
-    setReminders((prev) => ({
-      ...prev,
-      [key]: { enabled: true, time: newTime, label: newLabel.trim() },
-    }));
-    setNewLabel("");
-    setNewTime("08:00");
-    setAddingNew(false);
-  }
-
-  function removeReminder(key: string) {
-    setReminders((prev) => {
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
-  }
-
-  async function saveReminders() {
-    setSavingReminders(true);
-    try {
-      await apiFetch("/settings/reminders", {
-        method: "POST",
-        body: JSON.stringify(reminders),
-      });
-      if (notifPermission === "granted") scheduleAllReminders(reminders);
-    } catch {
-      // silent
-    } finally {
-      setSavingReminders(false);
-    }
+    if (perm === "granted") scheduleAllReminders({});
   }
 
   // ---------------------------------------------------------------------------
@@ -339,190 +261,18 @@ export default function MissionsPage() {
         </div>
       )}
 
-      {/* Reminders section */}
-      <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm overflow-hidden">
-        {/* Collapsible header */}
-        <button
-          onClick={() => setRemindersOpen((o) => !o)}
-          className="w-full flex items-center justify-between p-4 hover:bg-zinc-50 transition-colors"
+      {/* Settings link — reminders have moved to Settings page */}
+      <div className="flex items-center justify-between bg-white rounded-2xl border border-zinc-100 shadow-sm px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Bell size={15} className="text-zinc-400" />
+          <span className="text-[13px] font-medium text-zinc-600">Manage reminders</span>
+        </div>
+        <a
+          href="/app/settings"
+          className="font-mono text-[11.5px] font-semibold text-zinc-900 hover:underline flex items-center gap-1"
         >
-          <div className="flex items-center gap-2">
-            <Bell size={15} className="text-zinc-500" />
-            <span className="text-[13.5px] font-semibold text-zinc-900">Reminders</span>
-            <span
-              className={`font-mono text-[10px] px-1.5 py-0.5 rounded-full ${
-                notifPermission === "granted"
-                  ? "bg-green-50 text-green-600"
-                  : notifPermission === "denied"
-                  ? "bg-red-50 text-red-500"
-                  : "bg-zinc-100 text-zinc-400"
-              }`}
-            >
-              {notifPermission === "granted"
-                ? "On"
-                : notifPermission === "denied"
-                ? "Blocked"
-                : notifPermission === "unsupported"
-                ? "Unsupported"
-                : "Off"}
-            </span>
-          </div>
-          {remindersOpen ? (
-            <ChevronUp size={15} className="text-zinc-400" />
-          ) : (
-            <ChevronDown size={15} className="text-zinc-400" />
-          )}
-        </button>
-
-        {remindersOpen && (
-          <div className="border-t border-zinc-100 p-4 flex flex-col gap-4">
-            {/* Permission button */}
-            {notifPermission !== "granted" && notifPermission !== "unsupported" && (
-              <button
-                onClick={handleEnableNotifications}
-                disabled={notifPermission === "denied"}
-                className="flex items-center gap-2 text-sm font-semibold text-white bg-zinc-900 rounded-xl px-4 py-2.5 hover:bg-zinc-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Bell size={14} />
-                {notifPermission === "denied" ? "Notifications blocked in browser" : "Enable Notifications"}
-              </button>
-            )}
-            {notifPermission === "denied" && (
-              <p className="font-mono text-[10.5px] text-red-500">
-                Notifications are blocked. Enable them in your browser settings to use reminders.
-              </p>
-            )}
-
-            {/* Reminder toggles */}
-            <div className="flex flex-col gap-3">
-              {/* Built-in reminders */}
-              {BUILT_IN_KEYS.map((key) => {
-                const cfg = reminders[key];
-                const enabled = cfg?.enabled ?? false;
-                const time = cfg?.time ?? DEFAULT_TIMES[key];
-                return (
-                  <div key={key} className="flex items-center gap-3">
-                    <button
-                      onClick={() => toggleReminder(key)}
-                      className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${
-                        enabled ? "bg-zinc-900" : "bg-zinc-200"
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 mt-0.5 rounded-full bg-white shadow transition-transform ${
-                          enabled ? "translate-x-4" : "translate-x-0.5"
-                        }`}
-                      />
-                    </button>
-                    <span className="flex-1 text-[13px] font-medium text-zinc-800">
-                      {REMINDER_LABELS[key]}
-                    </span>
-                    <input
-                      type="time"
-                      value={time}
-                      disabled={!enabled}
-                      onChange={(e) => setTime(key, e.target.value)}
-                      className="font-mono text-[12px] text-zinc-600 bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 disabled:opacity-40"
-                    />
-                  </div>
-                );
-              })}
-
-              {/* Custom reminders */}
-              {Object.entries(reminders)
-                .filter(([key]) => !BUILT_IN_KEYS.includes(key as BuiltInKey))
-                .map(([key, cfg]) => {
-                  if (!cfg) return null;
-                  const enabled = cfg.enabled ?? false;
-                  return (
-                    <div key={key} className="flex items-center gap-3">
-                      <button
-                        onClick={() => toggleReminder(key)}
-                        className={`relative inline-flex h-5 w-9 shrink-0 rounded-full transition-colors ${
-                          enabled ? "bg-zinc-900" : "bg-zinc-200"
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 mt-0.5 rounded-full bg-white shadow transition-transform ${
-                            enabled ? "translate-x-4" : "translate-x-0.5"
-                          }`}
-                        />
-                      </button>
-                      <span className="flex-1 text-[13px] font-medium text-zinc-800">
-                        {cfg.label ?? key}
-                      </span>
-                      <input
-                        type="time"
-                        value={cfg.time}
-                        disabled={!enabled}
-                        onChange={(e) => setTime(key, e.target.value)}
-                        className="font-mono text-[12px] text-zinc-600 bg-zinc-50 border border-zinc-200 rounded-lg px-2 py-1 disabled:opacity-40"
-                      />
-                      <button
-                        onClick={() => removeReminder(key)}
-                        className="text-zinc-400 hover:text-red-500 transition-colors shrink-0"
-                        aria-label="Remove reminder"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  );
-                })}
-            </div>
-
-            {/* Add new reminder */}
-            {addingNew ? (
-              <div className="flex flex-col gap-2 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-                <input
-                  type="text"
-                  placeholder="Reminder name…"
-                  value={newLabel}
-                  onChange={(e) => setNewLabel(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") addCustomReminder(); if (e.key === "Escape") setAddingNew(false); }}
-                  autoFocus
-                  className="text-[13px] font-medium text-zinc-900 bg-white border border-zinc-200 rounded-lg px-3 py-1.5 outline-none focus:border-zinc-400"
-                />
-                <div className="flex items-center gap-2">
-                  <input
-                    type="time"
-                    value={newTime}
-                    onChange={(e) => setNewTime(e.target.value)}
-                    className="font-mono text-[12px] text-zinc-600 bg-white border border-zinc-200 rounded-lg px-2 py-1"
-                  />
-                  <button
-                    onClick={addCustomReminder}
-                    disabled={!newLabel.trim()}
-                    className="flex-1 text-[12px] font-semibold text-white bg-zinc-900 rounded-lg px-3 py-1.5 hover:bg-zinc-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Add
-                  </button>
-                  <button
-                    onClick={() => { setAddingNew(false); setNewLabel(""); setNewTime("08:00"); }}
-                    className="text-[12px] font-medium text-zinc-500 hover:text-zinc-800 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                onClick={() => setAddingNew(true)}
-                className="flex items-center gap-1.5 text-[12px] font-medium text-zinc-500 hover:text-zinc-800 transition-colors self-start"
-              >
-                <Plus size={13} />
-                Add reminder
-              </button>
-            )}
-
-            <button
-              onClick={saveReminders}
-              disabled={savingReminders}
-              className="btn-primary text-sm py-2.5 disabled:opacity-60"
-            >
-              {savingReminders ? "Saving…" : "Save reminders"}
-            </button>
-          </div>
-        )}
+          Settings →
+        </a>
       </div>
     </div>
   );

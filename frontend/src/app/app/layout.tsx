@@ -5,18 +5,20 @@
  * because the chat drawer state (`chatOpen`) must live here so it persists across
  * page navigations without re-mounting.
  *
- * The "Chat to log" button and the mobile Coach tab both toggle the same
- * `chatOpen` state, which mounts `<ChatDrawer>` as an overlay on top of the
+ * The "Chat to log" button toggles `<ChatDrawer>` as an overlay on top of the
  * current page without navigating away.
  */
 
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
-import { Home, Utensils, Dumbbell, TrendingUp, Scale, MessageCircle, CheckSquare, Sparkles, BarChart2 } from "lucide-react";
-import { clearToken } from "@/lib/api";
+import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
+import {
+  Home, Utensils, Dumbbell, TrendingUp, Scale, MessageCircle,
+  CheckSquare, Sparkles, BarChart2, Settings,
+} from "lucide-react";
+import { apiFetch } from "@/lib/api";
 import { ChatDrawer } from "@/components/ChatDrawer";
 import { RefreshProvider } from "@/lib/refresh";
 
@@ -31,17 +33,30 @@ const navItems = [
 const navItemsExtra = [
   { href: "/app/coach", label: "Coach", icon: Sparkles },
   { href: "/app/progress", label: "Progress", icon: BarChart2 },
+  { href: "/app/settings", label: "Settings", icon: Settings },
+];
+
+// Mobile nav: 5 core tabs + Progress replaces the old hardcoded Coach chat tab
+const mobileNavItems = [
+  { href: "/app", label: "Home", icon: Home },
+  { href: "/app/weight", label: "Weight", icon: Scale },
+  { href: "/app/meals", label: "Meals", icon: Utensils },
+  { href: "/app/missions", label: "Missions", icon: CheckSquare },
+  { href: "/app/progress", label: "Progress", icon: BarChart2 },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [chatOpen, setChatOpen] = useState(false);
+  const [userName, setUserName] = useState<string>("");
 
-  function signOut() {
-    clearToken();
-    router.push("/login");
-  }
+  useEffect(() => {
+    apiFetch<{ name: string }>("/settings")
+      .then((s) => setUserName(s.name || ""))
+      .catch(() => {});
+  }, []);
+
+  const initial = userName ? userName.trim()[0].toUpperCase() : "U";
 
   return (
     <RefreshProvider>
@@ -100,20 +115,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             );
           })}
         </nav>
-        <button
-          onClick={signOut}
-          className="text-sm text-zinc-400 hover:text-zinc-600 text-left px-3 py-2 transition-colors"
-        >
-          Sign out
-        </button>
+
+        {/* User profile chip */}
+        {userName && (
+          <div className="px-3 py-2 flex items-center gap-2 mb-1">
+            <div className="w-7 h-7 rounded-full bg-zinc-900 flex items-center justify-center shrink-0">
+              <span className="text-white text-[11px] font-bold">{initial}</span>
+            </div>
+            <span className="text-sm font-medium text-zinc-700 truncate">{userName}</span>
+          </div>
+        )}
       </aside>
 
       {/* Main content */}
       <main className="flex-1 overflow-y-auto pb-20 md:pb-0">{children}</main>
 
-      {/* Mobile bottom nav */}
+      {/* Mobile bottom nav — 5 tabs, no hardcoded Coach chat button */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-zinc-100 flex safe-bottom">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {mobileNavItems.map(({ href, label, icon: Icon }) => {
           const active = pathname === href;
           return (
             <Link
@@ -128,14 +147,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </Link>
           );
         })}
-        {/* Mobile coach tab — opens the same drawer as the desktop "Chat to log" button */}
-        <button
-          onClick={() => setChatOpen(true)}
-          className="flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium text-zinc-400"
-        >
-          <MessageCircle className="size-5 stroke-[1.5]" />
-          Coach
-        </button>
       </nav>
 
       {/* Chat drawer — mounted here so it persists across page navigations */}
