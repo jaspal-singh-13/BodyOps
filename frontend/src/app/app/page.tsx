@@ -110,6 +110,7 @@ export default function DashboardPage() {
   const [weightLoggedToday, setWeightLoggedToday] = useState(false);
   const [coachPreview, setCoachPreview] = useState<CoachPreview | null>(null);
   const [progressPreview, setProgressPreview] = useState<ProgressPreview | null>(null);
+  const [greeting, setGreeting] = useState("Good morning");
 
   const fetchAll = useCallback(() => {
     const today = (() => {
@@ -193,6 +194,12 @@ export default function DashboardPage() {
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
   }, [fetchAll]);
 
+  // Time-aware greeting — computed on client only to avoid hydration mismatch
+  useEffect(() => {
+    const hour = new Date().getHours();
+    setGreeting(hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening");
+  }, []);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -205,13 +212,6 @@ export default function DashboardPage() {
 
   const displayWeight = latestWeight?.weight_kg ?? settings.current_weight_kg;
   const remaining = displayWeight - settings.goal_weight_kg;
-
-  // Time-aware greeting — computed on client only to avoid hydration mismatch
-  const [greeting, setGreeting] = useState("Good morning");
-  useEffect(() => {
-    const hour = new Date().getHours();
-    setGreeting(hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening");
-  }, []);
 
   // kg lost: from first weight log (not settings.current_weight_kg which is the onboarding baseline)
   const startWeight = firstWeight ?? settings.current_weight_kg;
