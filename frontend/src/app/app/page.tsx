@@ -100,6 +100,9 @@ interface DailyMissions {
 
 interface CoachDaily {
   summary: string;
+  focus: string[];
+  next_step: string;
+  generated_at: string;
   cached: boolean;
 }
 
@@ -142,6 +145,7 @@ export default function DashboardPage() {
   const [firstWeight, setFirstWeight] = useState<number | null>(null);
   const [weightHistory7d, setWeightHistory7d] = useState<HistoryItem[]>([]);
   const [projectedDate, setProjectedDate] = useState<string | null>(null);
+  const [projectedRaw, setProjectedRaw] = useState<string | null>(null);
   const [trendData, setTrendData] = useState<TrendData | null>(null);
   const [todayWorkout, setTodayWorkout] = useState<TodayWorkout | null | "loading">("loading");
   const [nutrition, setNutrition] = useState<DailyNutrition | null>(null);
@@ -187,8 +191,10 @@ export default function DashboardPage() {
           setProjectedDate(
             d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" })
           );
+          setProjectedRaw(raw);
         } else {
           setProjectedDate(null);
+          setProjectedRaw(null);
         }
       })
       .catch(() => {});
@@ -207,7 +213,15 @@ export default function DashboardPage() {
 
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
     apiFetch<CoachDaily>("/coach/daily", { headers: { "X-Timezone": tz } })
-      .then((d) => setCoachDaily({ summary: d.summary, cached: d.cached }))
+      .then((d) =>
+        setCoachDaily({
+          summary: d.summary,
+          focus: d.focus ?? [],
+          next_step: d.next_step ?? "",
+          generated_at: d.generated_at ?? "",
+          cached: d.cached,
+        })
+      )
       .catch(() => {});
 
     apiFetch<ProgressPreview>("/progress/summary", { headers: { "X-Timezone": tz } })
@@ -254,9 +268,11 @@ export default function DashboardPage() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   })();
   const dayN = settings.start_date ? Math.max(1, daysBetween(settings.start_date, todayStr) + 1) : null;
-  const totalDays = settings.start_date && projectedDate
-    ? null // Can compute if needed
-    : null;
+  const totalDays =
+    settings.start_date && projectedRaw
+      ? Math.max(dayN ?? 1, daysBetween(settings.start_date, projectedRaw) + 1)
+      : null;
+  const todayDelta = weightLoggedToday ? latestWeight?.change_kg ?? null : null;
 
   return (
     <div className="p-4 md:p-6 flex flex-col gap-4 min-h-full">
@@ -264,25 +280,21 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-extrabold text-zinc-900 tracking-tight">Dashboard</h1>
-          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-            <span className="font-mono text-[11px] text-zinc-500 uppercase tracking-widest">
-              {fmtDate(new Date())}
-            </span>
+          <p className="font-mono text-[11px] text-zinc-500 uppercase tracking-widest mt-0.5">
+            {fmtDate(new Date())}
             {dayN && (
-              <span className="font-mono text-[11px] font-bold text-zinc-400">
-                · Day {dayN}
-              </span>
+              <span className="text-zinc-400"> · Day {dayN}{totalDays ? ` of ${totalDays}` : ""}</span>
             )}
-            {missions && missions.streak > 0 && (
-              <span className="inline-flex items-center gap-1 font-mono text-[10.5px] font-bold text-orange-600 bg-orange-50 px-2 py-0.5 rounded-full">
-                <Flame size={9} />
-                {missions.streak}-day streak
-              </span>
-            )}
-          </div>
+          </p>
         </div>
-        {/* CTA buttons */}
+        {/* Streak + CTA buttons */}
         <div className="flex items-center gap-2">
+          {missions && missions.streak > 0 && (
+            <span className="inline-flex items-center gap-1 font-mono text-[10.5px] font-bold text-orange-600 bg-orange-50 px-2.5 py-1.5 rounded-xl uppercase tracking-wider">
+              <Flame size={11} />
+              {missions.streak}-day streak
+            </span>
+          )}
           <Link href="/app/weight">
             <button className="h-9 px-4 rounded-xl border border-zinc-200 bg-white text-[13px] font-semibold text-zinc-700 flex items-center gap-2 hover:bg-zinc-50 transition-colors shadow-sm">
               <Scale size={15} className="text-zinc-500" />
@@ -308,16 +320,19 @@ export default function DashboardPage() {
             kgLost={kgLost}
             remaining={remaining}
             startWeight={startWeight}
+            startDate={settings.start_date}
             goalWeight={settings.goal_weight_kg}
             progressPct={progressPct}
             projectedDate={projectedDate}
+            projectedRaw={projectedRaw}
+            todayDelta={todayDelta}
           />
 
-          {/* Today's Nutrition */}
-          <NutritionCard nutrition={nutrition} />
-
-          {/* Daily Missions */}
-          <MissionsCard missions={missions} nutrition={nutrition} latestWeight={latestWeight} />
+          {/* Nutrition + Missions side-by-side */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+            <NutritionCard nutrition={nutrition} />
+            <MissionsCard missions={missions} nutrition={nutrition} latestWeight={latestWeight} />
+          </div>
 
           {/* Weight trend chart */}
           {weightHistory7d.length >= 2 && (
@@ -347,37 +362,57 @@ export default function DashboardPage() {
 // ---------------------------------------------------------------------------
 
 function WeightHeroCard({
-  displayWeight, kgLost, remaining, startWeight, goalWeight, progressPct, projectedDate,
+  displayWeight, kgLost, remaining, startWeight, startDate, goalWeight,
+  progressPct, projectedDate, projectedRaw, todayDelta,
 }: {
   displayWeight: number; kgLost: number; remaining: number; startWeight: number;
-  goalWeight: number; progressPct: number; projectedDate: string | null;
+  startDate: string; goalWeight: number; progressPct: number;
+  projectedDate: string | null; projectedRaw: string | null; todayDelta: number | null;
 }) {
+  const startLabel = startDate
+    ? new Date(startDate + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "2-digit" })
+    : null;
+
+  // Days early/late vs goal-weight-date projection relative to today
+  const daysToGoal = projectedRaw
+    ? Math.round((new Date(projectedRaw).getTime() - Date.now()) / 86_400_000)
+    : null;
+
   return (
     <div className="bg-zinc-900 rounded-2xl p-5 shadow-md">
-      <p className="font-mono text-[10px] tracking-widest font-semibold uppercase text-white/50">
-        Current weight
-      </p>
-      <div className="flex items-end justify-between mt-2">
-        <div className="flex items-baseline gap-1.5">
-          <span className="font-mono text-[42px] font-bold text-white leading-none">{displayWeight}</span>
-          <span className="font-mono text-[16px] text-white/60">kg</span>
+      <div className="flex items-start justify-between">
+        <div>
+          <p className="font-mono text-[10px] tracking-widest font-semibold uppercase text-white/50">
+            Current weight
+          </p>
+          <div className="flex items-center gap-2.5 mt-1.5">
+            <div className="flex items-baseline gap-1.5">
+              <span className="font-mono text-[42px] font-bold text-white leading-none">{displayWeight}</span>
+              <span className="font-mono text-[16px] text-white/60">kg</span>
+            </div>
+            {todayDelta != null && todayDelta !== 0 && (
+              <span className="inline-flex items-center gap-0.5 font-mono text-[11px] font-bold text-white bg-white/10 px-2 py-1 rounded-full">
+                {todayDelta < 0 ? "↓" : "↑"} {Math.abs(todayDelta).toFixed(1)} today
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex flex-col items-end gap-1.5">
-          <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-white bg-white/10 px-2.5 py-1 rounded-full">
-            {kgLost >= 0 ? "↓" : "↑"} {Math.abs(kgLost).toFixed(1)} kg {kgLost >= 0 ? "lost" : "gained"}
-          </span>
-          <span className="font-mono text-[11px] text-white/50">{remaining.toFixed(1)} kg to goal</span>
+
+        {/* 3 horizontal stats */}
+        <div className="flex gap-5 text-right">
+          <HeroStat value={`${Math.abs(kgLost).toFixed(1)}`} label={kgLost >= 0 ? "kg lost" : "kg gained"} />
+          <HeroStat value={`${Math.abs(remaining).toFixed(1)}`} label="kg to goal" />
+          <HeroStat value={`${Math.round(progressPct)}%`} label="complete" />
         </div>
       </div>
 
       {/* Progress bar */}
-      <div className="mt-4">
+      <div className="mt-5">
         <div className="h-2 rounded-full overflow-hidden bg-white/15">
           <div className="h-full bg-white rounded-full transition-all" style={{ width: `${progressPct}%` }} />
         </div>
         <div className="flex justify-between mt-1.5 font-mono text-[10px] text-white/50">
-          <span>{startWeight} kg start</span>
-          <span className="font-bold text-white/60">{Math.round(progressPct)}% complete</span>
+          <span>{startWeight} kg{startLabel ? ` · ${startLabel}` : ""}</span>
           <span>{goalWeight} kg goal</span>
         </div>
       </div>
@@ -387,9 +422,21 @@ function WeightHeroCard({
           <span className="text-base">🎯</span>
           <span className="text-[12.5px] text-white/80">
             On pace for <b className="text-white">{projectedDate}</b>
+            {daysToGoal != null && daysToGoal > 0 && (
+              <span className="text-white/50"> · {daysToGoal} days out</span>
+            )}
           </span>
         </div>
       )}
+    </div>
+  );
+}
+
+function HeroStat({ value, label }: { value: string; label: string }) {
+  return (
+    <div>
+      <p className="font-mono text-[18px] font-bold text-white leading-none">{value}</p>
+      <p className="font-mono text-[9px] uppercase tracking-wider text-white/50 mt-1">{label}</p>
     </div>
   );
 }
@@ -682,23 +729,52 @@ function CoachBriefingCard({ coach }: { coach: CoachDaily | null }) {
     );
   }
 
+  const updatedLabel = coach.generated_at
+    ? new Date(coach.generated_at).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+    : null;
+
+  // Suggestion chips: next_step first, then focus items (max 2 total)
+  const chips = [coach.next_step, ...coach.focus].filter((s) => s && s.trim().length > 0).slice(0, 2);
+
   return (
-    <Link href="/app/coach">
-      <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 cursor-pointer hover:bg-zinc-50 transition-colors">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center shrink-0">
-            <Sparkles size={15} color="#fff" />
-          </div>
-          <p className="font-mono text-[10.5px] font-semibold tracking-widest text-zinc-400 uppercase">
-            Coach Briefing
-          </p>
+    <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center shrink-0">
+          <Sparkles size={15} color="#fff" />
         </div>
-        <p className="text-[13px] text-zinc-700 leading-relaxed line-clamp-6">
-          {coach.summary}
+        <p className="font-mono text-[10.5px] font-semibold tracking-widest text-zinc-400 uppercase">
+          Coach Briefing
         </p>
-        <p className="font-mono text-[10px] text-zinc-400 mt-3">Tap for full briefing →</p>
+        {updatedLabel && (
+          <span className="ml-auto font-mono text-[9.5px] text-zinc-400">Updated {updatedLabel}</span>
+        )}
       </div>
-    </Link>
+
+      <p className="text-[13px] text-zinc-700 leading-relaxed line-clamp-5">
+        {coach.summary}
+      </p>
+
+      {chips.length > 0 && (
+        <div className="flex flex-col gap-1.5 mt-3">
+          {chips.map((chip, i) => (
+            <div
+              key={i}
+              className="flex items-start gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2"
+            >
+              <CheckCircle2 size={13} className="text-zinc-400 shrink-0 mt-0.5" />
+              <span className="text-[12px] text-zinc-700 leading-snug">{chip}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Link href="/app/coach" className="block mt-3">
+        <button className="w-full h-9 rounded-xl border border-zinc-200 bg-white text-[12.5px] font-semibold text-zinc-700 flex items-center justify-center gap-1.5 hover:bg-zinc-50 transition-colors">
+          <Sparkles size={13} className="text-zinc-500" />
+          Open coach
+        </button>
+      </Link>
+    </div>
   );
 }
 
