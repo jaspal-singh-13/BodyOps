@@ -159,7 +159,7 @@ export default function OnboardingPage() {
                   value={step1.name}
                   onChange={(e) => setStep1({ ...step1, name: e.target.value })}
                   className="input"
-                  placeholder="Jaspal Singh"
+                  placeholder="John Doe"
                   required
                 />
               </Field>
