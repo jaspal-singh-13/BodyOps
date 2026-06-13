@@ -31,6 +31,8 @@ interface Step1 {
 interface Step2 {
   calorie_target: string;
   protein_target_g: string;
+  carb_target_g: string;
+  fat_target_g: string;
 }
 
 interface Step3 {
@@ -44,16 +46,19 @@ interface Step3 {
  * 500 kcal deficit for fat loss. Protein is set to 1.8 g per kg of body weight,
  * which is at the high end for muscle retention during a cut.
  */
-function calcTargets(s1: Step1): { calories: number; protein: number } {
+function calcTargets(s1: Step1): { calories: number; protein: number; carbs: number; fat: number } {
   const w = parseFloat(s1.current_weight_kg) || 0;
   const h = parseFloat(s1.height_cm) || 0;
   const a = parseInt(s1.age) || 0;
-  // Sex offset from Mifflin-St Jeor: +5 for male, −161 for female
   const offset = s1.sex === "male" ? 5 : -161;
   const bmr = 10 * w + 6.25 * h - 5 * a + offset;
-  const calories = Math.round(bmr * 1.55 - 500);
+  const calories = Math.max(1200, Math.round(bmr * 1.55 - 500));
   const protein = Math.round(w * 1.8);
-  return { calories, protein };
+  const proteinKcal = protein * 4;
+  const remaining = Math.max(0, calories - proteinKcal);
+  const carbs = Math.round((remaining * 0.55) / 4);
+  const fat = Math.round((remaining * 0.45) / 9);
+  return { calories, protein, carbs, fat };
 }
 
 export default function OnboardingPage() {
@@ -82,16 +87,20 @@ export default function OnboardingPage() {
   const [step2, setStep2] = useState<Step2>({
     calorie_target: "",
     protein_target_g: "",
+    carb_target_g: "",
+    fat_target_g: "",
   });
 
   const [step3, setStep3] = useState<Step3>({ wake_up_time: "07:00" });
 
   /** Pre-populate Step 2 targets from the Step 1 profile before advancing. */
   function goToStep2() {
-    const { calories, protein } = calcTargets(step1);
+    const { calories, protein, carbs, fat } = calcTargets(step1);
     setStep2({
       calorie_target: calories > 0 ? String(calories) : "",
       protein_target_g: protein > 0 ? String(protein) : "",
+      carb_target_g: carbs > 0 ? String(carbs) : "",
+      fat_target_g: fat > 0 ? String(fat) : "",
     });
     setStep(2);
   }
@@ -111,6 +120,8 @@ export default function OnboardingPage() {
           start_date: step1.start_date,
           calorie_target: parseInt(step2.calorie_target),
           protein_target_g: parseInt(step2.protein_target_g),
+          carb_target_g: parseInt(step2.carb_target_g) || 0,
+          fat_target_g: parseInt(step2.fat_target_g) || 0,
           wake_up_time: step3.wake_up_time,
         }),
       });
@@ -269,6 +280,26 @@ export default function OnboardingPage() {
                   required
                 />
               </Field>
+              <Field label="Daily carbs target (g)">
+                <input
+                  type="number"
+                  value={step2.carb_target_g}
+                  onChange={(e) =>
+                    setStep2({ ...step2, carb_target_g: e.target.value })
+                  }
+                  className="input"
+                />
+              </Field>
+              <Field label="Daily fat target (g)">
+                <input
+                  type="number"
+                  value={step2.fat_target_g}
+                  onChange={(e) =>
+                    setStep2({ ...step2, fat_target_g: e.target.value })
+                  }
+                  className="input"
+                />
+              </Field>
               <p className="text-xs text-zinc-400">
                 Mifflin-St Jeor BMR × 1.55 activity factor − 500 kcal deficit.
                 Protein: {step1.current_weight_kg} kg × 1.8 g.
@@ -279,8 +310,7 @@ export default function OnboardingPage() {
                 </button>
                 <button
                   onClick={() => setStep(3)}
-                  disabled={!step2.calorie_target || !step2.protein_target_g}
-                  className="btn-primary flex-1"
+                  disabled={!step2.calorie_target || !step2.protein_target_g}                  className="btn-primary flex-1"
                 >
                   Next
                 </button>

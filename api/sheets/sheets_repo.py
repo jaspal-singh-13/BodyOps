@@ -219,6 +219,25 @@ def find_row(tab: str, column: str, value: str) -> tuple[int, dict[str, Any]] | 
         return None
 
 
+def delete_row(tab: str, row_index: int) -> None:
+    """
+    Delete a row from a tab by 1-based row index.
+
+    Row 1 is the header row, so the first data row is row 2. After deletion
+    all subsequent rows shift up by one — callers must not reuse stale indices.
+
+    Args:
+        tab: Tab name (e.g. ``"WeightLogs"``).
+        row_index: 1-based row number to delete (row 2 = first data row).
+    """
+    with _quota_guard():
+        t0 = time.perf_counter()
+        ws = get_worksheet(tab)
+        ws.delete_rows(row_index)
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        logger.debug("Sheets delete tab=%r row=%d (%.0f ms)", tab, row_index, elapsed_ms)
+
+
 def _col_letter(n: int) -> str:
     """
     Convert a 1-based column number to a spreadsheet column letter.

@@ -25,6 +25,7 @@ import {
   Info,
   ChevronRight,
   Zap,
+  Trash2,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { useRefresh } from "@/lib/refresh";
@@ -90,7 +91,18 @@ interface MealHistoryDay {
   total_protein_g: number;
 }
 
-type Screen = "list" | "camera" | "analyzing" | "analysis" | "detail";
+interface MealRecord {
+  meal_id: string;
+  meal_type: MealType;
+  date: string;
+  time: string;
+  title: string;
+  drive_url: string;
+  total: MacroTotal;
+  items: DetectedItem[];
+}
+
+type Screen = "list" | "camera" | "analyzing" | "analysis" | "detail" | "manual";
 
 // ---------------------------------------------------------------------------
 // Page
@@ -117,6 +129,8 @@ function MealsPageInner() {
   const [nutrition, setNutrition] = useState<DailyNutrition | null>(null);
   const [history, setHistory] = useState<MealHistoryDay[]>([]);
   const [nutritionLoading, setNutritionLoading] = useState(true);
+  const [mealRecords, setMealRecords] = useState<MealRecord[]>([]);
+  const [selectedMeal, setSelectedMeal] = useState<MealRecord | null>(null);
 
   // Camera / analyzing
   const [capturedFile, setCapturedFile] = useState<File | null>(null);
@@ -132,6 +146,7 @@ function MealsPageInner() {
   useEffect(() => {
     fetchNutrition();
     fetchHistory();
+    fetchMealRecords();
   }, []);
 
   function fetchNutrition() {
@@ -146,6 +161,19 @@ function MealsPageInner() {
     apiFetch<MealHistoryDay[]>("/meals/history")
       .then(setHistory)
       .catch(() => {});
+  }
+
+  function fetchMealRecords() {
+    apiFetch<MealRecord[]>("/meals/today/records")
+      .then(setMealRecords)
+      .catch(() => {});
+  }
+
+  async function deleteMealRecord(mealId: string) {
+    await apiFetch(`/meals/${mealId}`, { method: "DELETE" });
+    fetchNutrition();
+    fetchMealRecords();
+    triggerRefresh();
   }
 
   // ---------- Camera / capture ----------
@@ -194,6 +222,7 @@ function MealsPageInner() {
       });
       fetchNutrition();
       fetchHistory();
+      fetchMealRecords();
       triggerRefresh();
       setScreen("list");
     } catch {
@@ -209,7 +238,35 @@ function MealsPageInner() {
     return <CameraScreen
       onClose={() => setScreen("list")}
       onFileCapture={handleFileCapture}
+      onManualEntry={() => setScreen("manual")}
       error={analyzeError}
+    />;
+  }
+
+  if (screen === "manual") {
+    return <ManualEntryScreen
+      onBack={() => setScreen("camera")}
+      onComplete={(items, type) => {
+        const emptyAnalysis: AnalyzeResponse = {
+          title: items.map((i) => i.name).join(", "),
+          confidence: "high",
+          detected: items,
+          total: items.reduce(
+            (acc, it) => ({
+              calories: acc.calories + it.calories,
+              protein_g: acc.protein_g + it.protein_g,
+              carbs_g: acc.carbs_g + it.carbs_g,
+              fat_g: acc.fat_g + it.fat_g,
+            }),
+            { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 }
+          ),
+          drive_url: "",
+        };
+        setAnalysisResult(emptyAnalysis);
+        setEditedItems(items);
+        setMealType(type);
+        setScreen("analysis");
+      }}
     />;
   }
 
@@ -236,12 +293,19 @@ function MealsPageInner() {
     />;
   }
 
+  if (screen === "detail" && selectedMeal) {
+    return <DetailScreen meal={selectedMeal} onBack={() => setScreen("list")} />;
+  }
+
   // Default: list screen
   return <ListScreen
     nutrition={nutrition}
     history={history}
+    mealRecords={mealRecords}
     nutritionLoading={nutritionLoading}
     onCameraClick={() => setScreen("camera")}
+    onMealClick={(meal) => { setSelectedMeal(meal); setScreen("detail"); }}
+    onDeleteMeal={deleteMealRecord}
   />;
 }
 
@@ -252,18 +316,23 @@ function MealsPageInner() {
 function ListScreen({
   nutrition,
   history,
+  mealRecords,
   nutritionLoading,
   onCameraClick,
+  onMealClick,
+  onDeleteMeal,
 }: {
   nutrition: DailyNutrition | null;
   history: MealHistoryDay[];
+  mealRecords: MealRecord[];
   nutritionLoading: boolean;
   onCameraClick: () => void;
+  onMealClick: (meal: MealRecord) => void;
+  onDeleteMeal: (mealId: string) => void;
 }) {
   const d = new Date();
   const localToday = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  const today = history[0]?.date === localToday ? history[0] : null;
-  const earlier = today ? history.slice(1) : history;
+  const earlier = history.filter((h) => h.date !== localToday);
 
   return (
     <div className="flex flex-col min-h-screen bg-zinc-50">
@@ -347,20 +416,21 @@ function ListScreen({
           )}
         </div>
 
-        {/* Today's meals */}
-        {today && today.meals_count > 0 && (
+        {/* Today's meals — individual cards */}
+        {mealRecords.length > 0 && (
           <>
             <p className="font-mono text-[10.5px] font-semibold tracking-widest text-zinc-400 uppercase pl-1">
-              Today · {today.meals_count} logged
+              Today · {mealRecords.length} logged
             </p>
             <div className="flex flex-col gap-2">
-              {/* Placeholder rows — real detail requires fetching meal records */}
-              <PlaceholderMealCard
-                label={today.display_date}
-                kcal={today.total_calories}
-                protein={today.total_protein_g}
-                count={today.meals_count}
-              />
+              {mealRecords.map((meal) => (
+                <MealRecordCard
+                  key={meal.meal_id}
+                  meal={meal}
+                  onClick={() => onMealClick(meal)}
+                  onDelete={() => onDeleteMeal(meal.meal_id)}
+                />
+              ))}
             </div>
           </>
         )}
@@ -451,16 +521,366 @@ function PlaceholderMealCard({
 }
 
 // ---------------------------------------------------------------------------
+// Individual meal record card
+// ---------------------------------------------------------------------------
+
+const MEAL_TYPE_COLORS: Record<string, string> = {
+  Breakfast: "bg-amber-50 text-amber-700",
+  Lunch: "bg-sky-50 text-sky-700",
+  Dinner: "bg-violet-50 text-violet-700",
+  Snack: "bg-green-50 text-green-700",
+};
+
+function MealRecordCard({
+  meal,
+  onClick,
+  onDelete,
+}: {
+  meal: MealRecord;
+  onClick: () => void;
+  onDelete: () => void;
+}) {
+  const [deleting, setDeleting] = useState(false);
+  const typeColor = MEAL_TYPE_COLORS[meal.meal_type] ?? "bg-zinc-100 text-zinc-600";
+
+  async function handleDelete(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!window.confirm(`Delete ${meal.meal_type}?`)) return;
+    setDeleting(true);
+    try {
+      await onDelete();
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <div
+      onClick={onClick}
+      className="bg-white rounded-xl border border-zinc-100 p-3.5 flex items-center gap-3 cursor-pointer hover:bg-zinc-50 transition-colors"
+    >
+      {meal.drive_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={meal.drive_url}
+          alt={meal.title}
+          className="w-12 h-12 rounded-lg object-cover shrink-0"
+        />
+      ) : (
+        <div className="w-12 h-12 rounded-lg bg-zinc-100 flex items-center justify-center shrink-0">
+          <Camera size={18} className="text-zinc-400" />
+        </div>
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-0.5">
+          <span className={`font-mono text-[9.5px] font-bold px-1.5 py-0.5 rounded-full ${typeColor}`}>
+            {meal.meal_type}
+          </span>
+          {meal.time && (
+            <span className="font-mono text-[10px] text-zinc-400">{meal.time}</span>
+          )}
+        </div>
+        <p className="text-[13px] font-semibold text-zinc-800 truncate">{meal.title || meal.meal_type}</p>
+        <p className="font-mono text-[10.5px] text-zinc-400 mt-0.5">
+          {Math.round(meal.total.calories)} kcal · {Math.round(meal.total.protein_g)}g protein
+        </p>
+      </div>
+      <button
+        onClick={handleDelete}
+        disabled={deleting}
+        className="shrink-0 p-1.5 text-zinc-300 hover:text-red-500 transition-colors disabled:opacity-40"
+      >
+        <Trash2 size={15} />
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Detail screen
+// ---------------------------------------------------------------------------
+
+function DetailScreen({ meal, onBack }: { meal: MealRecord; onBack: () => void }) {
+  return (
+    <div className="flex flex-col min-h-screen bg-zinc-50">
+      <div className="flex items-center gap-3 px-4 pt-4 pb-3 bg-zinc-50">
+        <button onClick={onBack} className="p-1.5 -ml-1.5 rounded-xl hover:bg-zinc-100 transition-colors">
+          <ChevronLeft size={22} className="text-zinc-700" />
+        </button>
+        <div>
+          <p className="font-mono text-[10.5px] font-semibold tracking-widest text-zinc-400 uppercase">
+            {meal.meal_type}
+          </p>
+          <h1 className="text-[19px] font-extrabold tracking-tight">{meal.title || meal.meal_type}</h1>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-4 pb-10 flex flex-col gap-4">
+        {meal.drive_url && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={meal.drive_url}
+            alt={meal.title}
+            className="w-full rounded-2xl object-cover max-h-52"
+          />
+        )}
+
+        {/* Macro totals */}
+        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4">
+          <p className="font-mono text-[10.5px] font-semibold tracking-widest text-zinc-400 uppercase mb-3">
+            Totals
+          </p>
+          <div className="grid grid-cols-4 gap-2">
+            {(
+              [
+                ["Kcal", meal.total.calories, ""],
+                ["Protein", meal.total.protein_g, "g"],
+                ["Carbs", meal.total.carbs_g, "g"],
+                ["Fat", meal.total.fat_g, "g"],
+              ] as [string, number, string][]
+            ).map(([label, val, unit]) => (
+              <div key={label} className="bg-zinc-50 rounded-xl p-2.5">
+                <p className="font-mono text-[9px] text-zinc-400 uppercase tracking-wider mb-0.5">
+                  {label}
+                </p>
+                <p className="font-mono text-[15px] font-bold text-zinc-900 leading-none">
+                  {Math.round(val)}
+                  <span className="text-[10px] font-medium text-zinc-400">{unit}</span>
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Items list */}
+        {meal.items.length > 0 && (
+          <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4">
+            <p className="font-mono text-[10.5px] font-semibold tracking-widest text-zinc-400 uppercase mb-3">
+              Items
+            </p>
+            <div className="flex flex-col divide-y divide-zinc-50">
+              {meal.items.map((item, idx) => (
+                <div key={idx} className="py-2.5 flex items-center justify-between">
+                  <div>
+                    <p className="text-[13.5px] font-semibold text-zinc-800">{item.name}</p>
+                    <p className="font-mono text-[10.5px] text-zinc-400">{item.quantity}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-mono text-[13px] font-bold">
+                      {Math.round(item.calories)}<span className="text-zinc-400 font-normal"> kcal</span>
+                    </p>
+                    <p className="font-mono text-[10px] text-zinc-400">
+                      {Math.round(item.protein_g)}g P
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Manual entry screen
+// ---------------------------------------------------------------------------
+
+function ManualEntryScreen({
+  onBack,
+  onComplete,
+}: {
+  onBack: () => void;
+  onComplete: (items: DetectedItem[], type: MealType) => void;
+}) {
+  const [mealType, setMealType] = useState<MealType>("Lunch");
+  const [items, setItems] = useState<DetectedItem[]>([]);
+  const [name, setName] = useState("");
+  const [quantity, setQuantity] = useState("1 serving");
+  const [calories, setCalories] = useState("");
+  const [protein, setProtein] = useState("");
+  const [carbs, setCarbs] = useState("");
+  const [fat, setFat] = useState("");
+
+  function addItem() {
+    if (!name.trim() || !calories) return;
+    setItems((prev) => [
+      ...prev,
+      {
+        name: name.trim(),
+        quantity,
+        calories: parseFloat(calories) || 0,
+        protein_g: parseFloat(protein) || 0,
+        carbs_g: parseFloat(carbs) || 0,
+        fat_g: parseFloat(fat) || 0,
+        confidence: "high" as Confidence,
+      },
+    ]);
+    setName("");
+    setQuantity("1 serving");
+    setCalories("");
+    setProtein("");
+    setCarbs("");
+    setFat("");
+  }
+
+  function removeItem(idx: number) {
+    setItems((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  return (
+    <div className="flex flex-col min-h-screen bg-zinc-50">
+      <div className="flex items-center gap-3 px-4 pt-4 pb-3 bg-zinc-50">
+        <button onClick={onBack} className="p-1.5 -ml-1.5 rounded-xl hover:bg-zinc-100 transition-colors">
+          <ChevronLeft size={22} className="text-zinc-700" />
+        </button>
+        <div>
+          <p className="font-mono text-[10.5px] font-semibold tracking-widest text-zinc-400 uppercase">
+            Manual
+          </p>
+          <h1 className="text-[19px] font-extrabold tracking-tight">Add items</h1>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-4 pb-24 flex flex-col gap-4">
+        {/* Meal type */}
+        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4">
+          <p className="font-mono text-[10.5px] font-semibold tracking-widest text-zinc-400 uppercase mb-3">
+            Meal type
+          </p>
+          <div className="flex gap-2 flex-wrap">
+            {(["Breakfast", "Lunch", "Dinner", "Snack"] as MealType[]).map((t) => (
+              <button
+                key={t}
+                onClick={() => setMealType(t)}
+                className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${
+                  mealType === t
+                    ? "bg-zinc-900 text-white"
+                    : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Add item form */}
+        <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4">
+          <p className="font-mono text-[10.5px] font-semibold tracking-widest text-zinc-400 uppercase mb-3">
+            Add item
+          </p>
+          <div className="flex flex-col gap-2.5">
+            <input
+              type="text"
+              placeholder="Food name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="input"
+            />
+            <input
+              type="text"
+              placeholder="Quantity (e.g. 150g, 1 cup)"
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+              className="input"
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="number"
+                placeholder="Calories"
+                value={calories}
+                onChange={(e) => setCalories(e.target.value)}
+                className="input"
+              />
+              <input
+                type="number"
+                placeholder="Protein (g)"
+                value={protein}
+                onChange={(e) => setProtein(e.target.value)}
+                className="input"
+              />
+              <input
+                type="number"
+                placeholder="Carbs (g)"
+                value={carbs}
+                onChange={(e) => setCarbs(e.target.value)}
+                className="input"
+              />
+              <input
+                type="number"
+                placeholder="Fat (g)"
+                value={fat}
+                onChange={(e) => setFat(e.target.value)}
+                className="input"
+              />
+            </div>
+            <button
+              onClick={addItem}
+              disabled={!name.trim() || !calories}
+              className="btn-primary py-2.5 disabled:opacity-40 flex items-center justify-center gap-1.5"
+            >
+              <Plus size={15} />
+              Add item
+            </button>
+          </div>
+        </div>
+
+        {/* Items preview */}
+        {items.length > 0 && (
+          <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4">
+            <p className="font-mono text-[10.5px] font-semibold tracking-widest text-zinc-400 uppercase mb-3">
+              Items ({items.length})
+            </p>
+            <div className="flex flex-col divide-y divide-zinc-50">
+              {items.map((item, idx) => (
+                <div key={idx} className="py-2.5 flex items-center justify-between">
+                  <div>
+                    <p className="text-[13px] font-semibold">{item.name}</p>
+                    <p className="font-mono text-[10px] text-zinc-400">{item.quantity}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-mono text-[12px] font-bold">{Math.round(item.calories)} kcal</p>
+                    <button onClick={() => removeItem(idx)} className="text-zinc-300 hover:text-red-500 transition-colors">
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {items.length > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t border-zinc-100 md:max-w-lg md:mx-auto">
+          <button
+            onClick={() => onComplete(items, mealType)}
+            className="btn-primary w-full py-3 flex items-center justify-center gap-2"
+          >
+            <Check size={17} />
+            Review &amp; confirm
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Camera screen — real getUserMedia live preview
 // ---------------------------------------------------------------------------
 
 function CameraScreen({
   onClose,
   onFileCapture,
+  onManualEntry,
   error,
 }: {
   onClose: () => void;
   onFileCapture: (file: File) => void;
+  onManualEntry: () => void;
   error: string | null;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -695,9 +1115,9 @@ function CameraScreen({
         </button>
         <style>{`@keyframes boPulse { 0%,100%{opacity:.25} 50%{opacity:.6} }`}</style>
 
-        {/* Manual / upload alias */}
+        {/* Manual entry */}
         <button
-          onClick={() => uploadInputRef.current?.click()}
+          onClick={onManualEntry}
           className="w-14 h-14 rounded-xl flex flex-col items-center justify-center gap-0.5"
           style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.16)" }}
           aria-label="Manual entry"

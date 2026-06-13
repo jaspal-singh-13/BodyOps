@@ -6,9 +6,11 @@ Data Sheet.  Each ``Meals`` row is one meal (one camera capture + confirm).
 Each ``MealItems`` row is one detected food item belonging to a meal.
 
 Public functions:
-    save_meal       — append a confirmed meal + its items to the sheets.
-    get_meals_today — return all meals logged today with daily totals.
-    get_meals_history — per-day summary for the last N days.
+    save_meal           — append a confirmed meal + its items to the sheets.
+    delete_meal         — delete a meal and all its items by meal_id.
+    get_meals_today     — return all meals logged today with daily totals.
+    get_meal_records_today — return individual MealRecord objects for today.
+    get_meals_history   — per-day summary for the last N days.
 
 The ``DailyNutrition`` returned by ``get_meals_today`` includes target values
 derived from the user's ``Settings`` row so the frontend can render progress
@@ -34,7 +36,7 @@ from ..models.meal import (
     SavedMealResponse,
 )
 from ..services.settings_service import get_settings
-from ..sheets.sheets_repo import append_row, append_rows_batch, read_rows, to_float, to_int
+from ..sheets.sheets_repo import append_row, append_rows_batch, delete_row, read_rows, to_float, to_int
 
 logger = get_logger("meal_service")
 
@@ -350,6 +352,53 @@ def get_meal_records_today(user_id: int, tz_str: str = "UTC") -> list[MealRecord
 # ---------------------------------------------------------------------------
 
 
+def delete_meal(user_id: int, meal_id: str) -> None:
+    """
+    Delete a meal and all its items from the Sheets.
+
+    Removes the matching row from ``Meals`` first, then removes all rows
+    in ``MealItems`` with the same ``meal_id``. Rows are deleted highest-index
+    first to avoid index drift during deletion.
+
+    Args:
+        user_id: Authenticated user's integer ID (ownership check).
+        meal_id: UUID string of the meal to delete.
+
+    Raises:
+        ValueError: If no meal with ``meal_id`` belonging to this user is found.
+    """
+    try:
+        meal_rows = read_rows(MEALS_TAB)
+    except gspread.exceptions.WorksheetNotFound:
+        raise ValueError(f"Meal {meal_id} not found")
+
+    meal_row_index: int | None = None
+    for i, row in enumerate(meal_rows):
+        if row.get("meal_id") == meal_id and to_int(row.get("user_id"), -1) == user_id:
+            meal_row_index = i + 2
+            break
+
+    if meal_row_index is None:
+        raise ValueError(f"Meal {meal_id} not found for this user")
+
+    logger.info("Deleting meal meal_id=%s user_id=%s", meal_id, user_id)
+    delete_row(MEALS_TAB, meal_row_index)
+
+    # Delete all MealItems rows for this meal_id (highest index first to avoid drift)
+    try:
+        item_rows = read_rows(MEAL_ITEMS_TAB)
+    except gspread.exceptions.WorksheetNotFound:
+        item_rows = []
+
+    indices_to_delete = [
+        i + 2
+        for i, row in enumerate(item_rows)
+        if row.get("meal_id") == meal_id
+    ]
+    for idx in sorted(indices_to_delete, reverse=True):
+        delete_row(MEAL_ITEMS_TAB, idx)
+
+
 def _get_targets(user_id: int) -> tuple[int, float, float, float]:
     """Return (calorie_target, protein_g, carbs_g, fat_g) from Settings."""
     settings = get_settings(user_id)
@@ -358,6 +407,12 @@ def _get_targets(user_id: int) -> tuple[int, float, float, float]:
 
     cal = settings.calorie_target
     pro = float(settings.protein_target_g)
+
+    # Use explicitly stored carb/fat targets if the user has set them (non-zero);
+    # otherwise fall back to the heuristic split.
+    if settings.carb_target_g > 0 and settings.fat_target_g > 0:
+        return cal, pro, float(settings.carb_target_g), float(settings.fat_target_g)
+
     protein_kcal = pro * 4
     remaining = max(cal - protein_kcal, 0)
     # Split remaining ≈ 55% carbs, 45% fat

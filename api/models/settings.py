@@ -47,6 +47,8 @@ class SettingsCreate(BaseModel):
     start_date: str
     calorie_target: int
     protein_target_g: int
+    carb_target_g: int = 0
+    fat_target_g: int = 0
     wake_up_time: str
     unit_preference: Literal["metric", "imperial"] = "metric"
     reminders_json: str = "{}"
@@ -115,6 +117,8 @@ class SettingsResponse(BaseModel):
     start_date: str
     calorie_target: int
     protein_target_g: int
+    carb_target_g: int = 0
+    fat_target_g: int = 0
     wake_up_time: str
     unit_preference: str = "metric"
     reminders_json: str = "{}"

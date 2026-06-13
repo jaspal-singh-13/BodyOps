@@ -25,11 +25,13 @@ from ..models.meal import (
     ConfirmMealRequest,
     DailyNutrition,
     MealHistoryDay,
+    MealRecord,
     SavedMealResponse,
 )
 from ..services.drive_service import upload_meal_image
 from ..services.task_service import check_nutrition_targets
 from ..services.meal_service import (
+    delete_meal,
     get_meal_records_today,
     get_meals_history,
     get_meals_today,
@@ -180,3 +182,41 @@ async def get_history_endpoint(
         List of ``MealHistoryDay`` objects.
     """
     return await asyncio.to_thread(get_meals_history, user_id, 30, x_timezone)
+
+
+@router.get("/today/records", response_model=list[MealRecord])
+async def get_today_records_endpoint(
+    user_id: int = Depends(get_current_user),
+    x_timezone: str = Header(default="UTC", alias="X-Timezone"),
+) -> list[MealRecord]:
+    """
+    Return today's individual meal records with item-level detail.
+
+    Unlike ``GET /meals/today`` which returns aggregated daily totals, this
+    endpoint returns one ``MealRecord`` per logged meal including the food
+    items list, drive URL, and per-meal macros.
+
+    Returns:
+        List of ``MealRecord`` objects for today, oldest first.
+    """
+    return await asyncio.to_thread(get_meal_records_today, user_id, x_timezone)
+
+
+@router.delete("/{meal_id}", status_code=204)
+async def delete_meal_endpoint(
+    meal_id: str,
+    user_id: int = Depends(get_current_user),
+) -> None:
+    """
+    Delete a meal and all its items by meal_id.
+
+    The meal must belong to the authenticated user. Both the ``Meals`` row and
+    all associated ``MealItems`` rows are removed.
+
+    Raises:
+        HTTPException(404): If no meal with that ID exists for this user.
+    """
+    try:
+        await asyncio.to_thread(delete_meal, user_id, meal_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

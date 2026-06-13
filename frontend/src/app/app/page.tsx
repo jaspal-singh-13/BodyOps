@@ -101,6 +101,8 @@ export default function DashboardPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const [latestWeight, setLatestWeight] = useState<HistoryItem | null>(null);
+  const [firstWeight, setFirstWeight] = useState<number | null>(null);
+  const [weightHistory7d, setWeightHistory7d] = useState<HistoryItem[]>([]);
   const [projectedDate, setProjectedDate] = useState<string | null>(null);
   const [todayWorkout, setTodayWorkout] = useState<TodayWorkout | null | "loading">("loading");
   const [nutrition, setNutrition] = useState<DailyNutrition | null>(null);
@@ -125,9 +127,15 @@ export default function DashboardPage() {
         if (h.length > 0) {
           setLatestWeight(h[0]);
           setWeightLoggedToday(h[0].date === today);
+          // Oldest entry is last in the array (sorted newest-first)
+          setFirstWeight(h[h.length - 1].weight_kg);
+          // Sparkline: last 7 days, reverse so oldest→newest left→right
+          setWeightHistory7d(h.slice(0, 7).reverse());
         } else {
           setLatestWeight(null);
           setWeightLoggedToday(false);
+          setFirstWeight(null);
+          setWeightHistory7d([]);
         }
       })
       .catch(() => {});
@@ -198,12 +206,23 @@ export default function DashboardPage() {
   const displayWeight = latestWeight?.weight_kg ?? settings.current_weight_kg;
   const remaining = displayWeight - settings.goal_weight_kg;
 
+  // Time-aware greeting — computed on client only to avoid hydration mismatch
+  const [greeting, setGreeting] = useState("Good morning");
+  useEffect(() => {
+    const hour = new Date().getHours();
+    setGreeting(hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening");
+  }, []);
+
+  // kg lost: from first weight log (not settings.current_weight_kg which is the onboarding baseline)
+  const startWeight = firstWeight ?? settings.current_weight_kg;
+  const kgLost = startWeight - displayWeight;
+
   return (
     <div className="p-4 max-w-lg mx-auto flex flex-col gap-3">
       {/* Greeting */}
       <div className="pt-2 pb-1">
         <h1 className="text-xl font-extrabold text-zinc-900 tracking-tight">
-          Good morning, {settings.name.split(" ")[0]}
+          {greeting}, {settings.name.split(" ")[0]}
         </h1>
         <p className="text-zinc-500 text-sm mt-0.5">Let&apos;s crush today.</p>
       </div>
@@ -227,7 +246,7 @@ export default function DashboardPage() {
           </div>
           <div className="text-right">
             <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-white bg-white/10 px-2.5 py-1.5 rounded-full">
-              ↓ {(settings.current_weight_kg - displayWeight).toFixed(1)} kg lost
+              {kgLost >= 0 ? "↓" : "↑"} {Math.abs(kgLost).toFixed(1)} kg {kgLost >= 0 ? "lost" : "gained"}
             </span>
             <p className="font-mono text-[10.5px] mt-2" style={{ color: "rgba(255,255,255,0.55)" }}>
               {remaining.toFixed(1)} kg to goal
@@ -242,15 +261,14 @@ export default function DashboardPage() {
               className="h-full bg-white rounded-full"
               style={{
                 width: `${Math.min(100, Math.max(0,
-                  ((settings.current_weight_kg - displayWeight) /
-                    Math.max(0.1, settings.current_weight_kg - settings.goal_weight_kg)) * 100
+                  (kgLost / Math.max(0.1, startWeight - settings.goal_weight_kg)) * 100
                 ))}%`,
               }}
             />
           </div>
           <div className="flex justify-between mt-2 font-mono text-[10.5px]"
             style={{ color: "rgba(255,255,255,0.6)" }}>
-            <span>{settings.current_weight_kg} kg start</span>
+            <span>{startWeight} kg start</span>
             <span>{settings.goal_weight_kg} kg goal</span>
           </div>
         </div>
@@ -308,7 +326,7 @@ export default function DashboardPage() {
       <CoachPreviewCard preview={coachPreview} />
 
       {/* ── 7. This week progress ── */}
-      <ProgressPreviewCard preview={progressPreview} />
+      <ProgressPreviewCard preview={progressPreview} weightHistory7d={weightHistory7d} />
     </div>
   );
 }
@@ -630,7 +648,30 @@ function CoachPreviewCard({ preview }: { preview: CoachPreview | null }) {
 // Progress preview card — "This week" (Phase 6)
 // ---------------------------------------------------------------------------
 
-function ProgressPreviewCard({ preview }: { preview: ProgressPreview | null }) {
+function WeightSparkline({ data }: { data: { weight_kg: number }[] }) {
+  if (data.length < 2) return null;
+  const W = 150, H = 44;
+  const vals = data.map((d) => d.weight_kg);
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const range = max - min || 1;
+  const pad = 4;
+  const points = vals.map((v, i) => {
+    const x = pad + (i / (vals.length - 1)) * (W - pad * 2);
+    const y = H - pad - ((v - min) / range) * (H - pad * 2);
+    return [x, y] as [number, number];
+  });
+  const d = points.map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x.toFixed(1)} ${y.toFixed(1)}`).join(" ");
+  const [lastX, lastY] = points[points.length - 1];
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
+      <path d={d} fill="none" stroke="#1d1c1a" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={lastX} cy={lastY} r={3} fill="#1d1c1a" />
+    </svg>
+  );
+}
+
+function ProgressPreviewCard({ preview, weightHistory7d }: { preview: ProgressPreview | null; weightHistory7d: HistoryItem[] }) {
   if (!preview) return null;
 
   const hasData =
@@ -654,23 +695,23 @@ function ProgressPreviewCard({ preview }: { preview: ProgressPreview | null }) {
           </div>
           <ChevronRight size={15} className="text-zinc-300" />
         </div>
-        <div className="grid grid-cols-3 gap-2">
-          <MiniStat
-            label="7d avg wt"
-            value={
-              preview.weight_trend.seven_day_avg != null
-                ? `${preview.weight_trend.seven_day_avg.toFixed(1)} kg`
-                : "—"
-            }
-          />
-          <MiniStat
-            label="Avg kcal"
-            value={preview.calorie_avg_7d > 0 ? `${Math.round(preview.calorie_avg_7d)}` : "—"}
-          />
-          <MiniStat
-            label="Avg protein"
-            value={preview.protein_avg_7d > 0 ? `${Math.round(preview.protein_avg_7d)}g` : "—"}
-          />
+        <div className="flex items-end gap-3">
+          <div className="flex flex-col gap-2 flex-1">
+            <MiniStat
+              label="Avg kcal"
+              value={preview.calorie_avg_7d > 0 ? `${Math.round(preview.calorie_avg_7d)}` : "—"}
+            />
+            <MiniStat
+              label="Avg protein"
+              value={preview.protein_avg_7d > 0 ? `${Math.round(preview.protein_avg_7d)}g` : "—"}
+            />
+          </div>
+          {weightHistory7d.length >= 2 && (
+            <div className="flex flex-col items-end">
+              <WeightSparkline data={weightHistory7d} />
+              <p className="font-mono text-[9px] text-zinc-400 mt-0.5">7-day weight</p>
+            </div>
+          )}
         </div>
       </div>
     </Link>

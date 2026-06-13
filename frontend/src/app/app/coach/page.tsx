@@ -205,7 +205,11 @@ export default function CoachPage() {
           </div>
         ) : daily ? (
           <CoachingContent coaching={daily} dark />
-        ) : null}
+        ) : (
+          <p className="font-mono text-[12px] text-center py-6" style={{ color: "rgba(255,255,255,0.45)" }}>
+            Complete your first mission to unlock daily coaching.
+          </p>
+        )}
       </div>
 
       {/* Weekly Review Card */}
