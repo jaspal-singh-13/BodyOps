@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BodyOps · Steps Logging Design</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #1d1c1a;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #1d1c1a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 48px;
+      padding: 48px 24px;
+    }
+    .label-section {
+      font-family: ui-monospace, monospace;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: #71717a;
+      margin-bottom: 12px;
+    }
+    .phone {
+      width: 390px;
+      background: #f4f4f0;
+      border-radius: 40px;
+      overflow: hidden;
+      box-shadow: 0 32px 80px rgba(0,0,0,0.6);
+    }
+    .phone-inner {
+      background: #f4f4f0;
+      min-height: 844px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    .page-header {
+      padding: 20px 20px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .page-title {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+    .page-date {
+      font-family: ui-monospace, monospace;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #71717a;
+      margin-top: 2px;
+    }
+    .btn-log {
+      height: 36px;
+      padding: 0 16px;
+      border-radius: 12px;
+      background: #1d1c1a;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: #fff;
+      border: 1px solid #e4e3df;
+      border-radius: 20px;
+      margin: 0 16px 12px;
+      padding: 18px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .card-label {
+      font-family: ui-monospace, monospace;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #a1a1aa;
+      margin-bottom: 14px;
+    }
+
+    /* ── Hero steps ring ── */
+    .hero-card {
+      background: #1d1c1a;
+      border: none;
+    }
+    .steps-ring-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+      padding: 8px 0 4px;
+    }
+    .ring-container {
+      position: relative;
+      width: 180px;
+      height: 180px;
+    }
+    .ring-container svg {
+      transform: rotate(-90deg);
+    }
+    .ring-center {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .ring-steps {
+      font-family: ui-monospace, monospace;
+      font-size: 38px;
+      font-weight: 800;
+      color: #fff;
+      line-height: 1;
+      letter-spacing: -1px;
+    }
+    .ring-unit {
+      font-family: ui-monospace, monospace;
+      font-size: 11px;
+      color: rgba(255,255,255,0.45);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-top: 4px;
+    }
+    .steps-meta-row {
+      display: flex;
+      gap: 24px;
+      margin-top: 16px;
+      justify-content: center;
+    }
+    .steps-meta-item {
+      text-align: center;
+    }
+    .steps-meta-value {
+      font-family: ui-monospace, monospace;
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+    }
+    .steps-meta-label {
+      font-family: ui-monospace, monospace;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.4);
+      margin-top: 3px;
+    }
+    .hero-card .card-label {
+      color: rgba(255,255,255,0.4);
+    }
+    .goal-bar-row {
+      margin-top: 16px;
+      padding-top: 14px;
+      border-top: 1px solid rgba(255,255,255,0.1);
+    }
+    .goal-bar-track {
+      height: 6px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .goal-bar-fill {
+      height: 100%;
+      background: #fff;
+      border-radius: 99px;
+      width: 62%;
+    }
+    .goal-bar-labels {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 6px;
+    }
+    .goal-bar-labels span {
+      font-family: ui-monospace, monospace;
+      font-size: 9.5px;
+      color: rgba(255,255,255,0.4);
+    }
+
+    /* ── 7-day bar chart ── */
+    .bar-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      height: 72px;
+      padding-bottom: 2px;
+    }
+    .bar-col {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      height: 100%;
+      justify-content: flex-end;
+    }
+    .bar {
+      width: 100%;
+      background: #e4e3df;
+      border-radius: 5px 5px 0 0;
+      transition: background 0.15s;
+    }
+    .bar.today { background: #1d1c1a; }
+    .bar.above-goal { background: #16a34a; }
+    .bar-day {
+      font-family: ui-monospace, monospace;
+      font-size: 9px;
+      color: #a1a1aa;
+    }
+    .bar-day.today { color: #1d1c1a; font-weight: 700; }
+
+    /* ── Source pills ── */
+    .source-pills {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 4px;
+    }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 11px;
+      border-radius: 99px;
+      border: 1px solid #e4e3df;
+      font-size: 12px;
+      font-weight: 500;
+      color: #3f3f46;
+      background: #fafaf9;
+    }
+    .pill-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+    }
+
+    /* ── Log modal ── */
+    .modal-sheet {
+      background: #fff;
+      border: 1px solid #e4e3df;
+      border-radius: 20px;
+      margin: 0 16px 12px;
+      padding: 18px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .modal-title {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: #1d1c1a;
+    }
+    .input-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #f4f4f0;
+      border-radius: 14px;
+      padding: 12px 16px;
+      margin-bottom: 14px;
+    }
+    .step-input-val {
+      font-family: ui-monospace, monospace;
+      font-size: 32px;
+      font-weight: 700;
+      color: #1d1c1a;
+      flex: 1;
+    }
+    .step-input-unit {
+      font-family: ui-monospace, monospace;
+      font-size: 13px;
+      color: #a1a1aa;
+    }
+    .quick-chips {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .quick-chip {
+      flex: 1;
+      padding: 8px;
+      text-align: center;
+      background: #f4f4f0;
+      border-radius: 12px;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #3f3f46;
+      cursor: pointer;
+    }
+    .btn-primary {
+      width: 100%;
+      height: 48px;
+      background: #1d1c1a;
+      color: #fff;
+      border: none;
+      border-radius: 14px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* ── Source options ── */
+    .source-option {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid #e4e3df;
+      margin-bottom: 8px;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .source-option:last-child { margin-bottom: 0; }
+    .source-icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+    .source-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: #1d1c1a;
+    }
+    .source-desc {
+      font-size: 11.5px;
+      color: #71717a;
+      margin-top: 2px;
+    }
+    .source-badge {
+      margin-left: auto;
+      font-size: 10px;
+      font-weight: 600;
+      font-family: ui-monospace, monospace;
+      padding: 3px 8px;
+      border-radius: 99px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .badge-auto { background: #dcfce7; color: #16a34a; }
+    .badge-manual { background: #f4f4f0; color: #71717a; }
+    .badge-soon { background: #fef9c3; color: #a16207; }
+
+    /* ── Dashboard integration snippet ── */
+    .dashboard-card {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      background: #f4f4f0;
+      border-radius: 16px;
+      padding: 14px 16px;
+    }
+    .dash-icon {
+      width: 42px;
+      height: 42px;
+      background: #1d1c1a;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .dash-main {
+      flex: 1;
+    }
+    .dash-label {
+      font-family: ui-monospace, monospace;
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #a1a1aa;
+    }
+    .dash-value {
+      font-family: ui-monospace, monospace;
+      font-size: 22px;
+      font-weight: 800;
+      color: #1d1c1a;
+      line-height: 1.1;
+      margin-top: 2px;
+    }
+    .dash-sub {
+      font-size: 11px;
+      color: #71717a;
+      margin-top: 1px;
+    }
+    .dash-ring {
+      flex-shrink: 0;
+    }
+
+    /* ── Sections ── */
+    .section { display: flex; flex-direction: column; align-items: center; }
+    .divider {
+      width: 1px;
+      height: 48px;
+      background: #3f3f3f;
+      margin: 0 auto;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ══════════════════════════════════════════════
+       SCREEN 1 — Steps Page (with data)
+  ══════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="label-section">Screen 1 — Steps · Logged day</div>
+    <div class="phone">
+      <div class="phone-inner">
+        <div class="page-header">
+          <div>
+            <div class="page-title">Steps</div>
+            <div class="page-date">Monday, June 23, 2026 · Day 16</div>
+          </div>
+          <button class="btn-log">
+            <svg width="13" height="13" fill="none" stroke="#fff" stroke-width="2.2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+            Log steps
+          </button>
+        </div>
+
+        <!-- Hero ring card -->
+        <div class="card hero-card">
+          <div class="card-label">Today · Steps</div>
+          <div class="steps-ring-wrap">
+            <div class="ring-container">
+              <svg width="180" height="180" viewBox="0 0 180 180">
+                <!-- track -->
+                <circle cx="90" cy="90" r="76" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="14"/>
+                <!-- fill — 62% of circumference = 0.62 * 2π * 76 ≈ 296 -->
+                <circle cx="90" cy="90" r="76" fill="none" stroke="#fff" stroke-width="14"
+                  stroke-dasharray="296 478" stroke-linecap="round"/>
+              </svg>
+              <div class="ring-center">
+                <span class="ring-steps">7,430</span>
+                <span class="ring-unit">steps</span>
+              </div>
+            </div>
+            <div class="steps-meta-row">
+              <div class="steps-meta-item">
+                <div class="steps-meta-value">4.8</div>
+                <div class="steps-meta-label">km</div>
+              </div>
+              <div class="steps-meta-item">
+                <div class="steps-meta-value">312</div>
+                <div class="steps-meta-label">kcal</div>
+              </div>
+              <div class="steps-meta-item">
+                <div class="steps-meta-value">58 min</div>
+                <div class="steps-meta-label">active</div>
+              </div>
+            </div>
+          </div>
+          <div class="goal-bar-row">
+            <div class="goal-bar-track">
+              <div class="goal-bar-fill"></div>
+            </div>
+            <div class="goal-bar-labels">
+              <span>0</span>
+              <span>7,430 / 12,000 goal</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 7-day bar chart -->
+        <div class="card">
+          <div class="card-label">Last 7 days</div>
+          <div class="bar-chart">
+            <div class="bar-col">
+              <div class="bar above-goal" style="height:62px"></div>
+              <div class="bar-day">M</div>
+            </div>
+            <div class="bar-col">
+              <div class="bar" style="height:44px"></div>
+              <div class="bar-day">T</div>
+            </div>
+            <div class="bar-col">
+              <div class="bar above-goal" style="height:68px"></div>
+              <div class="bar-day">W</div>
+            </div>
+            <div class="bar-col">
+              <div class="bar" style="height:30px"></div>
+              <div class="bar-day">T</div>
+            </div>
+            <div class="bar-col">
+              <div class="bar above-goal" style="height:72px"></div>
+              <div class="bar-day">F</div>
+            </div>
+            <div class="bar-col">
+              <div class="bar" style="height:20px"></div>
+              <div class="bar-day">S</div>
+            </div>
+            <div class="bar-col">
+              <div class="bar today" style="height:42px"></div>
+              <div class="bar-day today">Today</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid #f0efeb">
+            <div style="flex:1;background:#f4f4f0;border-radius:12px;padding:10px 12px">
+              <div style="font-family:ui-monospace,monospace;font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#a1a1aa">7-day avg</div>
+              <div style="font-family:ui-monospace,monospace;font-size:18px;font-weight:800;color:#1d1c1a;margin-top:2px">9,240</div>
+            </div>
+            <div style="flex:1;background:#dcfce7;border-radius:12px;padding:10px 12px">
+              <div style="font-family:ui-monospace,monospace;font-size:9px;font-weight:700;letter-spacing:0.12em;text-transform:uppercase;color:#16a34a">Goal hit</div>
+              <div style="font-family:ui-monospace,monospace;font-size:18px;font-weight:800;color:#16a34a;margin-top:2px">4/7 days</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Data source -->
+        <div class="card">
+          <div class="card-label">Source</div>
+          <div class="source-pills">
+            <div class="pill">
+              <div class="pill-dot" style="background:#1d1c1a"></div>
+              Manual entry
+            </div>
+            <div class="pill">
+              <div class="pill-dot" style="background:#3b82f6"></div>
+              Telegram import
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ══════════════════════════════════════════════
+       SCREEN 2 — Log Steps bottom sheet
+  ══════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="label-section">Screen 2 — Log Steps · Manual entry sheet</div>
+    <div class="phone">
+      <div class="phone-inner" style="background:rgba(0,0,0,0.3);justify-content:flex-end">
+        <!-- dim overlay suggestion -->
+        <div style="flex:1;background:rgba(0,0,0,0.15);border-radius:0"></div>
+        <div style="background:#fff;border-radius:24px 24px 0 0;padding:20px 20px 36px">
+          <div style="width:36px;height:4px;background:#e4e3df;border-radius:99px;margin:0 auto 20px"></div>
+          <div class="modal-title">Log today's steps</div>
+
+          <div class="input-row">
+            <div class="step-input-val">8,500</div>
+            <div class="step-input-unit">steps</div>
+          </div>
+
+          <div class="quick-chips">
+            <div class="quick-chip">5,000</div>
+            <div class="quick-chip">8,000</div>
+            <div class="quick-chip">10,000</div>
+            <div class="quick-chip">12,000</div>
+          </div>
+
+          <div style="font-family:ui-monospace,monospace;font-size:9.5px;font-weight:700;letter-spacing:0.13em;text-transform:uppercase;color:#a1a1aa;margin-bottom:8px">≈ estimate</div>
+          <div class="quick-chips" style="margin-bottom:16px">
+            <div class="quick-chip" style="background:#f4f4f0">Sedentary<br><span style="font-size:10px;color:#a1a1aa">~3k</span></div>
+            <div class="quick-chip" style="background:#f4f4f0">Light walk<br><span style="font-size:10px;color:#a1a1aa">~6k</span></div>
+            <div class="quick-chip" style="background:#f4f4f0">Active day<br><span style="font-size:10px;color:#a1a1aa">~10k</span></div>
+          </div>
+
+          <button class="btn-primary">Save steps</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ══════════════════════════════════════════════
+       SCREEN 3 — Step Sources settings
+  ══════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="label-section">Screen 3 — Step Sources · Connection options</div>
+    <div class="phone">
+      <div class="phone-inner">
+        <div class="page-header" style="padding-bottom:4px">
+          <div>
+            <div class="page-title">Step Sources</div>
+            <div class="page-date">How your steps are logged</div>
+          </div>
+        </div>
+
+        <div style="padding:0 16px">
+          <div class="source-option">
+            <div class="source-icon" style="background:#f4f4f0">✏️</div>
+            <div>
+              <div class="source-name">Manual entry</div>
+              <div class="source-desc">Type your steps directly in the app</div>
+            </div>
+            <div class="source-badge badge-auto">Active</div>
+          </div>
+
+          <div class="source-option">
+            <div class="source-icon" style="background:#eff6ff">📱</div>
+            <div>
+              <div class="source-name">Telegram bot</div>
+              <div class="source-desc">Send "8500 steps" to your BodyOps bot</div>
+            </div>
+            <div class="source-badge badge-auto">Active</div>
+          </div>
+
+          <div class="source-option">
+            <div class="source-icon" style="background:#f0fdf4">🤖</div>
+            <div>
+              <div class="source-name">Screenshot AI read</div>
+              <div class="source-desc">Send a screenshot from Apple Health,<br>Fitbit, or Samsung Health — AI reads it</div>
+            </div>
+            <div class="source-badge badge-manual">Manual</div>
+          </div>
+
+          <div class="source-option" style="opacity:0.55">
+            <div class="source-icon" style="background:#fef3c7">⌚</div>
+            <div>
+              <div class="source-name">Google Fit</div>
+              <div class="source-desc">Auto-sync via OAuth — requires Google account</div>
+            </div>
+            <div class="source-badge badge-soon">Soon</div>
+          </div>
+
+          <div class="source-option" style="opacity:0.55">
+            <div class="source-icon" style="background:#fdf4ff">🏃</div>
+            <div>
+              <div class="source-name">Garmin / Fitbit</div>
+              <div class="source-desc">Webhook push via Health API</div>
+            </div>
+            <div class="source-badge badge-soon">Soon</div>
+          </div>
+
+          <!-- PWA accelerometer note -->
+          <div style="margin-top:12px;background:#f4f4f0;border-radius:16px;padding:14px 16px">
+            <div style="font-family:ui-monospace,monospace;font-size:9.5px;font-weight:700;letter-spacing:0.13em;text-transform:uppercase;color:#a1a1aa;margin-bottom:6px">📡 Browser step detection</div>
+            <div style="font-size:12.5px;color:#52525b;line-height:1.5">
+              Browser <code style="background:#e4e3df;padding:1px 5px;border-radius:4px;font-size:11px">DeviceMotion</code> API can estimate steps from your phone's accelerometer — no app install needed. Accuracy: ~85% vs dedicated pedometer. Works on Safari iOS &amp; Chrome Android.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ══════════════════════════════════════════════
+       SCREEN 4 — Dashboard widget (integration)
+  ══════════════════════════════════════════════ -->
+  <div class="section">
+    <div class="label-section">Screen 4 — Dashboard integration card</div>
+    <div class="phone">
+      <div class="phone-inner" style="padding:20px 16px">
+        <div class="card">
+          <div class="card-label">Today · Steps</div>
+          <div class="dashboard-card">
+            <div class="dash-icon">🦶</div>
+            <div class="dash-main">
+              <div class="dash-label">Steps today</div>
+              <div class="dash-value">7,430</div>
+              <div class="dash-sub">62% of 12,000 goal</div>
+            </div>
+            <div class="dash-ring">
+              <svg width="48" height="48" viewBox="0 0 48 48" style="transform:rotate(-90deg)">
+                <circle cx="24" cy="24" r="19" fill="none" stroke="#e4e3df" stroke-width="5"/>
+                <circle cx="24" cy="24" r="19" fill="none" stroke="#1d1c1a" stroke-width="5"
+                  stroke-dasharray="74 119" stroke-linecap="round"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+        <!-- "empty" variant below -->
+        <div style="font-family:ui-monospace,monospace;font-size:10px;font-weight:700;letter-spacing:0.13em;text-transform:uppercase;color:#71717a;margin:16px 0 8px;padding:0 2px">Empty state variant</div>
+        <div class="card" style="border:1.5px dashed #e4e3df">
+          <div class="card-label" style="margin-bottom:10px">Today · Steps</div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <div class="dash-icon" style="background:#f4f4f0;font-size:18px">🦶</div>
+            <div>
+              <div style="font-size:14px;font-weight:600;color:#3f3f46">No steps logged yet</div>
+              <div style="font-size:12px;color:#a1a1aa;margin-top:2px">Tap to log or connect a source</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

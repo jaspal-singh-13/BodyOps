@@ -34,6 +34,7 @@ from .routers.coach import router as coach_router
 from .routers.meals import router as meals_router
 from .routers.progress import router as progress_router
 from .routers.settings import router as settings_router
+from .routers.steps import router as steps_router
 from .routers.tasks import router as tasks_router
 from .routers.weight import router as weight_router
 from .routers.workouts import router as workout_router
@@ -55,7 +56,7 @@ REQUIRED_ENV_VARS = [
 # so we log a warning rather than blocking startup.
 AGENT_ENV_VARS = ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_DEPLOYMENT"]
 
-VERSION = "0.19.2"
+VERSION = "0.20.0"
 
 
 @asynccontextmanager
@@ -173,6 +174,7 @@ async def log_requests(request: Request, call_next):
 
 app.include_router(settings_router)
 app.include_router(weight_router)
+app.include_router(steps_router)
 app.include_router(workout_router)
 app.include_router(meals_router)
 app.include_router(tasks_router)
