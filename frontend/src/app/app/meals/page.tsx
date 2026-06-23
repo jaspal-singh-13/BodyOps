@@ -1389,7 +1389,7 @@ function AnalysisScreen({
       </div>
 
       {/* Sticky confirm bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-zinc-200 px-4 pt-3 pb-5 flex gap-2.5 md:relative md:bottom-auto md:border-none">
+      <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-zinc-200 px-4 pt-3 pb-5 flex gap-2.5 md:relative md:bottom-auto md:border-none">
         <select
           value={mealType}
           onChange={(e) => onMealTypeChange(e.target.value as MealType)}
