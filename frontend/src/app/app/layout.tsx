@@ -16,7 +16,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   Home, Utensils, Dumbbell, TrendingUp, Scale, MessageCircle,
-  CheckSquare, Sparkles, BarChart2, Settings,
+  CheckSquare, Sparkles, BarChart2, Settings, Footprints,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { ChatDrawer } from "@/components/ChatDrawer";
@@ -25,6 +25,7 @@ import { RefreshProvider } from "@/lib/refresh";
 const navItems = [
   { href: "/app", label: "Home", icon: Home },
   { href: "/app/weight", label: "Weight", icon: Scale },
+  { href: "/app/steps", label: "Steps", icon: Footprints },
   { href: "/app/meals", label: "Meals", icon: Utensils },
   { href: "/app/workouts", label: "Workouts", icon: Dumbbell },
   { href: "/app/missions", label: "Missions", icon: CheckSquare },
@@ -36,12 +37,12 @@ const navItemsExtra = [
   { href: "/app/settings", label: "Settings", icon: Settings },
 ];
 
-// Mobile nav: 5 core tabs + Progress replaces the old hardcoded Coach chat tab
+// Mobile nav: 5 core tabs — Missions moved to dashboard card, Steps replaces it
 const mobileNavItems = [
   { href: "/app", label: "Home", icon: Home },
   { href: "/app/weight", label: "Weight", icon: Scale },
   { href: "/app/meals", label: "Meals", icon: Utensils },
-  { href: "/app/missions", label: "Missions", icon: CheckSquare },
+  { href: "/app/steps", label: "Steps", icon: Footprints },
   { href: "/app/progress", label: "Progress", icon: BarChart2 },
 ];
 

@@ -22,6 +22,7 @@ import {
   Circle,
   Sparkles,
   TrendingDown,
+  Footprints,
 } from "lucide-react";
 import {
   LineChart,
@@ -112,6 +113,11 @@ interface ProgressPreview {
   weight_trend: { seven_day_avg: number | null; total_loss_kg: number | null };
 }
 
+interface StepsHistoryItem {
+  date: string;
+  steps: number;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -153,6 +159,7 @@ export default function DashboardPage() {
   const [weightLoggedToday, setWeightLoggedToday] = useState(false);
   const [coachDaily, setCoachDaily] = useState<CoachDaily | null>(null);
   const [progressPreview, setProgressPreview] = useState<ProgressPreview | null>(null);
+  const [todaySteps, setTodaySteps] = useState<number | null>(null);
   const [greeting, setGreeting] = useState("Good morning");
 
   const fetchAll = useCallback(() => {
@@ -226,6 +233,13 @@ export default function DashboardPage() {
 
     apiFetch<ProgressPreview>("/progress/summary", { headers: { "X-Timezone": tz } })
       .then(setProgressPreview)
+      .catch(() => {});
+
+    apiFetch<StepsHistoryItem[]>("/steps/history")
+      .then((h) => {
+        const entry = h.find((s) => s.date === today);
+        setTodaySteps(entry?.steps ?? null);
+      })
       .catch(() => {});
   }, [router]);
 
@@ -348,6 +362,7 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-4">
           <CoachBriefingCard coach={coachDaily} />
           <TodayWorkoutCard workout={todayWorkout} />
+          <StepsDashCard steps={todaySteps} />
           {progressPreview && (
             <WeeklyStatsCard preview={progressPreview} />
           )}
@@ -869,6 +884,59 @@ function WeeklyStatsCard({ preview }: { preview: ProgressPreview }) {
           </div>
         </div>
         <p className="font-mono text-[10px] text-zinc-400 mt-2 text-right">View full progress →</p>
+      </div>
+    </Link>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Steps Dashboard Card
+// ---------------------------------------------------------------------------
+
+const _STEPS_GOAL = 10_000;
+
+function StepsDashCard({ steps }: { steps: number | null }) {
+  const pct = steps != null ? Math.min(100, (steps / _STEPS_GOAL) * 100) : 0;
+  const R = 19;
+  const circ = 2 * Math.PI * R;
+  const fill = (pct / 100) * circ;
+
+  return (
+    <Link href="/app/steps">
+      <div className="bg-white rounded-2xl border border-zinc-100 shadow-sm p-4 cursor-pointer hover:bg-zinc-50 transition-colors">
+        <p className="font-mono text-[10.5px] font-semibold tracking-widest text-zinc-400 uppercase mb-3">
+          Today · Steps
+        </p>
+        {steps != null ? (
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-zinc-50 flex items-center justify-center shrink-0">
+              <Footprints size={18} className="text-zinc-700" />
+            </div>
+            <div className="flex-1">
+              <p className="font-mono text-[18px] font-bold text-zinc-900 leading-none">
+                {steps.toLocaleString()}
+              </p>
+              <p className="font-mono text-[10px] text-zinc-400 mt-0.5">
+                {Math.round(pct)}% of {_STEPS_GOAL.toLocaleString()} goal
+              </p>
+            </div>
+            <svg width={48} height={48} viewBox="0 0 48 48" style={{ transform: "rotate(-90deg)", flexShrink: 0 }}>
+              <circle cx={24} cy={24} r={R} fill="none" stroke="#e4e3df" strokeWidth={5} />
+              <circle cx={24} cy={24} r={R} fill="none" stroke="#1d1c1a" strokeWidth={5}
+                strokeDasharray={`${fill} ${circ - fill}`} strokeLinecap="round" />
+            </svg>
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-zinc-50 flex items-center justify-center shrink-0">
+              <Footprints size={18} className="text-zinc-400" />
+            </div>
+            <div>
+              <p className="text-[13px] font-semibold text-zinc-500">No steps logged yet</p>
+              <p className="text-[11px] text-zinc-400 mt-0.5">Tap to log today&apos;s steps</p>
+            </div>
+          </div>
+        )}
       </div>
     </Link>
   );
