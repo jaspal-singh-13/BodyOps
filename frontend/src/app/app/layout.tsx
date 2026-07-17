@@ -16,7 +16,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
   Home, Utensils, Dumbbell, TrendingUp, Scale, MessageCircle,
-  CheckSquare, Sparkles, BarChart2, Settings, Footprints,
+  CheckSquare, Sparkles, BarChart2, Settings, Footprints, Menu, X,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { ChatDrawer } from "@/components/ChatDrawer";
@@ -49,6 +49,7 @@ const mobileNavItems = [
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [chatOpen, setChatOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [userName, setUserName] = useState<string>("");
 
   useEffect(() => {
@@ -130,6 +131,96 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <main className="flex-1 overflow-y-auto pb-20 md:pb-0">{children}</main>
+
+      {/* Mobile hamburger trigger — fixed top-left, hidden on desktop */}
+      <button
+        onClick={() => setMenuOpen(true)}
+        className="md:hidden fixed top-4 left-4 z-40 p-2 rounded-lg bg-white border border-zinc-200 shadow-sm text-zinc-700 active:scale-95 transition-all"
+        aria-label="Open menu"
+      >
+        <Menu className="size-5" />
+      </button>
+
+      {/* Mobile side drawer */}
+      {menuOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="md:hidden fixed inset-0 bg-black/40 z-50"
+            onClick={() => setMenuOpen(false)}
+          />
+          {/* Drawer panel */}
+          <aside className="md:hidden fixed top-0 left-0 h-full w-64 bg-white z-50 flex flex-col p-4 shadow-xl">
+            <div className="flex items-center justify-between mb-4 px-1">
+              <h1 className="text-lg font-bold text-zinc-900">BodyOps</h1>
+              <button
+                onClick={() => setMenuOpen(false)}
+                className="p-1 rounded-lg text-zinc-500 hover:bg-zinc-100 transition-colors"
+                aria-label="Close menu"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            {/* Chat to log button */}
+            <div className="mb-4">
+              <button
+                onClick={() => { setMenuOpen(false); setChatOpen(true); }}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-zinc-900 text-white text-sm font-bold hover:bg-zinc-700 transition-colors"
+              >
+                <MessageCircle className="size-4" />
+                Chat to log
+              </button>
+            </div>
+
+            <nav className="flex flex-col gap-1 flex-1">
+              {navItems.map(({ href, label, icon: Icon }) => {
+                const active = pathname === href;
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setMenuOpen(false)}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      active ? "bg-zinc-100 text-zinc-900" : "text-zinc-600 hover:bg-zinc-100"
+                    }`}
+                  >
+                    <Icon className="size-4" />
+                    {label}
+                  </Link>
+                );
+              })}
+              <div className="my-1 border-t border-zinc-100" />
+              {navItemsExtra.map(({ href, label, icon: Icon }) => {
+                const active = pathname === href;
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    onClick={() => setMenuOpen(false)}
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      active ? "bg-zinc-100 text-zinc-900" : "text-zinc-600 hover:bg-zinc-100"
+                    }`}
+                  >
+                    <Icon className="size-4" />
+                    {label}
+                  </Link>
+                );
+              })}
+            </nav>
+
+            {/* User profile chip */}
+            {userName && (
+              <div className="px-3 py-2 flex items-center gap-2 mt-1">
+                <div className="w-7 h-7 rounded-full bg-zinc-900 flex items-center justify-center shrink-0">
+                  <span className="text-white text-[11px] font-bold">{initial}</span>
+                </div>
+                <span className="text-sm font-medium text-zinc-700 truncate">{userName}</span>
+              </div>
+            )}
+          </aside>
+        </>
+      )}
 
       {/* Mobile bottom nav — 5 tabs, no hardcoded Coach chat button */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-zinc-100 flex safe-bottom">
