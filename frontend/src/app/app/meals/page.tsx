@@ -3,12 +3,14 @@
 /**
  * Meals page — meal photo logging flow.
  *
- * 5 screens managed via local state, mirroring design/app/m-meals.jsx:
+ * Screens managed via local state, mirroring design/app/m-meals.jsx:
  *   list      — today's meals + nutrition summary + history
- *   camera    — full-bleed dark capture UI (file input → analyzing)
+ *   camera    — full-bleed dark capture UI (file input → review)
+ *   review    — photo preview + optional details before analyze
  *   analyzing — loading state while POST /meals/analyze runs
  *   analysis  — review / edit detected items, confirm
  *   detail    — single meal detail view
+ *   manual    — manual meal entry without a photo
  */
 
 import { Suspense, useEffect, useRef, useState } from "react";
@@ -102,7 +104,7 @@ interface MealRecord {
   items: DetectedItem[];
 }
 
-type Screen = "list" | "camera" | "analyzing" | "analysis" | "detail" | "manual";
+type Screen = "list" | "camera" | "review" | "analyzing" | "analysis" | "detail" | "manual";
 
 // ---------------------------------------------------------------------------
 // Page
@@ -132,9 +134,10 @@ function MealsPageInner() {
   const [mealRecords, setMealRecords] = useState<MealRecord[]>([]);
   const [selectedMeal, setSelectedMeal] = useState<MealRecord | null>(null);
 
-  // Camera / analyzing
+  // Camera / reviewing / analyzing
   const [capturedFile, setCapturedFile] = useState<File | null>(null);
   const [capturedPreviewUrl, setCapturedPreviewUrl] = useState<string | null>(null);
+  const [mealNotes, setMealNotes] = useState("");
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
 
   // Analysis screen
@@ -181,13 +184,18 @@ function MealsPageInner() {
   function handleFileCapture(file: File) {
     setCapturedFile(file);
     setCapturedPreviewUrl(URL.createObjectURL(file));
+    setMealNotes("");
     setAnalyzeError(null);
-    setScreen("analyzing");
+    setScreen("review");
   }
 
-  async function runAnalysis(file: File) {
+  async function runAnalysis(file: File, notes: string) {
     const formData = new FormData();
     formData.append("file", file);
+    const trimmed = notes.trim();
+    if (trimmed) {
+      formData.append("notes", trimmed);
+    }
     try {
       const res = await apiFetch<AnalyzeResponse>("/meals/analyze", {
         method: "POST",
@@ -199,7 +207,7 @@ function MealsPageInner() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Analysis failed";
       setAnalyzeError(msg);
-      setScreen("camera");
+      setScreen("review");
     }
   }
 
@@ -270,10 +278,26 @@ function MealsPageInner() {
     />;
   }
 
+  if (screen === "review" && capturedFile) {
+    return <ReviewScreen
+      previewUrl={capturedPreviewUrl}
+      notes={mealNotes}
+      error={analyzeError}
+      onNotesChange={setMealNotes}
+      onRetake={() => {
+        setAnalyzeError(null);
+        setScreen("camera");
+      }}
+      onAnalyze={() => setScreen("analyzing")}
+      onClose={() => setScreen("list")}
+    />;
+  }
+
   if (screen === "analyzing" && capturedFile) {
     return <AnalyzingScreen
       previewUrl={capturedPreviewUrl}
       file={capturedFile}
+      notes={mealNotes}
       onComplete={runAnalysis}
     />;
   }
@@ -1133,17 +1157,107 @@ function CameraScreen({
 }
 
 // ---------------------------------------------------------------------------
+// Review screen — photo preview + optional details before analyze
+// ---------------------------------------------------------------------------
+
+function ReviewScreen({
+  previewUrl,
+  notes,
+  error,
+  onNotesChange,
+  onRetake,
+  onAnalyze,
+  onClose,
+}: {
+  previewUrl: string | null;
+  notes: string;
+  error: string | null;
+  onNotesChange: (notes: string) => void;
+  onRetake: () => void;
+  onAnalyze: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col bg-zinc-50">
+      <div className="flex items-center justify-between px-4 pt-safe pt-4 pb-3 shrink-0">
+        <button
+          onClick={onClose}
+          className="w-[38px] h-[38px] rounded-full flex items-center justify-center bg-zinc-100"
+          aria-label="Close"
+        >
+          <X size={18} className="text-zinc-700" />
+        </button>
+        <span className="font-mono text-[11.5px] font-semibold tracking-widest text-zinc-500">
+          ADD DETAILS
+        </span>
+        <div className="w-[38px]" />
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-5 pb-6">
+        <div className="w-full max-w-sm mx-auto flex flex-col gap-5">
+          <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-zinc-200">
+            {previewUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={previewUrl}
+                alt="Captured meal"
+                className="w-full h-full object-cover"
+              />
+            ) : null}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-zinc-700">
+              Add details <span className="font-normal text-zinc-400">(optional)</span>
+            </label>
+            <textarea
+              value={notes}
+              onChange={(e) => onNotesChange(e.target.value)}
+              rows={3}
+              maxLength={500}
+              placeholder="e.g. grilled chicken ~200g, cooked in olive oil, no rice"
+              className="input resize-none min-h-[88px]"
+            />
+            <p className="text-xs text-zinc-400">
+              Ingredients, portions, or cooking oils help improve accuracy.
+            </p>
+          </div>
+
+          {error && (
+            <p className="text-sm text-red-500 font-mono">{error}</p>
+          )}
+        </div>
+      </div>
+
+      <div
+        className="px-5 pt-3 flex gap-3 shrink-0 border-t border-zinc-100 bg-white"
+        style={{ paddingBottom: "max(1.25rem, env(safe-area-inset-bottom, 1.25rem))" }}
+      >
+        <button onClick={onRetake} className="btn-outline flex-1 py-3">
+          Retake
+        </button>
+        <button onClick={onAnalyze} className="btn-primary flex-1 py-3">
+          Analyze
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Analyzing screen
 // ---------------------------------------------------------------------------
 
 function AnalyzingScreen({
   previewUrl,
   file,
+  notes,
   onComplete,
 }: {
   previewUrl: string | null;
   file: File;
-  onComplete: (file: File) => Promise<void>;
+  notes: string;
+  onComplete: (file: File, notes: string) => Promise<void>;
 }) {
   const [step, setStep] = useState(0);
   const steps = ["Detecting food items", "Estimating portions", "Calculating macros"];
@@ -1157,9 +1271,9 @@ function AnalyzingScreen({
       () => setStep((s) => Math.min(s + 1, steps.length - 1)),
       700
     );
-    onComplete(file).finally(() => clearInterval(interval));
+    onComplete(file, notes).finally(() => clearInterval(interval));
     return () => clearInterval(interval);
-  }, [file, onComplete, steps.length]);
+  }, [file, notes, onComplete, steps.length]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-50 p-7 gap-6">
