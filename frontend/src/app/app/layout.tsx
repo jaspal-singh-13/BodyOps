@@ -37,13 +37,13 @@ const navItemsExtra = [
   { href: "/app/settings", label: "Settings", icon: Settings },
 ];
 
-// Mobile nav: 5 core tabs — Missions moved to dashboard card, Steps replaces it
+// Mobile nav: Home · Weight · Meals · Workouts · Steps
 const mobileNavItems = [
   { href: "/app", label: "Home", icon: Home },
   { href: "/app/weight", label: "Weight", icon: Scale },
   { href: "/app/meals", label: "Meals", icon: Utensils },
+  { href: "/app/workouts", label: "Workouts", icon: Dumbbell },
   { href: "/app/steps", label: "Steps", icon: Footprints },
-  { href: "/app/progress", label: "Progress", icon: BarChart2 },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -149,6 +149,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           );
         })}
       </nav>
+
+      {/* Mobile chat FAB — opens ChatDrawer; hidden on desktop (sidebar button handles it) */}
+      <button
+        onClick={() => setChatOpen(true)}
+        className="md:hidden fixed bottom-20 right-4 flex items-center gap-2 px-4 py-2.5 rounded-full bg-zinc-900 text-white text-sm font-bold shadow-lg hover:bg-zinc-700 active:scale-95 transition-all z-40"
+        aria-label="Chat to log"
+      >
+        <MessageCircle className="size-4" />
+        Chat
+      </button>
 
       {/* Chat drawer — mounted here so it persists across page navigations */}
       <ChatDrawer open={chatOpen} onClose={() => setChatOpen(false)} />
