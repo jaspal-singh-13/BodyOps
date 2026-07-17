@@ -62,7 +62,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <RefreshProvider>
-    <div className="flex h-screen bg-zinc-50">
+    <div className="flex flex-col md:flex-row h-screen bg-zinc-50">
+      {/* Mobile top bar — hamburger + logo; hidden on desktop */}
+      <header className="md:hidden flex items-center gap-3 px-4 h-12 bg-white border-b border-zinc-100 shrink-0">
+        <button
+          onClick={() => setMenuOpen(true)}
+          className="p-1.5 rounded-lg text-zinc-700 hover:bg-zinc-100 active:scale-95 transition-all"
+          aria-label="Open menu"
+        >
+          <Menu className="size-5" />
+        </button>
+        <span className="text-base font-bold text-zinc-900">BodyOps</span>
+      </header>
+
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-52 bg-white border-r border-zinc-100 p-4 shrink-0">
         <div className="mb-4 px-3">
@@ -131,15 +143,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <main className="flex-1 overflow-y-auto pb-20 md:pb-0">{children}</main>
-
-      {/* Mobile hamburger trigger — fixed top-left, hidden on desktop */}
-      <button
-        onClick={() => setMenuOpen(true)}
-        className="md:hidden fixed top-4 left-4 z-40 p-2 rounded-lg bg-white border border-zinc-200 shadow-sm text-zinc-700 active:scale-95 transition-all"
-        aria-label="Open menu"
-      >
-        <Menu className="size-5" />
-      </button>
 
       {/* Mobile side drawer */}
       {menuOpen && (

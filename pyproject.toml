@@ -1,6 +1,6 @@
 [project]
 name = "bodyops"
-version = "0.21.2"
+version = "0.21.3"
 description = "BodyOps fitness tracking backend"
 readme = "README.md"
 requires-python = ">=3.12"
