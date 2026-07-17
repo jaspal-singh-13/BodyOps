@@ -214,6 +214,45 @@ class TestAnalyzeMeal:
         assert img_block["image_url"]["url"] == f"data:image/jpeg;base64,{expected_b64}"
 
     @pytest.mark.asyncio
+    async def test_notes_appended_to_user_prompt(self):
+        """Optional user notes are included in the vision user text."""
+        completion = _make_parse_result("Test", "med", [])
+        mock_client = _mock_client(completion)
+
+        with patch("api.services.meal_vision.get_async_client", return_value=mock_client):
+            from api.services.meal_vision import analyze_meal
+            await analyze_meal(
+                FAKE_JPEG,
+                "image/jpeg",
+                notes="  grilled chicken ~200g, olive oil  ",
+            )
+
+        call_kwargs = mock_client.beta.chat.completions.parse.call_args
+        messages = call_kwargs.kwargs["messages"]
+        user_content = next(m["content"] for m in messages if m["role"] == "user")
+        text_block = next(b for b in user_content if b["type"] == "text")
+        assert "grilled chicken ~200g, olive oil" in text_block["text"]
+        assert "User-provided details" in text_block["text"]
+
+    @pytest.mark.asyncio
+    async def test_empty_notes_keep_default_prompt(self):
+        """Blank notes leave the default vision prompt unchanged."""
+        completion = _make_parse_result("Test", "med", [])
+        mock_client = _mock_client(completion)
+
+        with patch("api.services.meal_vision.get_async_client", return_value=mock_client):
+            from api.services.meal_vision import analyze_meal
+            await analyze_meal(FAKE_JPEG, "image/jpeg", notes="   ")
+
+        call_kwargs = mock_client.beta.chat.completions.parse.call_args
+        messages = call_kwargs.kwargs["messages"]
+        user_content = next(m["content"] for m in messages if m["role"] == "user")
+        text_block = next(b for b in user_content if b["type"] == "text")
+        assert text_block["text"] == (
+            "Analyse this meal and return the structured nutrition breakdown."
+        )
+
+    @pytest.mark.asyncio
     async def test_png_mime_type_used_in_data_url(self):
         """PNG bytes produce a data:image/png;base64,… URL."""
         completion = _make_parse_result("Test", "med", [])

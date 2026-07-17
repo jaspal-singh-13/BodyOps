@@ -136,6 +136,22 @@ class TestPostMealsAnalyze:
         assert data["drive_url"] == DRIVE_URL
         assert "total" in data
 
+    def test_analyze_forwards_optional_notes(self, client, auth_headers):
+        mock_analyze = AsyncMock(return_value=ANALYZE_RESPONSE)
+        with (
+            patch("api.routers.meals.upload_meal_image", new_callable=AsyncMock, return_value=DRIVE_URL),
+            patch("api.routers.meals.analyze_meal", mock_analyze),
+        ):
+            resp = client.post(
+                "/meals/analyze",
+                files={"file": ("meal.jpg", io.BytesIO(b"JPEG"), "image/jpeg")},
+                data={"notes": "  2 eggs, olive oil  "},
+                headers=auth_headers,
+            )
+        assert resp.status_code == 200
+        mock_analyze.assert_awaited_once()
+        assert mock_analyze.await_args.kwargs["notes"] == "2 eggs, olive oil"
+
     def test_analyze_no_auth_returns_401(self, client):
         resp = client.post(
             "/meals/analyze",

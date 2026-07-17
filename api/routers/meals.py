@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import asyncio
 
-from fastapi import APIRouter, Depends, Header, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, Form, Header, HTTPException, UploadFile, status
 
 from ..auth import get_current_user
 from ..logger import get_logger
@@ -68,6 +68,7 @@ _ALLOWED_MIME = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/h
 @router.post("/analyze", response_model=AnalyzeMealResponse)
 async def analyze_meal_endpoint(
     file: UploadFile,
+    notes: str = Form(default=""),
     user_id: int = Depends(get_current_user),
     x_timezone: str = Header(default="UTC", alias="X-Timezone"),
 ) -> AnalyzeMealResponse:
@@ -80,6 +81,8 @@ async def analyze_meal_endpoint(
 
     Args:
         file: Multipart image file (JPEG, PNG, WebP, HEIC).
+        notes: Optional user details (ingredients, portions, oils) forwarded
+            into the vision prompt to improve accuracy.
 
     Returns:
         ``AnalyzeMealResponse`` with detected food items, macro estimates,
@@ -113,7 +116,7 @@ async def analyze_meal_endpoint(
         logger.warning("Drive upload failed (non-fatal): %s", exc)
 
     try:
-        result = await analyze_meal(data, mime, drive_url)
+        result = await analyze_meal(data, mime, drive_url, notes=notes.strip())
     except ValueError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

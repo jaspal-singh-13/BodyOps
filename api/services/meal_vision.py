@@ -82,6 +82,15 @@ Rules:
     (calories ≈ protein_g×4 + carbs_g×4 + fat_g×9).
   • If the image contains no food or is unrecognisable, return an empty items
     list with overall_confidence "low" and title "Unrecognised".
+  • The user may provide optional details (ingredients, portions, cooking oil,
+    etc.). Prefer those details when the photo is ambiguous, but still ground
+    the analysis in what is visible in the image.
+  * The user can give a list of ingredients, in which case you should analyze the ingredients.
+  • If the user provides details, use them to improve the accuracy of the analysis.
+  * The user can also give any details that are not food items, but are relevant to the meal.
+  * The user image can also contain a plate with the meal on it, in which case you should analyze the meal on the plate.
+  * user can also upload the image with a weighing scale, in which case you should analyze the weight of the meal.
+
 """
 
 
@@ -94,6 +103,7 @@ async def analyze_meal(
     data: bytes,
     mime_type: str,
     drive_url: str = "",
+    notes: str = "",
 ) -> AnalyzeMealResponse:
     """
     Analyse a meal photo and return a structured macro breakdown.
@@ -108,6 +118,8 @@ async def analyze_meal(
         drive_url: Optional Drive URL stored in the response for later use
             (e.g. displaying the photo in the meal history).  Defaults to ``""``
             if the Drive upload was skipped or failed.
+        notes: Optional user-provided details (ingredients, portions, oils)
+            appended to the vision prompt to improve accuracy.
 
     Returns:
         ``AnalyzeMealResponse`` with detected items, totals, and drive URL.
@@ -117,16 +129,25 @@ async def analyze_meal(
         openai.APIError: On OpenAI / Azure API failure.
     """
     deployment = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "?")
+    notes = (notes or "").strip()
     logger.info(
-        "Vision analysis start deployment=%s mime=%s bytes=%d",
+        "Vision analysis start deployment=%s mime=%s bytes=%d has_notes=%s",
         deployment,
         mime_type,
         len(data),
+        bool(notes),
     )
     t0 = time.perf_counter()
 
     b64 = base64.b64encode(data).decode("utf-8")
     data_url = f"data:{mime_type};base64,{b64}"
+
+    user_text = "Analyse this meal and return the structured nutrition breakdown."
+    if notes:
+        user_text += (
+            "\n\nUser-provided details (use these to improve accuracy; "
+            f"still verify against the image):\n{notes}"
+        )
 
     client = get_async_client()
 
@@ -144,7 +165,7 @@ async def analyze_meal(
                     },
                     {
                         "type": "text",
-                        "text": "Analyse this meal and return the structured nutrition breakdown.",
+                        "text": user_text,
                     },
                 ],
             },
